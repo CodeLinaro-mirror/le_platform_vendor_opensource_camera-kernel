@@ -3016,6 +3016,10 @@ static int cam_ife_csid_hw_ver2_config_path_data(
 		path_cfg->csid_out_unpack_msb = cam_ife_csid_hw_ver2_need_unpack_mipi(csid_hw,
 			reserve, path_reg, path_cfg->out_format);
 
+		if (csid_reg->path_reg[res->res_id]->capabilities &
+			CAM_IFE_CSID_CAP_YUV_CHROMA_CONVERSION)
+			path_cfg->yuv_chroma_conversion_en =
+				reserve->in_port->yuv_chroma_conversion_en;
 		/*
 		 * if csid gives unpacked msb out, packing needs to be done at
 		 * WM side if needed, based on the format the decision is
@@ -3749,6 +3753,11 @@ static int cam_ife_csid_ver2_init_config_rdi_path(
 		cam_io_w_mb(val, mem_base +
 			path_reg->err_recovery_cfg0_addr);
 	}
+
+	/*Program the reg to  convert the chroma components from YUV422 to YUV420*/
+	if (path_cfg->yuv_chroma_conversion_en)
+		cam_io_w_mb(cmn_reg->yuv_chroma_conversion_enable_val, mem_base +
+			path_reg->yuv_chroma_conversion_addr);
 
 	if (path_cfg->sfe_shdr ||
 		(csid_hw->flags.rdi_lcr_en &&

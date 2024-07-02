@@ -448,6 +448,7 @@ static struct cam_ife_csid_ver2_common_reg_info
 	.only_master_rup                              = 1,
 	.phy_sel_base_idx                             = 1,
 	.camif_irq_support                            = true,
+	.yuv_chroma_conversion_enable_val             = 0x8,
 };
 
 static struct cam_ife_csid_ver2_csi2_rx_reg_info
@@ -851,7 +852,8 @@ static struct cam_ife_csid_ver2_path_reg_info
 		.pix_drop_period_addr       = 0x65C,
 		.line_drop_pattern_addr     = 0x660,
 		.line_drop_period_addr      = 0x664,
-		.debug_halt_status_addr     = 0x668,
+		.yuv_chroma_conversion_addr = 0x668,
+		.debug_halt_status_addr     = 0x66C,
 		.debug_misr_val0_addr       = 0x670,
 		.debug_misr_val1_addr       = 0x674,
 		.debug_misr_val2_addr       = 0x678,
@@ -887,6 +889,7 @@ static struct cam_ife_csid_ver2_path_reg_info
 		.debug_frame_freeze_crc     = 0x6F8,
 
 		/* configurations */
+		.capabilities                   = CAM_IFE_CSID_CAP_YUV_CHROMA_CONVERSION,
 		.resume_frame_boundary          = 1,
 		.overflow_ctrl_en               = 1,
 		.overflow_ctrl_mode_val         = 0x8,
@@ -948,7 +951,7 @@ static struct cam_ife_csid_ver2_path_reg_info
 		.pix_drop_period_addr       = 0x75C,
 		.line_drop_pattern_addr     = 0x760,
 		.line_drop_period_addr      = 0x764,
-		.debug_halt_status_addr     = 0x768,
+		.debug_halt_status_addr     = 0x76C,
 		.debug_misr_val0_addr       = 0x770,
 		.debug_misr_val1_addr       = 0x774,
 		.debug_misr_val2_addr       = 0x778,
@@ -1045,7 +1048,8 @@ static struct cam_ife_csid_ver2_path_reg_info
 		.pix_drop_period_addr       = 0x85C,
 		.line_drop_pattern_addr     = 0x860,
 		.line_drop_period_addr      = 0x864,
-		.debug_halt_status_addr     = 0x868,
+		.yuv_chroma_conversion_addr = 0x868,
+		.debug_halt_status_addr     = 0x86C,
 		.debug_misr_val0_addr       = 0x870,
 		.debug_misr_val1_addr       = 0x874,
 		.debug_misr_val2_addr       = 0x878,
@@ -1081,6 +1085,7 @@ static struct cam_ife_csid_ver2_path_reg_info
 		.debug_frame_freeze_crc     = 0x8F8,
 
 		/* configurations */
+		.capabilities                   = CAM_IFE_CSID_CAP_YUV_CHROMA_CONVERSION,
 		.resume_frame_boundary          = 1,
 		.overflow_ctrl_en               = 1,
 		.overflow_ctrl_mode_val         = 0x8,

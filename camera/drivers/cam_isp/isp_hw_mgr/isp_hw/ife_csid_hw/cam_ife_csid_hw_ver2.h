@@ -253,50 +253,51 @@ struct cam_ife_csid_ver2_rup_aup_mask {
 /*
  * struct cam_ife_csid_ver2_path_cfg: place holder for path parameters
  *
- * @error_ts:               Error timestamp
- * @sof_ts:                 SOF timestamp
- * @epoch_ts:               Epoch timestamp
- * @eof_ts:                 EOF timestamp
- * @cid:                    cid value for path
- * @path_format:            Array of Path format which contains format
- *                          info i.e Decode format, Packing format etc
- * @sec_evt_config:         Secondary event config from HW mgr for a given path
- * @in_format:              Array of input format which contains format type
- * @out_format:             output format
- * @start_pixel:            start pixel for horizontal crop
- * @end_pixel:              end pixel for horizontal  crop
- * @start_line:             start line for vertical crop
- * @end_line:               end line for vertical crop
- * @width:                  width of incoming data
- * @height:                 height of incoming data
- * @master_idx:             master idx
- * @horizontal_bin:         horizontal binning enable/disable on path
- * @vertical_bin:           vertical binning enable/disable on path
- * @qcfa_bin    :           qcfa binning enable/disable on path
- * @hor_ver_bin :           horizontal vertical binning enable/disable on path
- * @num_bytes_out:          Number of bytes out
- * @irq_handle:             IRQ handle
- * @err_irq_handle:         Error IRQ handle
- * @discard_irq_handle:     IRQ handle for SOF when discarding initial frames
- * @irq_reg_idx:            IRQ Reg index
- * @sof_cnt:                SOF counter
- * @num_frames_discard:     number of frames to discard
- * @epoch_cfg:              Epoch configured value
- * @switch_out_of_sync_cnt: Sensor out of sync error cnt
- * @sync_mode   :           Sync mode--> master/slave/none
- * @vfr_en   :              flag to indicate if variable frame rate is enabled
- * @frame_id_dec_en:        flag to indicate if frame id decoding is enabled
- * @crop_enable:            flag to indicate crop enable
- * @drop_enable:            flag to indicate drop enable
- * @discard_init_frames:    discard initial frames
- * @skip_discard_frame_cfg: Skip handling discard config, the blob order between
- *                          discard config and dynamic switch update cannot be gauranteed
- *                          If we know the number of paths to avoid configuring discard
- *                          for before processing discard config we can skip it for
- *                          the corresponding paths
- * @sfe_shdr:               flag to indicate if sfe is inline shdr
- * @lcr_en:                 Flag to indicate if path is part can be input to LCR
- * @ts_comb_vcdt_en:        Indicates if Timestamp combined vcdt flag is enabled
+ * @error_ts:                 Error timestamp
+ * @sof_ts:                   SOF timestamp
+ * @epoch_ts:                 Epoch timestamp
+ * @eof_ts:                   EOF timestamp
+ * @cid:                      cid value for path
+ * @path_format:              Array of Path format which contains format
+ *                            info i.e Decode format, Packing format etc
+ * @sec_evt_config:           Secondary event config from HW mgr for a given path
+ * @in_format:                Array of input format which contains format type
+ * @out_format:               output format
+ * @start_pixel:              start pixel for horizontal crop
+ * @end_pixel:                end pixel for horizontal  crop
+ * @start_line:               start line for vertical crop
+ * @end_line:                 end line for vertical crop
+ * @width:                    width of incoming data
+ * @height:                   height of incoming data
+ * @master_idx:               master idx
+ * @horizontal_bin:           horizontal binning enable/disable on path
+ * @vertical_bin:             vertical binning enable/disable on path
+ * @qcfa_bin    :             qcfa binning enable/disable on path
+ * @hor_ver_bin :             horizontal vertical binning enable/disable on path
+ * @num_bytes_out:            Number of bytes out
+ * @irq_handle:               IRQ handle
+ * @err_irq_handle:           Error IRQ handle
+ * @discard_irq_handle:       IRQ handle for SOF when discarding initial frames
+ * @irq_reg_idx:              IRQ Reg index
+ * @sof_cnt:                  SOF counter
+ * @num_frames_discard:       number of frames to discard
+ * @epoch_cfg:                Epoch configured value
+ * @switch_out_of_sync_cnt:   Sensor out of sync error cnt
+ * @sync_mode   :             Sync mode--> master/slave/none
+ * @vfr_en   :                flag to indicate if variable frame rate is enabled
+ * @frame_id_dec_en:          flag to indicate if frame id decoding is enabled
+ * @crop_enable:              flag to indicate crop enable
+ * @drop_enable:              flag to indicate drop enable
+ * @discard_init_frames:      discard initial frames
+ * @skip_discard_frame_cfg:   Skip handling discard config, the blob order between
+ *                            discard config and dynamic switch update cannot be gauranteed
+ *                            If we know the number of paths to avoid configuring discard
+ *                            for before processing discard config we can skip it for
+ *                            the corresponding paths
+ * @sfe_shdr:                 flag to indicate if sfe is inline shdr
+ * @lcr_en:                   Flag to indicate if path is part can be input to LCR
+ * @ts_comb_vcdt_en:          Indicates if Timestamp combined vcdt flag is enabled
+ * @yuv_chroma_conversion_en: Indicates if yuv chroma conversion is enabled
  *
  */
 struct cam_ife_csid_ver2_path_cfg {
@@ -343,6 +344,7 @@ struct cam_ife_csid_ver2_path_cfg {
 	bool                                 csid_out_unpack_msb;
 	bool                                 handle_camif_irq;
 	bool                                 ts_comb_vcdt_en;
+	bool                                 yuv_chroma_conversion_en;
 };
 
 struct cam_ife_csid_ver2_top_reg_info {
@@ -420,6 +422,7 @@ struct cam_ife_csid_ver2_path_reg_info {
 	uint32_t pix_drop_period_addr;
 	uint32_t line_drop_pattern_addr;
 	uint32_t line_drop_period_addr;
+	uint32_t yuv_chroma_conversion_addr;
 	uint32_t debug_halt_status_addr;
 	uint32_t debug_misr_val0_addr;
 	uint32_t debug_misr_val1_addr;
@@ -658,6 +661,7 @@ struct cam_ife_csid_ver2_common_reg_info {
 	bool     ts_comb_vcdt_en;
 	uint32_t drv_rup_en_val_map[CAM_IFE_PIX_PATH_RES_MAX];
 	uint32_t drv_path_idle_en_val_map[CAM_ISP_MAX_PATHS];
+	uint32_t yuv_chroma_conversion_enable_val;
 
 	/* Masks */
 	uint32_t ts_comb_vcdt_mask;

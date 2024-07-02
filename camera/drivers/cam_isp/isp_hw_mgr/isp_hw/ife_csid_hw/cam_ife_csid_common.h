@@ -42,6 +42,7 @@
 #define CAM_IFE_CSID_CAP_SKIP_PATH_CFG1                   BIT(5)
 #define CAM_IFE_CSID_CAP_SKIP_EPOCH_CFG                   BIT(6)
 #define CAM_IFE_CSID_CAP_MULTI_CTXT                       BIT(7)
+#define CAM_IFE_CSID_CAP_YUV_CHROMA_CONVERSION            BIT(8)
 
 /*
  * CSID RX debug vc-dt capture
