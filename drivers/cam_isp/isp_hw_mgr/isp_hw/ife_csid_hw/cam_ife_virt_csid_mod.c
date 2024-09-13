@@ -83,6 +83,7 @@ int cam_ife_virt_csid_get_hw_caps(void *hw_priv, void *get_hw_cap_args, uint32_t
 	hw_caps->is_lite = false;
 	hw_caps->only_master_rup = 1;
 	hw_caps->is_virt = true;
+	hw_caps->camif_irq_support = true;
 	return 0;
 }
 
@@ -586,6 +587,13 @@ int cam_ife_virt_csid_release(void *hw_priv, void *release_args, uint32_t arg_si
 		res->res_id, res->res_name);
 
 	path_cfg = (struct cam_ife_csid_ver2_path_cfg *)res->res_priv;
+
+	if (path_cfg->cid >= CAM_IFE_CSID_CID_MAX) {
+		CAM_ERR(CAM_ISP, "CSID:%d Invalid cid:%d",
+			csid_hw->hw_intf->hw_idx, path_cfg->cid);
+		rc = -EINVAL;
+		goto end;
+	}
 
 	cam_ife_csid_cid_release(&csid_hw->cid_data[path_cfg->cid],
 		csid_hw->hw_intf->hw_idx,
