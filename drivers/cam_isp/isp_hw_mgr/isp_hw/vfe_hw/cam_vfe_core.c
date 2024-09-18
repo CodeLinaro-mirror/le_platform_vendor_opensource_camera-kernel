@@ -393,7 +393,7 @@ int cam_vfe_start(void *hw_priv, void *start_args, uint32_t arg_size)
 	soc_info = &vfe_hw->soc_info;
 	core_info = (struct cam_vfe_hw_core_info *)vfe_hw->core_info;
 	isp_res = (struct cam_isp_resource_node  *)start_args;
-	core_info->workq_info = isp_res->workq_info;
+	core_info->worker_info = isp_res->worker_info;
 
 	mutex_lock(&vfe_hw->hw_mutex);
 	if (isp_res->res_type == CAM_ISP_RESOURCE_VFE_IN) {
@@ -547,6 +547,7 @@ int cam_vfe_process_cmd(void *hw_priv, uint32_t cmd_type,
 	case CAM_ISP_HW_CMD_UPDATE_VFE_OUT_RES_DATA:
 	case CAM_ISP_HW_CMD_UPDATE_VFE_OUT_RES_IRQ_MASK:
 	case CAM_ISP_HW_CMD_CHECK_RUP_FOR_APPLIED_REQ:
+	case CAM_ISP_HW_CMD_GET_NUM_OUT_RES:
 		rc = core_info->vfe_bus->hw_ops.process_cmd(
 			core_info->vfe_bus->bus_priv, cmd_type, cmd_args,
 			arg_size);

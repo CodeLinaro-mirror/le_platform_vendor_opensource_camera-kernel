@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_CSIPHY_DEV_H_
@@ -296,6 +296,16 @@ struct cam_csiphy_param {
 	struct csiphy_hdl_tbl      hdl_data;
 };
 
+/**
+ * cam_lanes_assigned_info     :  Provides info on each lane assign
+ * @lane_assign                :  Lane sensor will be using
+ * @lane_assign_cnt            :  Number of sensors having same lane assign
+ */
+struct cam_lanes_assigned_info {
+	uint16_t                   lane_assign;
+	uint8_t                    lane_assign_cnt;
+};
+
 struct csiphy_work_queue {
 	struct csiphy_device *csiphy_dev;
 	int32_t acquire_idx;
@@ -338,6 +348,7 @@ struct csiphy_work_queue {
  * @preamble_enable            : To enable preamble pattern
  * @is_aggregator_rx           : Is PHY an RX for aggregator
  * @is_phy_protect             : Is PHY based protection or lane based protection
+ * @lanes_assigned             : Lanes assign count information
  */
 struct csiphy_device {
 	char                           device_name[CAM_CTX_DEV_NAME_MAX_LENGTH];
@@ -376,7 +387,12 @@ struct csiphy_device {
 	uint16_t                       preamble_enable;
 	bool                           is_aggregator_rx;
 	bool                           is_phy_protect;
+	bool                           scm_mode;
+	uint32_t                       scm_ref_count;
 	uint32_t                       lanes_enabled;
+	uint32_t                       channel_type;
+	struct cam_lanes_assigned_info lanes_assigned[
+					CSIPHY_MAX_INSTANCES_PER_AGGREG_RX_PHY];
 };
 
 /**
