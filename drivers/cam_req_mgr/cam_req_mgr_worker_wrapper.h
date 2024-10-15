@@ -101,6 +101,7 @@ struct crm_worker_task {
  * @worker_scheduled_ts: enqueue time of worker
  * @flush       : used to track if flush has been called on workqueue
  * @worker_name : name of the worker
+ * @worker_completion : completion info
  * task -
  * @lock        : Current task's lock handle
  * @pending_cnt : # of tasks left in queue
@@ -126,6 +127,7 @@ struct cam_req_mgr_core_worker {
 	ktime_t                    worker_scheduled_ts;
 	atomic_t                   flush;
 	char                       worker_name[128];
+	struct completion          worker_completion;
 
 	/* tasks */
 	struct {
@@ -158,6 +160,8 @@ struct cam_kthread_data {
  * @affinity             : Core affinity
  * @is_list_initialized  : bool to show if list is intialized
  * @kthread_list         : List of all created kthreads
+ * @is_prop_valid        : Flag to indicate if properties need to be updated
+ * @result               : Result returned to UMD on setting kthread properties
  */
 struct cam_kthread_info {
 	uint32_t              policy;
@@ -166,6 +170,8 @@ struct cam_kthread_info {
 	uint32_t              affinity;
 	bool                  is_list_initalized;
 	struct list_head      kthread_list;
+	bool                  is_prop_valid;
+	uint32_t              result;
 };
 
 /**
@@ -237,6 +243,13 @@ void cam_req_mgr_worker_resume(struct cam_req_mgr_core_worker *worker);
  * @worker: pointer to worker data struct
  */
 int cam_req_mgr_set_thread_prop(struct cam_req_mgr_thread_prop_control *worker);
+
+/**
+ * cam_req_mgr_set_kthread_prop_internal()
+ * @priv: pointer to private data
+ * @data: pointer to args
+ */
+int cam_req_mgr_set_kthread_prop_internal(void *priv, void *data);
 
 extern struct cam_irq_bh_api worker_bh_api;
 

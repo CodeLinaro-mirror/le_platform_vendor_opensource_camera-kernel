@@ -1349,8 +1349,6 @@ void cam_csiphy_shutdown(struct csiphy_device *csiphy_dev)
 
 			csiphy_dev->csiphy_info[i].secure_mode =
 				CAM_SECURE_MODE_NON_SECURE;
-
-			cam_csiphy_reset_phyconfig_param(csiphy_dev, i);
 		}
 
 		if (csiphy_dev->prgm_cmn_reg_across_csiphy) {
@@ -1369,12 +1367,13 @@ void cam_csiphy_shutdown(struct csiphy_device *csiphy_dev)
 	}
 
 	if (csiphy_dev->csiphy_state == CAM_CSIPHY_ACQUIRE) {
-		for (i = 0; i < csiphy_dev->acquire_count; i++) {
+		for (i = 0; i < csiphy_dev->session_max_device_support; i++) {
 			if (csiphy_dev->csiphy_info[i].hdl_data.device_hdl
 				!= -1)
 				cam_destroy_device_hdl(
 				csiphy_dev->csiphy_info[i]
 				.hdl_data.device_hdl);
+			cam_csiphy_reset_phyconfig_param(csiphy_dev, i);
 			csiphy_dev->csiphy_info[i].hdl_data.device_hdl = -1;
 			csiphy_dev->csiphy_info[i].hdl_data.session_hdl = -1;
 		}

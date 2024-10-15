@@ -9,6 +9,8 @@
 #include "cam_debug_util.h"
 #include "cam_common_util.h"
 
+extern struct cam_req_mgr_core_worker *g_kt_worker;
+
 struct cam_irq_bh_api worker_bh_api = {
 	.bottom_half_enqueue_func = cam_req_mgr_worker_enqueue_task,
 	.get_bh_payload_func = cam_req_mgr_worker_get_task
@@ -169,10 +171,10 @@ end:
 
 inline int cam_req_mgr_kthread_create(struct cam_req_mgr_core_worker *crm_worker, char *name)
 {
-	char buf[128] = "crm_kthread-";
+	char buf[128] = "crm_kt-";
 
 	strlcat(buf, name, sizeof(buf));
-	CAM_DBG(CAM_CRM, "create kthread crm_kthread-%s", name);
+	CAM_DBG(CAM_CRM, "create kthread crm_kt-%s", name);
 	crm_worker->job = kthread_create_worker(0, buf);
 	if (IS_ERR(crm_worker->job))
 		return PTR_ERR(crm_worker->job);
@@ -301,6 +303,7 @@ inline int cam_req_mgr_worker_create(char *name, int32_t num_tasks,
 	struct cam_req_mgr_core_worker *crm_worker = NULL;
 #ifdef CONFIG_KTHREAD_WORKER
 	struct cam_kthread_data *kthread_data;
+	unsigned long rem_jiffies;
 #endif
 
 	if (!*worker) {
@@ -355,12 +358,42 @@ inline int cam_req_mgr_worker_create(char *name, int32_t num_tasks,
 		INIT_LIST_HEAD(&kthread_data->list);
 		list_add_tail(&kthread_data->list,
 			&g_cam_kthread_info.kthread_list);
-		cam_req_mgr_kthread_set_thread_prop(kthread_data);
+
+		if (g_cam_kthread_info.is_prop_valid) {
+			g_cam_kthread_info.result = -1;
+			init_completion(&crm_worker->worker_completion);
+			task = cam_req_mgr_worker_get_task(*worker);
+			if (IS_ERR_OR_NULL(task)) {
+				CAM_ERR(CAM_CRM, "No empty task = %d", PTR_ERR(task));
+				return -EINVAL;
+			}
+			task->process_cb = &cam_req_mgr_set_kthread_prop_internal;
+			rc = cam_req_mgr_worker_enqueue_task(task, crm_worker,
+				CRM_TASK_PRIORITY_0);
+			if (rc) {
+				CAM_ERR(CAM_REQ, "Could not enqueue task, rc:%u", rc);
+				goto end;
+			}
+
+			rem_jiffies = cam_common_wait_for_completion_timeout(
+				&crm_worker->worker_completion, msecs_to_jiffies(200));
+
+			if (!rem_jiffies) {
+				CAM_ERR(CAM_ISP, "Setting kthread properties timed out");
+				goto end;
+			}
+
+			if (g_cam_kthread_info.result) {
+				CAM_ERR(CAM_ISP, "Failed to set properties");
+				goto end;
+			}
+		}
+end:
+	return 0;
 #endif
 		CAM_DBG(CAM_CRM, "free tasks %d",
 			atomic_read(&crm_worker->task.free_cnt));
 	}
-
 	return 0;
 
 }
@@ -504,22 +537,88 @@ inline void cam_req_mgr_worker_resume(struct cam_req_mgr_core_worker *worker)
 
 }
 
+inline int cam_req_mgr_set_kthread_prop_internal(void *priv, void *data)
+{
+#ifdef CONFIG_KTHREAD_WORKER
+	struct cam_req_mgr_core_worker *crm_worker = NULL;
+	struct cam_kthread_data *kthread_data;
+	int rc = 0;
+
+	g_cam_kthread_info.result = -1;
+
+	if (priv) {
+		crm_worker = (struct cam_req_mgr_core_worker *)priv;
+		list_for_each_entry(kthread_data, &g_cam_kthread_info.kthread_list, list) {
+			if (kthread_data->kthread_worker == crm_worker->job) {
+				rc = cam_req_mgr_kthread_set_thread_prop(kthread_data);
+				if (rc) {
+					CAM_ERR(CAM_CRM, "Failed to set properties");
+					g_cam_kthread_info.result = rc;
+					complete(&crm_worker->worker_completion);
+					return rc;
+				}
+				break;
+			}
+		}
+		g_cam_kthread_info.result = 0;
+		complete(&crm_worker->worker_completion);
+	} else {
+		list_for_each_entry(kthread_data, &g_cam_kthread_info.kthread_list, list) {
+			rc = cam_req_mgr_kthread_set_thread_prop(kthread_data);
+			if (rc) {
+				CAM_ERR(CAM_CRM, "Failed to set properties");
+				g_cam_kthread_info.result = rc;
+				complete(&g_kt_worker->worker_completion);
+				return rc;
+			}
+		}
+		g_cam_kthread_info.result = 0;
+		complete(&g_kt_worker->worker_completion);
+	}
+	return rc;
+#else
+	CAM_INFO(CAM_REQ, "Kthread not enabled");
+	return -EOPNOTSUPP;
+#endif
+}
+
 inline int cam_req_mgr_set_thread_prop(struct cam_req_mgr_thread_prop_control *thread_prop)
 {
 #ifdef CONFIG_KTHREAD_WORKER
-	struct cam_kthread_data *kthread_data;
+	struct crm_worker_task *task = NULL;
 	int rc = 0;
+	unsigned long rem_jiffies;
 
 	g_cam_kthread_info.affinity = thread_prop->affinity;
 	g_cam_kthread_info.policy   = thread_prop->policy;
 	g_cam_kthread_info.priority = thread_prop->priority;
 	g_cam_kthread_info.nice     = thread_prop->nice;
-	list_for_each_entry(kthread_data, &g_cam_kthread_info.kthread_list, list) {
-		rc = cam_req_mgr_kthread_set_thread_prop(kthread_data);
-		if(rc)
-			return rc;
+
+	init_completion(&g_kt_worker->worker_completion);
+	g_cam_kthread_info.is_prop_valid = true;
+	g_cam_kthread_info.result = -1;
+
+	task = cam_req_mgr_worker_get_task(g_kt_worker);
+
+	task->process_cb = &cam_req_mgr_set_kthread_prop_internal;
+	rc = cam_req_mgr_worker_enqueue_task(task, NULL, CRM_TASK_PRIORITY_0);
+	if (rc) {
+		CAM_ERR(CAM_REQ, "Could not enqueue task, rc:%u", rc);
+		return rc;
 	}
-	return rc;
+
+	rem_jiffies = cam_common_wait_for_completion_timeout(&g_kt_worker->worker_completion,
+			msecs_to_jiffies(200));
+
+	if (!rem_jiffies) {
+		CAM_ERR(CAM_ISP, "Setting kthread properties timed out!");
+		return -EINVAL;
+	}
+
+	if (g_cam_kthread_info.result)
+		CAM_ERR(CAM_REQ, "Failed to set kthread properties");
+
+	return g_cam_kthread_info.result;
 #else
 	CAM_INFO(CAM_REQ, "Kthread not enabled");
 	return -EOPNOTSUPP;
