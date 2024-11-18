@@ -280,6 +280,8 @@ struct cam_cpas_monitor {
  * @full_state_dump: Whether to enable full cpas state dump or not
  * @smart_qos_dump: Whether to dump smart qos information on update
  * @camnoc_info: Pointer to camnoc header info
+ * @gdsc_refcnt: Gdsc reference count
+ * @gdsc_state: Gdsc state
  */
 struct cam_cpas {
 	struct cam_cpas_hw_caps hw_caps;
@@ -307,6 +309,8 @@ struct cam_cpas {
 	bool full_state_dump;
 	bool smart_qos_dump;
 	void *camnoc_info;
+	uint32_t gdsc_refcnt;
+	bool gdsc_state;
 };
 
 int cam_camsstop_get_internal_ops(struct cam_cpas_internal_ops *internal_ops);

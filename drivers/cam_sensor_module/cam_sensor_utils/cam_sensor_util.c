@@ -22,7 +22,7 @@ static struct i2c_settings_list*
 {
 	struct i2c_settings_list *tmp;
 
-	tmp = kzalloc(sizeof(struct i2c_settings_list), GFP_KERNEL);
+	tmp = kvzalloc(sizeof(struct i2c_settings_list), GFP_KERNEL);
 
 	if (tmp != NULL)
 		list_add_tail(&(tmp->list),
@@ -31,10 +31,10 @@ static struct i2c_settings_list*
 		return NULL;
 
 	tmp->i2c_settings.reg_setting = (struct cam_sensor_i2c_reg_array *)
-		vzalloc(size * sizeof(struct cam_sensor_i2c_reg_array));
+		kvzalloc(size * sizeof(struct cam_sensor_i2c_reg_array), GFP_KERNEL);
 	if (tmp->i2c_settings.reg_setting == NULL) {
 		list_del(&(tmp->list));
-		kfree(tmp);
+		kvfree(tmp);
 		return NULL;
 	}
 	tmp->i2c_settings.size = size;
@@ -77,9 +77,9 @@ int32_t delete_request(struct i2c_settings_array *i2c_array)
 
 	list_for_each_entry_safe(i2c_list, i2c_next,
 		&(i2c_array->list_head), list) {
-		vfree(i2c_list->i2c_settings.reg_setting);
+		kvfree(i2c_list->i2c_settings.reg_setting);
 		list_del(&(i2c_list->list));
-		kfree(i2c_list);
+		kvfree(i2c_list);
 	}
 	INIT_LIST_HEAD(&(i2c_array->list_head));
 	i2c_array->is_settings_valid = 0;
@@ -2025,7 +2025,13 @@ static int cam_config_mclk_reg(struct cam_sensor_power_ctrl_t *ctrl,
 						rc);
 					return rc;
 				}
-
+				rc = cam_cpas_gdsc_get_put(soc_info->index, false);
+				if (rc) {
+					CAM_ERR(CAM_SENSOR,
+						"sensor index: %d, gdsc put failure ",
+						soc_info->index);
+					return rc;
+				}
 				ps->data[0] =
 					soc_info->rgltr[j];
 			}
@@ -2118,7 +2124,13 @@ int cam_sensor_core_power_up(struct cam_sensor_power_ctrl_t *ctrl,
 							rc);
 						goto power_up_failed;
 					}
-
+					rc = cam_cpas_gdsc_get_put(soc_info->index, true);
+					if (rc) {
+						CAM_ERR(CAM_SENSOR,
+						"sensor index: %d, gdsc get failure ",
+							soc_info->index);
+						goto power_up_failed;
+					}
 					rc =  cam_soc_util_regulator_enable(
 					soc_info->rgltr[j],
 					soc_info->rgltr_name[j],

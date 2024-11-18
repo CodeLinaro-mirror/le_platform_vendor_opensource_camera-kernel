@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022,2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_CPAS_API_H_
@@ -449,6 +449,18 @@ struct cam_cpas_register_params {
 };
 
 /**
+ * struct cam_cpas_gdsc_params : Gdsc params for sensor
+ *
+ * @sensor_index : Sensor index
+ * @enable       : True get, false put
+ *
+ */
+struct cam_cpas_gdsc_params {
+	uint32_t sensor_index;
+	bool enable;
+};
+
+/**
  * enum cam_vote_type - Enum for voting type
  *
  * @CAM_VOTE_ABSOLUTE : Absolute vote
@@ -798,5 +810,19 @@ int cam_cpas_deactivate_llcc(enum cam_sys_cache_config_types type);
  *
  */
 int cam_cpas_dump_camnoc_buff_fill_info(uint32_t client_handle);
+
+/**
+ * cam_cpas_gdsc_get_put()
+ *
+ * @brief: API to maintain gdsc reference count
+ *
+ * @sensor_index : Sensor index
+ *
+ * @enable : Enable or not
+ *
+ * @return 0 on success
+ *
+ */
+int cam_cpas_gdsc_get_put(uint32_t sensor_index, bool enable);
 
 #endif /* _CAM_CPAS_API_H_ */

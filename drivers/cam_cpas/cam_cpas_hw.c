@@ -1784,21 +1784,26 @@ static int cam_cpas_hw_start(void *hw_priv, void *start_args,
 			goto remove_axi_vote;
 		}
 
-		if (cpas_core->internal_ops.qchannel_handshake) {
-			rc = cpas_core->internal_ops.qchannel_handshake(cpas_hw, true, false);
-			if (rc) {
-				CAM_WARN(CAM_CPAS, "failed in qchannel_handshake rc=%d", rc);
-				/* Do not return error, passthrough */
-
-				rc = cpas_core->internal_ops.qchannel_handshake(cpas_hw,
-					true, true);
+		if (!cpas_core->gdsc_state) {
+			if (cpas_core->internal_ops.qchannel_handshake) {
+				rc = cpas_core->internal_ops.qchannel_handshake(cpas_hw, true,
+					false);
 				if (rc) {
-					CAM_ERR(CAM_CPAS,
-						"failed in qchannel_handshake, hw blocks may not work rc=%d",
-						rc);
+					CAM_WARN(CAM_CPAS,
+						"failed in qchannel_handshake rc=%d", rc);
 					/* Do not return error, passthrough */
+
+					rc = cpas_core->internal_ops.qchannel_handshake(cpas_hw,
+						true, true);
+					if (rc) {
+						CAM_ERR(CAM_CPAS,
+							"failed in qchannel_handshake, hw blocks may not work rc=%d",
+							rc);
+						/* Do not return error, passthrough */
+					}
+					rc = 0;
 				}
-				rc = 0;
+				cpas_core->gdsc_state = true;
 			}
 		}
 
@@ -1806,11 +1811,8 @@ static int cam_cpas_hw_start(void *hw_priv, void *start_args,
 			rc = cpas_core->internal_ops.power_on(cpas_hw);
 			if (rc) {
 				atomic_set(&cpas_core->irq_count, 0);
-				cam_cpas_soc_disable_resources(
-					&cpas_hw->soc_info, true, true);
-				CAM_ERR(CAM_CPAS,
-					"failed in power_on settings rc=%d",
-					rc);
+				cam_cpas_soc_disable_resources(&cpas_hw->soc_info, true, true);
+				CAM_ERR(CAM_CPAS, "failed in power_on settings rc=%d", rc);
 				goto remove_axi_vote;
 			}
 		}
@@ -1822,6 +1824,11 @@ static int cam_cpas_hw_start(void *hw_priv, void *start_args,
 
 		cam_smmu_reset_cb_page_fault_cnt();
 		cpas_hw->hw_state = CAM_HW_STATE_POWER_UP;
+		CAM_DBG(CAM_CPAS,
+				"Client=[%d][%s][%d] cpas hw state %d gdsc state %d",
+				client_indx, cpas_client->data.identifier,
+				cpas_client->data.cell_index, cpas_hw->hw_state,
+				cpas_core->gdsc_state);
 	}
 
 	cpas_client->started = true;
@@ -1929,19 +1936,25 @@ static int cam_cpas_hw_stop(void *hw_priv, void *stop_args,
 			rc = cpas_core->internal_ops.power_off(cpas_hw);
 			if (rc) {
 				CAM_ERR(CAM_CPAS,
-					"failed in power_off settings rc=%d",
-					rc);
+					"failed in power_off settings rc=%d", rc);
 				/* Do not return error, passthrough */
 			}
 		}
 
-		if (cpas_core->internal_ops.qchannel_handshake) {
-			rc = cpas_core->internal_ops.qchannel_handshake(cpas_hw, false, false);
-			if (rc) {
-				CAM_ERR(CAM_CPAS, "failed in qchannel_handshake rc=%d", rc);
-				retry_camnoc_idle = 1;
-				/* Do not return error, passthrough */
+		count = cam_soc_util_regulators_enabled(&cpas_hw->soc_info);
+
+		if ((cpas_core->gdsc_refcnt == 0) || (count == 1)) {
+			if (cpas_core->internal_ops.qchannel_handshake) {
+				rc = cpas_core->internal_ops.qchannel_handshake(cpas_hw, false,
+					false);
+				if (rc) {
+					CAM_ERR(CAM_CPAS,
+						"failed in qchannel_handshake rc=%d", rc);
+					retry_camnoc_idle = 1;
+					/* Do not return error, passthrough */
+				}
 			}
+			cpas_core->gdsc_state = false;
 		}
 
 		rc = cam_cpas_soc_disable_irq(&cpas_hw->soc_info);
@@ -1986,6 +1999,11 @@ static int cam_cpas_hw_stop(void *hw_priv, void *stop_args,
 				cpas_client->data.cell_index, count);
 
 		cpas_hw->hw_state = CAM_HW_STATE_POWER_DOWN;
+		CAM_DBG(CAM_CPAS,
+				"Client=[%d][%s][%d] cpas hw state %d gdsc state %d",
+				client_indx, cpas_client->data.identifier,
+				cpas_client->data.cell_index, cpas_hw->hw_state,
+				cpas_core->gdsc_state);
 	}
 
 	ahb_vote.type = CAM_VOTE_ABSOLUTE;
@@ -2711,6 +2729,26 @@ end:
 	return rc;
 }
 
+static int cam_cpas_hw_gdsc_get_put(struct cam_hw_info *cpas_hw,
+	struct cam_cpas_gdsc_params gdsc)
+{
+	struct cam_cpas *cpas_core = (struct cam_cpas *) cpas_hw->core_info;
+
+	mutex_lock(&cpas_hw->hw_mutex);
+	if (gdsc.enable)
+		cpas_core->gdsc_refcnt++;
+	else {
+		if (cpas_core->gdsc_refcnt > 0)
+			cpas_core->gdsc_refcnt--;
+	}
+
+	CAM_DBG(CAM_CPAS, "cpas gdsc reference count %d sensor index %d enable %d",
+		cpas_core->gdsc_refcnt, gdsc.sensor_index, gdsc.enable);
+	mutex_unlock(&cpas_hw->hw_mutex);
+
+	return 0;
+}
+
 static int cam_cpas_hw_process_cmd(void *hw_priv,
 	uint32_t cmd_type, void *cmd_args, uint32_t arg_size)
 {
@@ -2895,6 +2933,19 @@ static int cam_cpas_hw_process_cmd(void *hw_priv,
 		client_handle = (uint32_t *)cmd_args;
 		rc = cam_cpas_hw_dump_camnoc_buff_fill_info(hw_priv,
 			*client_handle);
+		break;
+	}
+	case CAM_CPAS_HW_CMD_GDSC_GET_PUT: {
+		struct cam_cpas_gdsc_params *gdsc;
+
+		if (sizeof(struct cam_cpas_gdsc_params) != arg_size) {
+			CAM_ERR(CAM_CPAS, "cmd_type %d, size mismatch %d",
+				cmd_type, arg_size);
+			break;
+		}
+
+		gdsc = (struct cam_cpas_gdsc_params *)cmd_args;
+		rc = cam_cpas_hw_gdsc_get_put(hw_priv, *gdsc);
 		break;
 	}
 	default:
