@@ -193,6 +193,7 @@ struct cam_isp_in_port_generic_info {
 	bool                            epd_supported;
 	bool                            aeb_mode;
 	bool                            dynamic_hdr_switch_en;
+	bool                            yuv_chroma_conversion_en;
 	struct cam_isp_out_port_generic_info    *data;
 };
 

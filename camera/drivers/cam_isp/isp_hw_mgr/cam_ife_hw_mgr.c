@@ -5313,6 +5313,7 @@ static inline void cam_ife_mgr_acquire_get_feature_flag_params(
 	in_port->epd_supported            = in->feature_flag & CAM_ISP_EPD_SUPPORT;
 	in_port->aeb_mode                 = in->feature_flag & CAM_ISP_AEB_MODE_EN;
 	in_port->dynamic_hdr_switch_en    = in->feature_flag & CAM_ISP_HDR_MODE_DYNAMIC_SWITCH_EN;
+	in_port->yuv_chroma_conversion_en = in->feature_flag & CAM_ISP_YUV_CHROMA_CONVERSION_DS_EN;
 }
 
 static int cam_ife_mgr_acquire_get_unified_structure_v3(

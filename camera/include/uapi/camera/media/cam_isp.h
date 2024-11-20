@@ -201,6 +201,7 @@
 #define CAM_ISP_AEB_MODE_EN                    BIT(7)
 #define CAM_ISP_HDR_MODE_DYNAMIC_SWITCH_EN     BIT(8)
 #define CAM_ISP_NFI_BASED_MODE_SWITCH_EN       BIT(9)
+#define CAM_ISP_YUV_CHROMA_CONVERSION_DS_EN    BIT(10)
 
 /* ISP core cfg flag params */
 #define CAM_ISP_PARAM_CORE_CFG_HDR_MUX_SEL BIT(0)
