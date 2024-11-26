@@ -270,6 +270,7 @@ struct cam_cpas_sysfs_info {
  * @num_caches: Number of last level caches
  * @part_info: Camera Hw subpart info
  * @llcc_info: Cache info
+ * @enable_secure_qos_update: whether to program QoS securely on current chipset
  * @enable_smart_qos: Whether to enable Smart QoS mechanism on current chipset
  * @enable_cam_ddr_drv: Whether to enable Camera DDR DRV on current chipset
  * @enable_cam_clk_drv: Whether to enable Camera Clk DRV on current chipset
@@ -303,6 +304,7 @@ struct cam_cpas_private_soc {
 	uint32_t num_caches;
 	uint32_t part_info;
 	struct cam_sys_cache_info *llcc_info;
+	bool enable_secure_qos_update;
 	bool enable_smart_qos;
 	bool enable_cam_ddr_drv;
 	bool enable_cam_clk_drv;

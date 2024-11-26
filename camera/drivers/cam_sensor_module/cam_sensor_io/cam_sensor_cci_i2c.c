@@ -185,12 +185,16 @@ static int32_t cam_cci_i2c_compare(struct cam_sensor_cci_client *client,
 		return rc;
 
 	reg_data = reg_data & 0xFFFF;
-	if (data == (reg_data & ~data_mask))
+	if (data == (reg_data & ~data_mask)) {
+		CAM_DBG(CAM_SENSOR,
+			"POLL Success match : Addr=0x%x reg_data 0x%x: data: 0x%x, data_mask: 0x%x",
+			addr, reg_data, data, data_mask);
 		return I2C_COMPARE_MATCH;
+	}
 	else {
 		CAM_WARN(CAM_SENSOR,
-			"mismatch: reg_data 0x%x: data: 0x%x, data_mask: 0x%x",
-			reg_data, data, data_mask);
+			"mismatch: Addr=0x%x reg_data 0x%x: data: 0x%x, data_mask: 0x%x",
+			addr, reg_data, data, data_mask);
 		return I2C_COMPARE_MISMATCH;
 	}
 }

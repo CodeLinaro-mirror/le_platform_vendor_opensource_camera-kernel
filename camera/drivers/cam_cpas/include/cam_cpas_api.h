@@ -28,9 +28,24 @@
 #define CAM_CPAS_VOTE_LEVEL_NONE 0
 #define CAM_CPAS_VOTE_LEVEL_MAX 3
 
-/* Qos Selection mask */
+/* QoS Selection mask */
 #define CAM_CPAS_QOS_DEFAULT_SETTINGS_MASK 0x1
 #define CAM_CPAS_QOS_CUSTOM_SETTINGS_MASK  0x2
+
+/* Reg base type for Smart QoS update */
+#define CAM_CAMNOC_HW_RT_MASK       0x1
+#define CAM_CAMNOC_HW_NRT_MASK      0x2
+#define CAM_CAMNOC_HW_COMBINED_MASK 0x4
+#define CAM_CAMNOC_HW_TYPE_SHIFT    28
+
+/**
+ * Secure camera QoS update id - Enum for identify QOS settings update type
+ */
+enum secure_camera_qos_update_type {
+	CAM_QOS_UPDATE_TYPE_STATIC = 0x0,
+	CAM_QOS_UPDATE_TYPE_SMART = 0x1,
+	CAM_QOS_UPDATE_TYPE_MAX,
+};
 
 /**
  * enum cam_cpas_regbase_types - Enum for cpas regbase available for clients
@@ -90,6 +105,7 @@ enum cam_cpas_camera_version {
 	CAM_CPAS_CAMERA_VERSION_770  = 0x00070700,
 	CAM_CPAS_CAMERA_VERSION_665  = 0x00060605,
 	CAM_CPAS_CAMERA_VERSION_690  = 0x00060900,
+	CAM_CPAS_CAMERA_VERSION_692  = 0x00060902,
 	CAM_CPAS_CAMERA_VERSION_MAX
 };
 
@@ -132,6 +148,7 @@ enum cam_cpas_camera_version_map_id {
 	CAM_CPAS_CAMERA_VERSION_ID_770  = 0x10,
 	CAM_CPAS_CAMERA_VERSION_ID_665  = 0x11,
 	CAM_CPAS_CAMERA_VERSION_ID_690  = 0x12,
+	CAM_CPAS_CAMERA_VERSION_ID_692  = 0x13,
 	CAM_CPAS_CAMERA_VERSION_ID_MAX
 };
 
@@ -183,6 +200,7 @@ enum cam_cpas_hw_version {
 	CAM_CPAS_TITAN_770_V100 = 0x770100,
 	CAM_CPAS_TITAN_665_V100 = 0x665100,
 	CAM_CPAS_TITAN_690_V100 = 0x690100,
+	CAM_CPAS_TITAN_692_V100 = 0x692100,
 	CAM_CPAS_TITAN_MAX
 };
 

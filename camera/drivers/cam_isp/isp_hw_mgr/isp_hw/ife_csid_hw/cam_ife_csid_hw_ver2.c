@@ -2021,7 +2021,7 @@ static int cam_ife_csid_ver2_ipp_bottom_half(
 	struct cam_ife_csid_ver2_reg_info            *csid_reg;
 	struct cam_isp_resource_node                 *res;
 	struct cam_ife_csid_ver2_hw                  *csid_hw = NULL;
-	struct cam_isp_hw_event_info                  evt_info;
+	struct cam_isp_hw_event_info                  evt_info = {0};
 	struct cam_hw_info                           *hw_info;
 	struct cam_ife_csid_ver2_path_cfg            *path_cfg;
 	struct cam_isp_sof_ts_data                    sof_and_boot_time;
@@ -2075,6 +2075,7 @@ static int cam_ife_csid_ver2_ipp_bottom_half(
 	evt_info.res_type = CAM_ISP_RESOURCE_PIX_PATH;
 	evt_info.reg_val  = irq_status_ipp;
 	evt_info.event_data = &sof_and_boot_time;
+	evt_info.is_secondary_evt = false;
 
 	if (!csid_hw->event_cb) {
 		CAM_ERR_RATE_LIMIT(CAM_ISP, "CSID[%u] event cb not registered",
@@ -2252,7 +2253,7 @@ static int cam_ife_csid_ver2_rdi_bottom_half(
 	uint32_t                                      irq_status_rdi;
 	uint32_t                                      err_mask;
 	uint32_t                                      err_type = 0;
-	struct cam_isp_hw_event_info                  evt_info;
+	struct cam_isp_hw_event_info                  evt_info = {0};
 	struct cam_isp_sof_ts_data                    sof_and_boot_time;
 	int                                           rc = 0;
 
@@ -2283,6 +2284,7 @@ static int cam_ife_csid_ver2_rdi_bottom_half(
 	evt_info.hw_idx   = csid_hw->hw_intf->hw_idx;
 	evt_info.res_type = CAM_ISP_RESOURCE_PIX_PATH;
 	evt_info.event_data = &sof_and_boot_time;
+	evt_info.is_secondary_evt = false;
 
 	csid_reg = (struct cam_ife_csid_ver2_reg_info *)
 		csid_hw->core_info->csid_reg;
@@ -4311,11 +4313,7 @@ static int cam_ife_csid_ver2_program_ipp_path(
 			csid_hw->hw_intf->hw_idx,
 			val, path_cfg->epoch_cfg);
 
-	path_cfg->irq_reg_idx = cam_ife_csid_get_rt_irq_idx(
-			CAM_IFE_CSID_IRQ_REG_IPP,
-			csid_reg->cmn_reg->num_pix,
-			csid_reg->cmn_reg->num_ppp,
-			csid_reg->cmn_reg->num_rdis);
+	path_cfg->irq_reg_idx =  cam_ife_csid_convert_res_to_irq_reg(res->res_id);
 
 	val = csid_hw->debug_info.path_mask;
 
@@ -4483,11 +4481,7 @@ static int cam_ife_csid_ver2_program_ppp_path(
 		return rc;
 	}
 
-	path_cfg->irq_reg_idx = cam_ife_csid_get_rt_irq_idx(
-				CAM_IFE_CSID_IRQ_REG_PPP,
-				csid_reg->cmn_reg->num_pix,
-				csid_reg->cmn_reg->num_ppp,
-				csid_reg->cmn_reg->num_rdis);
+	path_cfg->irq_reg_idx =  cam_ife_csid_convert_res_to_irq_reg(res->res_id);
 
 	/* for dual case
 	 * set ppp as slave

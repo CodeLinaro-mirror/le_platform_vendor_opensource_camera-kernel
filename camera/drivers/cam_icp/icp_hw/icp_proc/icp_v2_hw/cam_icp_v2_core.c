@@ -780,9 +780,13 @@ static void __cam_icp_v2_core_reg_dump(
 	csr_gp_base = csr_base + ICP_V2_GEN_PURPOSE_REG_OFFSET;
 	irq_base = icp_v2_info->soc_info.reg_map[core_info->irq_regbase_idx].mem_base;
 
-	if (dump_type & CAM_ICP_DUMP_STATUS_REGISTERS)
-		CAM_INFO(CAM_ICP, "ICP PFault status:0x%x",
-			cam_io_r_mb(irq_base + core_info->hw_info->pfault_info));
+	if (dump_type & CAM_ICP_DUMP_STATUS_REGISTERS) {
+		for (i = 0; i < core_info->hw_info->num_pfault_info_regs; i++) {
+			CAM_INFO(CAM_ICP, "ICP PFault offset: 0x%x val: 0x%x",
+				core_info->hw_info->pfault_info[i],
+				cam_io_r_mb(irq_base + core_info->hw_info->pfault_info[i]));
+		}
+	}
 
 	if (dump_type & CAM_ICP_DUMP_CSR_REGISTERS) {
 		for (i = 0; i < ICP_V2_CSR_GP_REG_COUNT;) {

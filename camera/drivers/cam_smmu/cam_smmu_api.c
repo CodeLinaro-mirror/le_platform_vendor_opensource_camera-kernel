@@ -2359,7 +2359,7 @@ int cam_smmu_reserve_buf_region(enum cam_smmu_region_id region,
 	bool *is_buf_allocated;
 	bool region_supported;
 	size_t size = 0;
-	int idx, rc = 0, multi_client_device_idx, prot, nested_reg_idx;
+	int idx, rc = 0, multi_client_device_idx, prot, nested_reg_idx = 0;
 
 	idx = GET_SMMU_TABLE_IDX(smmu_hdl);
 	multi_client_device_idx = GET_SMMU_MULTI_CLIENT_IDX(smmu_hdl);
@@ -2509,7 +2509,7 @@ EXPORT_SYMBOL(cam_smmu_reserve_buf_region);
 int cam_smmu_release_buf_region(enum cam_smmu_region_id region,
 	int32_t smmu_hdl)
 {
-	int idx, multi_client_device_idx, nested_reg_idx;
+	int idx, multi_client_device_idx, nested_reg_idx = 0;
 	size_t size = 0;
 	struct region_buf_info *buf_info = NULL;
 	struct cam_context_bank_info *cb_info;

@@ -13,6 +13,7 @@
 #include <linux/iommu.h>
 #include <linux/list_sort.h>
 #include <linux/spi/spi.h>
+#include <linux/firmware/qcom/qcom_scm.h>
 
 #include "cam_csiphy_dev.h"
 #include "cam_cpastop_hw.h"
@@ -71,6 +72,9 @@ int cam_cpas_drv_channel_switch_for_dev(const struct device *dev);
 
 inline struct icc_path *cam_icc_get_path(struct device *dev,
 	const int src_id, const int dst_id, const char *path_name, bool use_path_name);
+
+int cam_update_camnoc_qos_settings(uint32_t use_case_id,
+	uint32_t num_arg, struct qcom_scm_camera_qos *scm_buf);
 
 #ifdef CONFIG_SPECTRA_SECURE
 void cam_cpastop_scm_write(struct cam_cpas_hw_errata_wa *errata_wa);

@@ -14,6 +14,7 @@
 #include "cam_sfe_soc.h"
 #include "cam_sfe680.h"
 #include "cam_sfe_lite690.h"
+#include "cam_sfe_lite692.h"
 #include "cam_sfe780.h"
 #include "cam_sfe860.h"
 #include "cam_sfe880.h"
@@ -274,6 +275,10 @@ static const struct of_device_id cam_sfe_dt_match[] = {
 	{
 		.compatible = "qcom,sfe-lite690",
 		.data = &cam_sfe_lite_690_hw_info,
+	},
+	{
+		.compatible = "qcom,sfe-lite692",
+		.data = &cam_sfe_lite_692_hw_info,
 	},
 	{}
 };

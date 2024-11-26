@@ -20,37 +20,51 @@ static int max_icp_v2_hw_idx = -1;
 
 struct cam_icp_v2_hw_info cam_icp_v2_hw_info[] = {
 	{
-		.ob_irq_status = 0xC,
-		.ob_irq_mask   = 0x0,
-		.ob_irq_clear  = 0x4,
-		.ob_irq_set    = 0x8,
-		.ob_irq_cmd    = 0x10,
-		.host2icpint   = 0x124,
-		.pfault_info   = 0x128,
+		.ob_irq_status		= 0xC,
+		.ob_irq_mask		= 0x0,
+		.ob_irq_clear		= 0x4,
+		.ob_irq_set		= 0x8,
+		.ob_irq_cmd		= 0x10,
+		.host2icpint		= 0x124,
+		.pfault_info		= {
+			0x128,
+		},
+		.num_pfault_info_regs	= 1,
 	},
 };
 
 struct cam_icp_v2_hw_info cam_icp_v2_1_hw_info[] = {
 	{
-		.ob_irq_status = 0x20C,
-		.ob_irq_mask   = 0x200,
-		.ob_irq_clear  = 0x204,
-		.ob_irq_set    = 0x208,
-		.ob_irq_cmd    = 0x210,
-		.host2icpint   = 0x300,
-		.pfault_info   = 0x400,
+		.ob_irq_status		= 0x20C,
+		.ob_irq_mask		= 0x200,
+		.ob_irq_clear		= 0x204,
+		.ob_irq_set		= 0x208,
+		.ob_irq_cmd		= 0x210,
+		.host2icpint		= 0x300,
+		.pfault_info		= {
+			0x400,
+		},
+		.num_pfault_info_regs	= 1,
 	},
 };
 
 struct cam_icp_v2_hw_info cam_icp_v3_0_hw_info[] = {
 	{
-		.ob_irq_status = 0xC,
-		.ob_irq_mask   = 0x0,
-		.ob_irq_clear  = 0x4,
-		.ob_irq_set    = 0x8,
-		.ob_irq_cmd    = 0x10,
-		.host2icpint   = 0x124,
-		.pfault_info   = 0x144,
+		.ob_irq_status		= 0xC,
+		.ob_irq_mask		= 0x0,
+		.ob_irq_clear		= 0x4,
+		.ob_irq_set		= 0x8,
+		.ob_irq_cmd		= 0x10,
+		.host2icpint		= 0x124,
+		.pfault_info		= {
+			0x140,
+			0x144,
+			0x148,
+			0x14C,
+			0x150,
+			0x154,
+		},
+		.num_pfault_info_regs	= 6,
 	},
 };
 

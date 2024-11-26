@@ -393,6 +393,9 @@ static int cam_sensor_component_bind(struct device *dev,
 	struct cam_hw_soc_info *soc_info = NULL;
 	bool i3c_i2c_target;
 	struct platform_device *pdev = to_platform_device(dev);
+	struct device_node *endpoint, *remote;
+	struct device_node *deser_node;
+	u32 csiphy_sd_index;
 
 	i3c_i2c_target = of_property_read_bool(pdev->dev.of_node, "i3c-i2c-target");
 	if (i3c_i2c_target)
@@ -429,6 +432,31 @@ static int cam_sensor_component_bind(struct device *dev,
 
 	/* Fill platform device id*/
 	pdev->id = soc_info->index;
+
+	endpoint = of_graph_get_next_endpoint(s_ctrl->of_node, NULL);
+	if (!endpoint) {
+		CAM_DBG(CAM_SENSOR, "No local endpoint found");
+	} else {
+		remote = of_graph_get_remote_port(endpoint);
+		if (!remote) {
+			CAM_ERR(CAM_SENSOR, "No remote endpoint found");
+			of_node_put(endpoint);
+		}
+
+		deser_node = of_get_parent(remote);
+		if (!deser_node) {
+			CAM_ERR(CAM_SENSOR, "No deserializer node found");
+			of_node_put(remote);
+			of_node_put(endpoint);
+		}
+
+		rc = of_property_read_u32(deser_node, "csiphy-sd-index", &csiphy_sd_index);
+		if (rc) {
+			CAM_ERR(CAM_SENSOR, "Failed to read csiphy-sd-index");
+		} else {
+			CAM_DBG(CAM_SENSOR, "Deserializer csiphy-sd-index: %u", csiphy_sd_index);
+		}
+	}
 
 	rc = cam_sensor_init_subdev_params(s_ctrl);
 	if (rc)
@@ -561,7 +589,8 @@ static int cam_sensor_platform_remove(struct platform_device *pdev)
 
 static const struct of_device_id cam_sensor_driver_dt_match[] = {
 	{.compatible = "qcom,cam-sensor"},
-	{}
+	{.compatible = "qcom,cam-gmsl-sensor"},
+    {}
 };
 MODULE_DEVICE_TABLE(of, cam_sensor_driver_dt_match);
 

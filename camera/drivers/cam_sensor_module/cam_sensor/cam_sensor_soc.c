@@ -144,6 +144,38 @@ static int32_t cam_sensor_driver_get_dt_data(struct cam_sensor_ctrl_t *s_ctrl)
 
 	sensordata = s_ctrl->sensordata;
 
+	if (of_device_is_compatible(of_node, "qcom,cam-gmsl-sensor")) {
+		struct device_node *endpoint, *remote;
+		struct device_node *parent_node;
+
+		endpoint = of_graph_get_next_endpoint(of_node, NULL);
+		if (!endpoint) {
+			CAM_ERR(CAM_SENSOR, "No local endpoint found for GMSL sensor!");
+			return -EINVAL;
+		}
+
+		remote = of_graph_get_remote_port(endpoint);
+		if (!remote) {
+			CAM_ERR(CAM_SENSOR, "No remote endpoint found");
+			of_node_put(endpoint);
+			return -EINVAL;
+		}
+
+		parent_node = of_get_parent(remote);
+		if (!parent_node) {
+			CAM_ERR(CAM_SENSOR, "No deserializer node found");
+			of_node_put(remote);
+			of_node_put(endpoint);
+			return -EINVAL;
+		}
+
+		CAM_DBG(CAM_SENSOR, "This is а GMSL sensor with parent_node %px",
+			parent_node);
+
+		soc_info->is_child_node = true;
+		soc_info->parent_node = parent_node;
+	}
+
 	rc = cam_soc_util_get_dt_properties(soc_info);
 	if (rc < 0) {
 		CAM_ERR(CAM_SENSOR, "Failed to read DT properties rc %d", rc);
@@ -217,8 +249,11 @@ static int32_t cam_sensor_driver_get_dt_data(struct cam_sensor_ctrl_t *s_ctrl)
 
 	if (s_ctrl->io_master_info.master_type == CCI_MASTER) {
 
+		struct device_node *local_of_node =
+			soc_info->is_child_node ? soc_info->parent_node : of_node;
+
 		/* Get CCI master */
-		if (of_property_read_u32(of_node, "cci-master",
+		if (of_property_read_u32(local_of_node, "cci-master",
 			&s_ctrl->cci_i2c_master)) {
 			/* Set default master 0 */
 			s_ctrl->cci_i2c_master = MASTER_0;
@@ -226,7 +261,7 @@ static int32_t cam_sensor_driver_get_dt_data(struct cam_sensor_ctrl_t *s_ctrl)
 		CAM_DBG(CAM_SENSOR, "cci-master %d",
 			s_ctrl->cci_i2c_master);
 
-		of_parent = of_get_parent(of_node);
+		of_parent = of_get_parent(local_of_node);
 		if (of_property_read_u32(of_parent, "cell-index",
 				&s_ctrl->cci_num) < 0)
 			/* Set default master 0 */

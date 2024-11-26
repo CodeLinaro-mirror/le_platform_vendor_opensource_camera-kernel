@@ -339,6 +339,7 @@ static bool cam_vfe_bus_ver3_can_be_secure(uint32_t out_type)
 	case CAM_VFE_BUS_VER3_VFE_OUT_RDI5:
 	case CAM_VFE_BUS_VER3_VFE_OUT_AI_OUT_1:
 	case CAM_VFE_BUS_VER3_VFE_OUT_AI_OUT_2:
+	case CAM_VFE_BUS_VER3_VFE_OUT_IR:
 		return true;
 
 	case CAM_VFE_BUS_VER3_VFE_OUT_FD:
@@ -361,6 +362,8 @@ static bool cam_vfe_bus_ver3_can_be_secure(uint32_t out_type)
 	case CAM_VFE_BUS_VER3_VFE_OUT_LTM_STATS:
 	case CAM_VFE_BUS_VER3_VFE_OUT_STATS_GTM_BHIST:
 	case CAM_VFE_BUS_VER3_VFE_OUT_STATS_BG:
+	case CAM_VFE_BUS_VER3_VFE_OUT_STATS_IR_BG:
+	case CAM_VFE_BUS_VER3_VFE_OUT_STATS_IR_BHIST:
 	default:
 		return false;
 	}
@@ -490,6 +493,15 @@ static enum cam_vfe_bus_ver3_vfe_out_type
 		break;
 	case CAM_ISP_IFE_OUT_RES_AI_OUT_2:
 		vfe_out_type = CAM_VFE_BUS_VER3_VFE_OUT_AI_OUT_2;
+		break;
+	case CAM_ISP_IFE_OUT_RES_IR:
+		vfe_out_type = CAM_VFE_BUS_VER3_VFE_OUT_IR;
+		break;
+	case CAM_ISP_IFE_OUT_RES_STATS_IR_BG:
+		vfe_out_type = CAM_VFE_BUS_VER3_VFE_OUT_STATS_IR_BG;
+		break;
+	case CAM_ISP_IFE_OUT_RES_STATS_IR_BHIST:
+		vfe_out_type = CAM_VFE_BUS_VER3_VFE_OUT_STATS_IR_BHIST;
 		break;
 	default:
 		CAM_WARN(CAM_ISP, "VFE:%u Invalid isp res id: %d , assigning max",
@@ -974,7 +986,8 @@ static int cam_vfe_bus_ver3_acquire_wm(
 		rc = cam_vfe_bus_ver3_config_rdi_wm(rsrc_data);
 		if (rc)
 			return rc;
-	} else if (vfe_out_res_id == CAM_VFE_BUS_VER3_VFE_OUT_RAW_DUMP) {
+	} else if ((vfe_out_res_id == CAM_VFE_BUS_VER3_VFE_OUT_RAW_DUMP) ||
+			(vfe_out_res_id == CAM_VFE_BUS_VER3_VFE_OUT_IR)) {
 
 		rsrc_data->stride = rsrc_data->width;
 		rsrc_data->en_cfg = 0x1;
@@ -1177,7 +1190,9 @@ static int cam_vfe_bus_ver3_acquire_wm(
 		}
 
 	} else if ((vfe_out_res_id == CAM_VFE_BUS_VER3_VFE_OUT_STATS_AEC_BE) ||
-		(vfe_out_res_id == CAM_VFE_BUS_VER3_VFE_OUT_STATS_GTM_BHIST)) {
+		(vfe_out_res_id == CAM_VFE_BUS_VER3_VFE_OUT_STATS_GTM_BHIST) ||
+		(vfe_out_res_id == CAM_VFE_BUS_VER3_VFE_OUT_STATS_IR_BHIST)  ||
+		(vfe_out_res_id == CAM_VFE_BUS_VER3_VFE_OUT_STATS_IR_BG)) {
 		rsrc_data->width = 0;
 		rsrc_data->height = 0;
 		rsrc_data->stride = 1;

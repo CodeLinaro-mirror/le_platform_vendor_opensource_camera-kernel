@@ -3,12 +3,12 @@
  * Copyright (c) 2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
-#ifndef _CPASTOP_V690_100_H_
-#define _CPASTOP_V690_100_H_
+#ifndef _CPASTOP_V692_100_H_
+#define _CPASTOP_V692_100_H_
 
 #include "cam_cpas_hw.h"
 
-static struct cam_camnoc_irq_sbm cam_cpas_v690_100_irq_sbm = {
+static struct cam_camnoc_irq_sbm cam_cpas_v692_100_irq_sbm = {
 	.sbm_enable = {
 		.access_type = CAM_REG_TYPE_READ_WRITE,
 		.enable = true,
@@ -31,7 +31,7 @@ static struct cam_camnoc_irq_sbm cam_cpas_v690_100_irq_sbm = {
 };
 
 static struct cam_camnoc_irq_err
-	cam_cpas_v690_100_irq_err[] = {
+	cam_cpas_v692_100_irq_err[] = {
 	{
 		.irq_type = CAM_CAMNOC_HW_IRQ_SLAVE_ERROR,
 		.enable = true,
@@ -169,7 +169,7 @@ static struct cam_camnoc_irq_err
 };
 
 static struct cam_camnoc_specific
-	cam_cpas_v690_100_camnoc_specific[] = {
+	cam_cpas_v692_100_camnoc_specific[] = {
 	{
 		//RT_0
 		.port_type = CAM_CAMNOC_IFE_UBWC,
@@ -395,7 +395,7 @@ static struct cam_camnoc_specific
 	},
 };
 
-static struct cam_camnoc_err_logger_info cam690_cpas100_err_logger_offsets = {
+static struct cam_camnoc_err_logger_info cam692_cpas100_err_logger_offsets = {
 	.mainctrl     =  0x0008, /* CAMNOC_CAM_NOC_ERL_MAINCTL_LOW */
 	.errvld       =  0x0010, /* CAMNOC_CAM_NOC_ERl_ERRVLD_LOW */
 	.errlog0_low  =  0x0020, /* CAMNOC_CAM_NOC_ERL_ERRLOG0_LOW */
@@ -408,7 +408,7 @@ static struct cam_camnoc_err_logger_info cam690_cpas100_err_logger_offsets = {
 	.errlog3_high =  0x003c, /* CAMNOC_CAM_NOC_ERL_ERRLOG3_HIGH */
 };
 
-static struct cam_cpas_hw_errata_wa_list cam690_cpas100_errata_wa_list = {
+static struct cam_cpas_hw_errata_wa_list cam692_cpas100_errata_wa_list = {
 	.camnoc_flush_slave_pending_trans = {
 		.enable = false,
 		.data.reg_info = {
@@ -423,33 +423,33 @@ static struct cam_cpas_hw_errata_wa_list cam690_cpas100_errata_wa_list = {
 	},
 };
 
-static struct cam_camnoc_info cam690_cpas100_camnoc_info = {
-	.specific = &cam_cpas_v690_100_camnoc_specific[0],
-	.specific_size = ARRAY_SIZE(cam_cpas_v690_100_camnoc_specific),
-	.irq_sbm = &cam_cpas_v690_100_irq_sbm,
-	.irq_err = &cam_cpas_v690_100_irq_err[0],
-	.irq_err_size = ARRAY_SIZE(cam_cpas_v690_100_irq_err),
-	.err_logger = &cam690_cpas100_err_logger_offsets,
-	.errata_wa_list = &cam690_cpas100_errata_wa_list,
+static struct cam_camnoc_info cam692_cpas100_camnoc_info = {
+	.specific = &cam_cpas_v692_100_camnoc_specific[0],
+	.specific_size = ARRAY_SIZE(cam_cpas_v692_100_camnoc_specific),
+	.irq_sbm = &cam_cpas_v692_100_irq_sbm,
+	.irq_err = &cam_cpas_v692_100_irq_err[0],
+	.irq_err_size = ARRAY_SIZE(cam_cpas_v692_100_irq_err),
+	.err_logger = &cam692_cpas100_err_logger_offsets,
+	.errata_wa_list = &cam692_cpas100_errata_wa_list,
 	.test_irq_info = {
 		.sbm_enable_mask = 0x80,
 		.sbm_clear_mask = 0x4,
 	}
 };
 
-static struct cam_cpas_camnoc_qchannel cam690_cpas100_qchannel_info = {
+static struct cam_cpas_camnoc_qchannel cam692_cpas100_qchannel_info = {
 	.qchannel_ctrl   = 0x5C,
 	.qchannel_status = 0x60,
 };
 
-static struct cam_cpas_info cam690_cpas100_cpas_info = {
+static struct cam_cpas_info cam692_cpas100_cpas_info = {
 	.hw_caps_info = {
 		.num_caps_registers = 1,
 		.hw_caps_offsets = {0x8},
 	},
-	.qchannel_info = {&cam690_cpas100_qchannel_info},
+	.qchannel_info = {&cam692_cpas100_qchannel_info},
 	.num_qchannel = 1,
 };
 
-#endif /* _CPASTOP_V690_100_H_ */
+#endif /* _CPASTOP_V692_100_H_ */
 

@@ -1468,6 +1468,10 @@ parse_ahb_table:
 
 	soc_private->enable_smart_qos = of_property_read_bool(of_node,
 			"enable-smart-qos");
+	soc_private->enable_secure_qos_update = of_property_read_bool(of_node,
+			"enable-secure-qos-update");
+	CAM_DBG(CAM_CPAS, "Enable secure qos update: %s",
+		CAM_BOOL_TO_YESNO(soc_private->enable_secure_qos_update));
 
 	if (soc_private->enable_smart_qos) {
 		uint32_t value;

@@ -36,6 +36,7 @@ const uint8_t *cam_ife_csid_irq_reg_tag[CAM_IFE_CSID_IRQ_REG_MAX] = {
 	"RDI2",
 	"RDI3",
 	"RDI4",
+	"RDI5",
 	"IPP",
 	"PPP",
 	"UDI0",
@@ -566,43 +567,6 @@ int cam_ife_csid_check_in_port_args(
 	return 0;
 }
 
-int cam_ife_csid_get_rt_irq_idx(
-	uint32_t irq_reg, uint32_t num_ipp,
-	uint32_t num_ppp, uint32_t num_rdi)
-{
-	int rt_irq_reg_idx = -EINVAL;
-
-	switch (irq_reg) {
-	case CAM_IFE_CSID_IRQ_REG_IPP:
-		rt_irq_reg_idx = CAM_IFE_CSID_IRQ_REG_RX +
-			num_rdi + 1;
-		break;
-	case CAM_IFE_CSID_IRQ_REG_PPP:
-		rt_irq_reg_idx = CAM_IFE_CSID_IRQ_REG_RX +
-			num_rdi + num_ipp + 1;
-		break;
-	case CAM_IFE_CSID_IRQ_REG_RDI_0:
-	case CAM_IFE_CSID_IRQ_REG_RDI_1:
-	case CAM_IFE_CSID_IRQ_REG_RDI_2:
-	case CAM_IFE_CSID_IRQ_REG_RDI_3:
-	case CAM_IFE_CSID_IRQ_REG_RDI_4:
-		rt_irq_reg_idx = irq_reg;
-		break;
-	case CAM_IFE_CSID_IRQ_REG_UDI_0:
-	case CAM_IFE_CSID_IRQ_REG_UDI_1:
-	case CAM_IFE_CSID_IRQ_REG_UDI_2:
-		rt_irq_reg_idx = CAM_IFE_CSID_IRQ_REG_RX +
-			num_rdi + num_ipp + num_ppp +
-			(irq_reg - CAM_IFE_CSID_IRQ_REG_UDI_0) + 1;
-		break;
-	default:
-		CAM_ERR(CAM_ISP, "Invalid irq reg %d", irq_reg);
-		break;
-	}
-
-	return rt_irq_reg_idx;
-}
-
 int cam_ife_csid_convert_res_to_irq_reg(uint32_t res_id)
 {
 	switch (res_id) {
@@ -617,6 +581,8 @@ int cam_ife_csid_convert_res_to_irq_reg(uint32_t res_id)
 		return CAM_IFE_CSID_IRQ_REG_RDI_3;
 	case CAM_IFE_PIX_PATH_RES_RDI_4:
 		return CAM_IFE_CSID_IRQ_REG_RDI_4;
+	case CAM_IFE_PIX_PATH_RES_RDI_5:
+		return CAM_IFE_CSID_IRQ_REG_RDI_5;
 	case CAM_IFE_PIX_PATH_RES_IPP:
 		return CAM_IFE_CSID_IRQ_REG_IPP;
 	case CAM_IFE_PIX_PATH_RES_PPP:

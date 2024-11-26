@@ -7,16 +7,6 @@
 #ifndef _CAM_ICP_V2_REG_H_
 #define _CAM_ICP_V2_REG_H_
 
-struct cam_icp_v2_hw_info {
-	uint32_t ob_irq_status;
-	uint32_t ob_irq_mask;
-	uint32_t ob_irq_clear;
-	uint32_t ob_irq_set;
-	uint32_t ob_irq_cmd;
-	uint32_t host2icpint;
-	uint32_t pfault_info;
-};
-
 /* ICP CSR info */
 #define ICP_V2_GEN_PURPOSE_REG_OFFSET     0x20
 #define ICP_V2_CSR_DBG_STATUS_REG_OFFSET  0xC0
@@ -52,5 +42,19 @@ struct cam_icp_v2_hw_info {
 #define ICP_V2_IRQ_SET_CMD        (1 << 0)
 
 #define ICP_V2_HOST2ICPINT        (1 << 0)
+
+/* Maximum number of ICP pfault info registers */
+#define ICP_PFAULT_INFO_REG_NUM_MAX 0x6
+
+struct cam_icp_v2_hw_info {
+	uint32_t ob_irq_status;
+	uint32_t ob_irq_mask;
+	uint32_t ob_irq_clear;
+	uint32_t ob_irq_set;
+	uint32_t ob_irq_cmd;
+	uint32_t host2icpint;
+	uint32_t pfault_info[ICP_PFAULT_INFO_REG_NUM_MAX];
+	uint32_t num_pfault_info_regs;
+};
 
 #endif /* _CAM_ICP_V2_REG_H_ */

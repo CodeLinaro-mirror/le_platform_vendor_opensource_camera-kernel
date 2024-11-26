@@ -99,15 +99,20 @@ static const struct of_device_id cam_isp_dt_match[] = {
 static int cam_isp_subdev_open(struct v4l2_subdev *sd,
 	struct v4l2_subdev_fh *fh)
 {
+	int rc = 0;
 	cam_req_mgr_rwsem_read_op(CAM_SUBDEV_LOCK);
-
 	mutex_lock(&g_isp_dev.isp_mutex);
+	if (g_isp_dev.open_cnt >= 1) {
+		CAM_ERR_RATE_LIMIT(CAM_ISP, "ISP subdev is already opened");
+		rc = -EALREADY;
+		goto end;
+	}
 	g_isp_dev.open_cnt++;
+end:
 	mutex_unlock(&g_isp_dev.isp_mutex);
-
 	cam_req_mgr_rwsem_read_op(CAM_SUBDEV_UNLOCK);
 
-	return 0;
+	return rc;
 }
 
 static int cam_isp_subdev_close_internal(struct v4l2_subdev *sd,

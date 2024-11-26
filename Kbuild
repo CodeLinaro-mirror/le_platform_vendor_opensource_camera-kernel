@@ -2,14 +2,14 @@
 
 $(info "CAMERA_KERNEL_ROOT is: $(CAMERA_KERNEL_ROOT)")
 $(info "KERNEL_ROOT is: $(KERNEL_ROOT)")
-$(info "MACHINE is: $(MACHINE)")
+$(info "SOC_FAM is: $(SOC_FAM)")
 $(info "CAMERA_ARCH is: $(CAMERA_ARCH)")
 
 # Include Architecture configurations
-ifdef MACHINE
-include $(CAMERA_KERNEL_ROOT)/config/$(MACHINE)-camera.mk
+ifdef SOC_FAM
+include $(CAMERA_KERNEL_ROOT)/config/$(SOC_FAM)-camera.mk
 else
-$(info "MACHINE not defined.")
+$(info "SOC_FAM not defined.")
 endif
 
 ifneq ($(KBUILD_EXTRA_CONFIGS),)

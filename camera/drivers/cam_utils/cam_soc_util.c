@@ -2519,7 +2519,16 @@ static int cam_soc_util_get_gpio_info(struct cam_hw_soc_info *soc_info)
 	if (!soc_info || !soc_info->dev)
 		return -EINVAL;
 
-	of_node = soc_info->dev->of_node;
+	if (soc_info->is_child_node) {
+		of_node = soc_info->parent_node;
+	} else {
+		of_node = soc_info->dev->of_node;
+	}
+
+	if (!of_node) {
+		CAM_ERR(CAM_UTIL, "of_node is NULL");
+		return -EINVAL;
+	}
 
 	/* Validate input parameters */
 	if (!of_node) {
@@ -2646,7 +2655,16 @@ static int cam_soc_util_get_dt_regulator_info
 		return -EINVAL;
 	}
 
-	of_node = soc_info->dev->of_node;
+	if (soc_info->is_child_node) {
+		of_node = soc_info->parent_node;
+	} else {
+		of_node = soc_info->dev->of_node;
+	}
+
+	if (!of_node) {
+		CAM_ERR(CAM_UTIL, "of_node is NULL");
+		return -EINVAL;
+	}
 
 	soc_info->num_rgltr = 0;
 	count = of_property_count_strings(of_node, "regulator-names");

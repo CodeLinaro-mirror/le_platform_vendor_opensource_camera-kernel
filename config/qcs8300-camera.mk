@@ -1,5 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0-only
-
 # Localized KCONFIG settings
 CONFIG_SPECTRA_ISP := y
 CONFIG_SPECTRA_ICP := y

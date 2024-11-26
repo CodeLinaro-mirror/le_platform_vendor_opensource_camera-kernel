@@ -56,6 +56,8 @@
 #define CAM_ISP_IFE_OUT_RES_RDI_5                (CAM_ISP_IFE_OUT_RES_BASE + 43)
 #define CAM_ISP_IFE_OUT_RES_AI_OUT_1             (CAM_ISP_IFE_OUT_RES_BASE + 44)
 #define CAM_ISP_IFE_OUT_RES_AI_OUT_2             (CAM_ISP_IFE_OUT_RES_BASE + 45)
+#define CAM_ISP_IFE_OUT_RES_STATS_IR_BG          (CAM_ISP_IFE_OUT_RES_BASE + 46)
+#define CAM_ISP_IFE_OUT_RES_STATS_IR_BHIST       (CAM_ISP_IFE_OUT_RES_BASE + 47)
 
 /* IFE input port resource type (global unique) */
 #define CAM_ISP_IFE_IN_RES_BASE                 0x4000

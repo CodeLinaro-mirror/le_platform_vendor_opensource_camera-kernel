@@ -157,6 +157,28 @@ size_t cam_align_dma_buf_size(size_t len)
 	return len;
 }
 
+#ifdef CONFIG_SPECTRA_SECURE_CAMNOC_REG_UPDATE
+int cam_update_camnoc_qos_settings(uint32_t use_case_id,
+	uint32_t qos_cnt, struct qcom_scm_camera_qos *scm_buf)
+{
+	int rc = 0;
+
+	rc = qcom_scm_camera_update_camnoc_qos(use_case_id, qos_cnt, scm_buf);
+	if (rc)
+		CAM_ERR(CAM_CPAS, "scm call to update QoS failed: %d, use_case_id: %d",
+			rc, use_case_id);
+
+	return rc;
+}
+#else
+int cam_update_camnoc_qos_settings(uint32_t use_case_id,
+	uint32_t qos_cnt, struct qcom_scm_camera_qos *scm_buf)
+{
+	CAM_ERR(CAM_CPAS, "scm call to update QoS is not supported under this kernel");
+	return -EOPNOTSUPP;
+}
+#endif
+
 int cam_reserve_icp_fw(struct cam_fw_alloc_info *icp_fw, size_t fw_length)
 {
 	int rc = 0;
