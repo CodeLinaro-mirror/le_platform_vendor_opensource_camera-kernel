@@ -14,6 +14,7 @@
 #include <linux/list_sort.h>
 #include <linux/spi/spi.h>
 #include <linux/firmware/qcom/qcom_scm.h>
+#include <linux/firmware/qcom/qcom_scm_addon.h>
 
 #include "cam_csiphy_dev.h"
 #include "cam_cpastop_hw.h"
@@ -75,6 +76,8 @@ inline struct icc_path *cam_icc_get_path(struct device *dev,
 
 int cam_update_camnoc_qos_settings(uint32_t use_case_id,
 	uint32_t num_arg, struct qcom_scm_camera_qos *scm_buf);
+
+int camera_i2c_compare_dev(struct device *dev, const void *data);
 
 #ifdef CONFIG_SPECTRA_SECURE
 void cam_cpastop_scm_write(struct cam_cpas_hw_errata_wa *errata_wa);
