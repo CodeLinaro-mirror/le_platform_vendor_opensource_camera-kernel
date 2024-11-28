@@ -1116,7 +1116,6 @@ static int cam_cpastop_poweron(struct cam_hw_info *cpas_hw)
 		rc = cam_update_camnoc_qos_settings(CAM_QOS_UPDATE_TYPE_STATIC, 0, NULL);
 		if (rc) {
 			CAM_ERR(CAM_CPAS, "Secure camera static OoS update failed: %d", rc);
-			return rc;
 		}
 		CAM_DBG(CAM_CPAS, "Updated secure camera static QoS settings");
 	}

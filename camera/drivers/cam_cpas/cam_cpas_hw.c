@@ -1056,7 +1056,6 @@ static int cam_cpas_apply_smart_qos(
 			cam_qos_cnt, scm_buf);
 		if (ret) {
 			CAM_ERR(CAM_PERF, "Secure camera smartQoS update failed: %d", ret);
-			return ret;
 		}
 		CAM_DBG(CAM_PERF, "Updated secure camera smartQoS");
 	}

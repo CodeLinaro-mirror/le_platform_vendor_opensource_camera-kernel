@@ -1979,8 +1979,13 @@ int cam_soc_util_release_platform_resource(struct cam_hw_soc_info *soc_info)
 	}
 
 	pm_runtime_disable(soc_info->dev);
-	for (i = 0; i < soc_info->num_genpd; i++)
+	for (i = 0; i < soc_info->num_genpd; i++) {
+		if (!soc_info->genpd)
+			continue;
+		if (!soc_info->genpd[i])
+			continue;
 		dev_pm_domain_detach(soc_info->genpd[i], true);
+	}
 
 	for (i = soc_info->num_reg_map - 1; i >= 0; i--) {
 		iounmap(soc_info->reg_map[i].mem_base);

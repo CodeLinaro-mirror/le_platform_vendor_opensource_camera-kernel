@@ -2044,8 +2044,13 @@ void cam_sensor_util_release_power_domain(struct cam_hw_soc_info *soc_info)
 
 	pm_runtime_disable(soc_info->dev);
 
-	for (i = 0; i < soc_info->num_genpd; i++)
+	for (i = 0; i < soc_info->num_genpd; i++) {
+		if (!soc_info->genpd)
+			continue;
+		if (!soc_info->genpd[i])
+			continue;
 		dev_pm_domain_detach(soc_info->genpd[i], true);
+	}
 }
 
 int cam_sensor_core_power_up(struct cam_sensor_power_ctrl_t *ctrl,
