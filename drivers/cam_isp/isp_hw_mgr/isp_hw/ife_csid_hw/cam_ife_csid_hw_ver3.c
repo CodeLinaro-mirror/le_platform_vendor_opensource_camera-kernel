@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/iopoll.h>
@@ -55,6 +55,7 @@
 static void cam_ife_csid_ver3_print_debug_reg_status(
 	struct cam_ife_csid_ver3_hw *csid_hw,
 	struct cam_isp_resource_node    *res);
+static int cam_ife_csid_ver3_restart(struct cam_ife_csid_ver3_hw *csid_hw);
 /*
 static bool cam_ife_csid_ver3_disable_sof_retime(
 	struct cam_ife_csid_ver3_hw     *csid_hw,
@@ -1079,6 +1080,7 @@ static int cam_ife_csid_ver3_rx_err_bottom_half(
 	uint32_t                                    long_pkt_ftr_val;
 	uint32_t                                    total_crc;
 	uint32_t                                    data_idx;
+	bool                                        lane_overflow = false;
 
 	if (!handler_priv || !evt_payload_priv) {
 		CAM_ERR(CAM_ISP, "Invalid params");
@@ -1113,7 +1115,6 @@ static int cam_ife_csid_ver3_rx_err_bottom_half(
 	}
 
 	if (irq_status) {
-		bool lane_overflow = false;
 		char tmp_buf[10];
 		int tmp_len = 0;
 
@@ -1153,7 +1154,10 @@ static int cam_ife_csid_ver3_rx_err_bottom_half(
 		CAM_ERR(CAM_ISP, "Fatal Errors: %s", log_buf);
 
 		rx_irq_status |= irq_status;
-		csid_hw->flags.fatal_err_detected = true;
+		if(!lane_overflow)
+		{
+			csid_hw->flags.fatal_err_detected = true;
+		}
 	}
 
 	irq_status = payload->irq_reg_val[CAM_IFE_CSID_IRQ_REG_RX] &
@@ -1247,6 +1251,11 @@ static int cam_ife_csid_ver3_rx_err_bottom_half(
 	}
 unlock:
 	spin_unlock(&csid_hw->lock_state);
+	if(lane_overflow)
+	{
+		CAM_ERR(CAM_ISP, "Calling CSID Hw restart due to Lane Overflow for CSID[%u]",csid_hw->hw_intf->hw_idx);
+		cam_ife_csid_ver3_restart(csid_hw);
+	}
 end:
 	cam_ife_csid_ver3_put_evt_payload(csid_hw, &payload,
 		&csid_hw->rx_free_payload_list,
@@ -2882,6 +2891,13 @@ int cam_ife_csid_ver3_release(void *hw_priv,
 
 	path_cfg = (struct cam_ife_csid_ver3_path_cfg *)res->res_priv;
 
+	if (path_cfg->cid >= CAM_IFE_CSID_CID_MAX) {
+		CAM_ERR(CAM_ISP, "CSID:%d Invalid cid:%d",
+				csid_hw->hw_intf->hw_idx, path_cfg->cid);
+		rc = -EINVAL;
+		goto end;
+	}
+
 	cam_ife_csid_cid_release(&csid_hw->cid_data[path_cfg->cid],
 		csid_hw->hw_intf->hw_idx,
 		path_cfg->cid);
@@ -3946,6 +3962,7 @@ static int cam_ife_csid_ver3_enable_csi2(struct cam_ife_csid_ver3_hw *csid_hw)
 	/*Configure Rx cfg1*/
 	val = 1 << csi2_reg->misr_enable_shift_val;
 	val |= 1 << csi2_reg->ecc_correction_shift_en;
+	val |= 1 << csi2_reg->hot_plug_en;
 	val |= (rx_cfg->epd_supported << csi2_reg->epd_mode_shift_en);
 	if (rx_cfg->dynamic_sensor_switch_en)
 		val |= 1 << csi2_reg->dyn_sensor_switch_shift_en;
@@ -4662,6 +4679,140 @@ int cam_ife_csid_ver3_stop(void *hw_priv,
 	cam_ife_csid_ver3_disable_csi2(csid_hw);
 	mutex_unlock(&csid_hw->hw_info->hw_mutex);
 
+	return rc;
+}
+
+
+static int cam_ife_csid_ver3_restart(struct cam_ife_csid_ver3_hw *csid_hw)
+{
+	struct cam_isp_resource_node          *res;
+	struct cam_csid_reset_cfg_args        reset = {0};
+	struct cam_ife_csid_ver3_reg_info     *csid_reg;
+	struct cam_hw_soc_info                *soc_info;
+	uint32_t                              rup_aup_mask = 0;
+	int                                   rc = 0;
+
+	csid_hw->flags.device_enabled = false;
+	csid_hw->flags.rdi_lcr_en = false;
+
+	reset.reset_type = CAM_IFE_CSID_RESET_GLOBAL;
+	CAM_ERR(CAM_ISP, "Performing Stop of CSID Hw");
+	mutex_lock(&csid_hw->hw_info->hw_mutex);
+	if (atomic_read(&csid_hw->init_global_reset_cnt) &&
+		csid_hw->flags.per_port_en)
+	{
+		CAM_ERR(CAM_ISP,"Skipping CSID Hw Reset");
+	}
+	else
+	{
+		rc = cam_ife_csid_ver3_internal_reset(csid_hw,
+			CAM_IFE_CSID_RESET_COMMAND_HW_RST,
+			CAM_IFE_CSID_RESET_LOCATION_COMPLETE,
+			CAM_CSID_HALT_IMMEDIATELY);
+
+		if (rc)
+			CAM_ERR(CAM_ISP, "CSID[%d] reset type: %s failed",
+				csid_hw->hw_intf->hw_idx,
+				cam_ife_csid_reset_type_to_string(reset.reset_type));
+		else
+			CAM_ERR(CAM_ISP, "CSID[%d] reset type: %s",
+				csid_hw->hw_intf->hw_idx,
+				cam_ife_csid_reset_type_to_string(reset.reset_type));
+	}
+
+	atomic_inc(&csid_hw->init_global_reset_cnt);
+
+	atomic_set(&csid_hw->discard_frame_per_path, 0);
+	atomic_set(&csid_hw->init_global_reset_cnt, 0);
+
+
+	res = &csid_hw->path_res[0];
+	rc = cam_ife_csid_ver3_disable_path(csid_hw, res);
+	res->res_state = CAM_ISP_RESOURCE_STATE_INIT_HW;
+	CAM_ERR(CAM_ISP, "CSID:%d res_type %d Resource[id:%d name:%s]",
+		csid_hw->hw_intf->hw_idx,
+		res->res_type, res->res_id,
+		res->res_name);
+	if (csid_hw->buf_done_irq_handle) {
+		rc = cam_irq_controller_unsubscribe_irq(
+			csid_hw->csid_irq_controller,
+			csid_hw->buf_done_irq_handle);
+		csid_hw->buf_done_irq_handle = 0;
+
+		cam_irq_controller_unregister_dependent(csid_hw->csid_irq_controller,
+			csid_hw->buf_done_irq_controller);
+	}
+
+	if (csid_hw->top_err_irq_handle) {
+		rc = cam_irq_controller_unsubscribe_irq(
+			csid_hw->csid_irq_controller,
+			csid_hw->top_err_irq_handle);
+		csid_hw->top_err_irq_handle = 0;
+	}
+
+	cam_ife_csid_ver3_disable_csi2(csid_hw);
+	CAM_ERR(CAM_ISP,"CSID HW stopped. Performing CSID Hw start");
+
+	soc_info = &csid_hw->hw_info->soc_info;
+	csid_reg = (struct cam_ife_csid_ver3_reg_info *)
+			csid_hw->core_info->csid_reg;
+
+	csid_hw->flags.sof_irq_triggered = false;
+	csid_hw->counters.irq_debug_cnt = 0;
+
+	rc = cam_ife_csid_ver3_enable_hw(csid_hw);
+
+	switch (res->res_id) {
+		case  CAM_IFE_PIX_PATH_RES_IPP:
+			rc = cam_ife_csid_ver3_program_ipp_path(csid_hw, res, &rup_aup_mask);
+			if (rc)
+				goto end;
+
+			break;
+		case  CAM_IFE_PIX_PATH_RES_PPP:
+			rc = cam_ife_csid_ver3_program_ppp_path(csid_hw, res, &rup_aup_mask);
+			if (rc)
+				goto end;
+			break;
+		case CAM_IFE_PIX_PATH_RES_RDI_0:
+		case CAM_IFE_PIX_PATH_RES_RDI_1:
+		case CAM_IFE_PIX_PATH_RES_RDI_2:
+		case CAM_IFE_PIX_PATH_RES_RDI_3:
+		case CAM_IFE_PIX_PATH_RES_RDI_4:
+			rc = cam_ife_csid_ver3_program_rdi_path(csid_hw, res, &rup_aup_mask);
+			if (rc)
+				goto end;
+
+			break;
+		default:
+			CAM_ERR(CAM_ISP, "CSID:%d Invalid res type %d",
+					csid_hw->hw_intf->hw_idx, res->res_type);
+			break;
+	}
+
+	/*
+	* Configure RUP/AUP/MUP @ streamon for all enabled paths
+	* For internal recovery - skip this, CDM packet corresponding
+	* to the request being recovered will apply the appropriate RUP/AUP/MUP
+	*/
+	rup_aup_mask |= (csid_hw->rx_cfg.mup << csid_reg->cmn_reg->mup_shift_val);
+	cam_io_w_mb(rup_aup_mask,
+		soc_info->reg_map[CAM_IFE_CSID_CLC_MEM_BASE_ID].mem_base +
+                        csid_reg->cmn_reg->rup_aup_cmd_addr);
+
+	CAM_ERR(CAM_ISP, "CSID:%u RUP_AUP_MUP: 0x%x at start updated: %s",
+		csid_hw->hw_intf->hw_idx, rup_aup_mask,
+		CAM_BOOL_TO_YESNO(!false));
+
+	cam_ife_csid_ver3_enable_csi2(csid_hw);
+	cam_ife_csid_ver3_enable_path(csid_hw, res);
+
+	csid_hw->flags.reset_awaited = false;
+	CAM_ERR(CAM_ISP,"CSID HW Started");
+
+end:
+	mutex_unlock(&csid_hw->hw_info->hw_mutex);
+	CAM_ERR(CAM_ISP,"CSID Hw Restarted");
 	return rc;
 }
 

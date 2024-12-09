@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "cam_cci_dev.h"
@@ -572,6 +572,31 @@ static int cam_cci_platform_probe(struct platform_device *pdev)
 	return rc;
 }
 
+#ifdef CAMERA_BUILD_FOR_AUTO
+static int cam_pm_sensor_suspend(struct device *dev)
+{
+	struct platform_device *pdev = to_platform_device(dev);
+	struct v4l2_subdev *subdev = platform_get_drvdata(pdev);
+	struct cci_device *cci_dev =
+		v4l2_get_subdevdata(subdev);
+
+	if(cci_dev->cci_state == CCI_STATE_DISABLED) {
+		CAM_ERR(CAM_SENSOR, "CCI CLK State DISABLED for CCI Device Index %d",
+			cci_dev->soc_info.index);
+		return 0;
+	}
+	else {
+		CAM_ERR(CAM_SENSOR, "CCI CLK State ENABLED - Retrying for CCI Device Index %d",
+			cci_dev->soc_info.index);
+		return -1;
+	}
+}
+
+static const struct dev_pm_ops cam_pm_ops = {
+	.suspend = &cam_pm_sensor_suspend,
+};
+#endif
+
 static int cam_cci_device_remove(struct platform_device *pdev)
 {
 	component_del(&pdev->dev, &cam_cci_component_ops);
@@ -593,6 +618,9 @@ struct platform_driver cci_driver = {
 		.owner = THIS_MODULE,
 		.of_match_table = cam_cci_dt_match,
 		.suppress_bind_attrs = true,
+#ifdef CAMERA_BUILD_FOR_AUTO
+		.pm = &cam_pm_ops,
+#endif
 	},
 };
 

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -32,6 +32,12 @@
  * changes depending on PHY HW version
  */
 #define MAX_PHY_MSK_PER_REG 4
+
+#ifdef __ANDROID__
+#define MAX_PHY_ACQUIRE_COUNT 4
+#else
+#define MAX_PHY_ACQUIRE_COUNT 1
+#endif
 
 static DEFINE_MUTEX(active_csiphy_cnt_mutex);
 static DEFINE_MUTEX(main_aon_selection);
@@ -779,11 +785,14 @@ int32_t cam_cmd_buf_parser(struct csiphy_device *csiphy_dev,
 		csiphy_dev->csiphy_info[index].settle_time,
 		csiphy_dev->csiphy_info[index].data_rate);
 
+	cam_mem_put_cpu_buf(cmd_desc->mem_handle);
+	cam_mem_put_cpu_buf(cfg_dev->packet_handle);
 	return rc;
 
 reset_settings:
 	cam_csiphy_reset_phyconfig_param(csiphy_dev, index);
-
+	cam_mem_put_cpu_buf(cfg_dev->packet_handle);
+	cam_mem_put_cpu_buf(cmd_desc->mem_handle);
 	return rc;
 }
 
@@ -1954,9 +1963,9 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 			csiphy_dev->combo_mode);
 		if ((csiphy_dev->csiphy_state == CAM_CSIPHY_START) &&
 			(csiphy_dev->combo_mode == 0) &&
-			(csiphy_dev->acquire_count > 0)) {
+			(csiphy_dev->acquire_count >= MAX_PHY_ACQUIRE_COUNT)) {
 			CAM_ERR(CAM_CSIPHY,
-				"NonComboMode does not support multiple acquire: Acquire_count: %d",
+				"Max acquire count reached, Acquire_count: %d",
 				csiphy_dev->acquire_count);
 			rc = -EINVAL;
 			goto release_mutex;
@@ -2022,7 +2031,7 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 		if (!csiphy_acq_params.combo_mode &&
 			!csiphy_acq_params.cphy_dphy_combo_mode) {
 			CAM_DBG(CAM_CSIPHY, "Non Combo Mode stream");
-			csiphy_dev->session_max_device_support = 1;
+			csiphy_dev->session_max_device_support = MAX_PHY_ACQUIRE_COUNT;
 		}
 
 		if (csiphy_dev->is_aggregator_rx)
@@ -2151,7 +2160,10 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 			csiphy_dev->csiphy_info[offset].csiphy_cpas_cp_reg_mask
 				= 0;
 
-			cam_csiphy_update_lane(csiphy_dev, offset, false);
+			//Commenting out below code so as to update the lane
+			//only when the last camera of that particular deserializer
+			//is closed
+			//cam_csiphy_update_lane(csiphy_dev, offset, false);
 
 			CAM_INFO(CAM_CSIPHY,
 				"CAM_STOP_PHYDEV: %d, Type: %s, dev_cnt: %u, slot: %d, Datarate: %llu, Settletime: %llu",
@@ -2186,6 +2198,9 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 		if (csiphy_dev->preamble_enable)
 			__cam_csiphy_get_preamble_status(csiphy_dev, offset);
 
+		//Update the lane only when last camera of that particular deserializer
+		//is closed
+		cam_csiphy_update_lane(csiphy_dev, offset, false);
 		rc = cam_csiphy_disable_hw(csiphy_dev);
 		if (rc < 0)
 			CAM_ERR(CAM_CSIPHY, "Failed in csiphy release");

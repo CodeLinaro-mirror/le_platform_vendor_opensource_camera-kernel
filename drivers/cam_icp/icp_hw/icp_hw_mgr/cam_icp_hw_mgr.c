@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/uaccess.h>
@@ -101,7 +101,7 @@ static int cam_icp_dump_io_cfg(struct cam_icp_hw_ctx_data *ctx_data,
 			used = 0;
 		}
 	}
-
+	cam_mem_put_cpu_buf(buf_handle);
 	return rc;
 }
 
@@ -4496,7 +4496,8 @@ static bool cam_icp_mgr_is_valid_outconfig(struct cam_packet *packet)
 					packet->io_configs_offset/4);
 
 	for (i = 0 ; i < packet->num_io_configs; i++)
-		if (io_cfg_ptr[i].direction == CAM_BUF_OUTPUT)
+		if ((io_cfg_ptr[i].direction == CAM_BUF_OUTPUT) ||
+			(io_cfg_ptr[i].direction == CAM_BUF_IN_OUT))
 			num_out_map_entries++;
 
 	if (num_out_map_entries <= CAM_MAX_OUT_RES) {
@@ -4610,9 +4611,12 @@ static int cam_icp_mgr_process_cmd_desc(struct cam_icp_hw_mgr *hw_mgr,
 				((len - cmd_desc[i].offset) <
 				cmd_desc[i].length)) {
 				CAM_ERR(CAM_ICP, "Invalid offset or length");
+				cam_mem_put_cpu_buf(cmd_desc[i].mem_handle);
 				return -EINVAL;
 			}
 			cpu_addr = cpu_addr + cmd_desc[i].offset;
+
+			cam_mem_put_cpu_buf(cmd_desc[i].mem_handle);
 		}
 	}
 
@@ -4644,13 +4648,20 @@ static int cam_icp_mgr_process_io_cfg(struct cam_icp_hw_mgr *hw_mgr,
 		if (io_cfg_ptr[i].direction == CAM_BUF_INPUT) {
 			sync_in_obj[j++] = io_cfg_ptr[i].fence;
 			prepare_args->num_in_map_entries++;
-		} else {
+		} else if ((io_cfg_ptr[i].direction == CAM_BUF_OUTPUT) ||
+			(io_cfg_ptr[i].direction == CAM_BUF_IN_OUT)) {
 			prepare_args->out_map_entries[k].sync_id =
 				io_cfg_ptr[i].fence;
 			prepare_args->out_map_entries[k].resource_handle =
 				io_cfg_ptr[i].resource_type;
 			k++;
 			prepare_args->num_out_map_entries++;
+		} else {
+			CAM_ERR(CAM_ICP, "dir: %d, max_out:%u, out %u",
+				io_cfg_ptr[i].direction,
+				prepare_args->max_out_map_entries,
+				prepare_args->num_out_map_entries);
+			return -EINVAL;
 		}
 
 		CAM_DBG(CAM_REQ,
@@ -5014,6 +5025,10 @@ static int cam_icp_process_generic_cmd_buffer(
 	cmd_desc = (struct cam_cmd_buf_desc *)
 		((uint32_t *) &packet->payload + packet->cmd_buf_offset/4);
 	for (i = 0; i < packet->num_cmd_buf; i++) {
+		rc = cam_packet_util_validate_cmd_desc(&cmd_desc[i]);
+		if (rc)
+			return rc;
+
 		if (!cmd_desc[i].length)
 			continue;
 
@@ -5193,6 +5208,10 @@ static int cam_icp_mgr_config_stream_settings(
 
 	cmd_desc = (struct cam_cmd_buf_desc *)
 		((uint32_t *) &packet->payload + packet->cmd_buf_offset/4);
+
+	rc = cam_packet_util_validate_cmd_desc(cmd_desc);
+	if (rc)
+		return rc;
 
 	if (!cmd_desc[0].length ||
 		cmd_desc[0].meta_data != CAM_ICP_CMD_META_GENERIC_BLOB) {
@@ -5581,7 +5600,8 @@ hw_dump:
 	if (icp_dump_args.buf_len <= dump_args->offset) {
 		CAM_WARN(CAM_ICP, "dump buffer overshoot len %zu offset %zu",
 			icp_dump_args.buf_len, dump_args->offset);
-		return -ENOSPC;
+		rc = -ENOSPC;
+		goto put_cpu_buf;
 	}
 
 	remain_len = icp_dump_args.buf_len - dump_args->offset;
@@ -5591,7 +5611,8 @@ hw_dump:
 	if (remain_len < min_len) {
 		CAM_WARN(CAM_ICP, "dump buffer exhaust remain %zu min %u",
 			remain_len, min_len);
-		return -ENOSPC;
+		rc = -ENOSPC;
+		goto put_cpu_buf;
 	}
 
 	dst = (uint8_t *)icp_dump_args.cpu_addr + dump_args->offset;
@@ -5610,6 +5631,11 @@ hw_dump:
 	/* Dumping the fw image*/
 	icp_dump_args.offset = dump_args->offset;
 	icp_dev_intf = hw_mgr->icp_dev_intf;
+	if (!icp_dev_intf) {
+		CAM_ERR(CAM_ICP, "ICP device interface is NULL");
+		rc = -EINVAL;
+		goto put_cpu_buf;
+	}
 	rc = icp_dev_intf->hw_ops.process_cmd(
 		icp_dev_intf->hw_priv,
 		CAM_ICP_CMD_HW_DUMP, &icp_dump_args,
@@ -5617,6 +5643,9 @@ hw_dump:
 	CAM_DBG(CAM_ICP, "Offset before %zu after %zu",
 		dump_args->offset, icp_dump_args.offset);
 	dump_args->offset = icp_dump_args.offset;
+
+put_cpu_buf:
+	cam_mem_put_cpu_buf(dump_args->buf_handle);
 	return rc;
 }
 

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022,2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_DEBUG_UTIL_H_
@@ -56,6 +56,7 @@ enum cam_debug_module_id {
 	CAM_RPMSG,               /* bit 34 */
 	CAM_SENSOR_LITE,         /* bit 35 */
 	CAM_CSIPHY_REMOTE,       /* bit 36 */
+	CAM_V4L2,                /* bit 37 */
 	CAM_DBG_MOD_MAX
 };
 
@@ -242,8 +243,8 @@ fmt, ##args)
  * @fmt:      Format string
  * @args:     Arguments to match with format
  */
-#define CAM_ERR(__module, fmt, args...)  CAM_LOG(CAM_TYPE_ERR, __module, fmt, ##args)
-#define CAM_WARN(__module, fmt, args...) CAM_LOG(CAM_TYPE_WARN, __module, fmt, ##args)
+#define CAM_ERR(__module, fmt, args...)  CAM_LOG_RL(CAM_TYPE_ERR, __module, fmt, ##args)
+#define CAM_WARN(__module, fmt, args...) CAM_LOG_RL(CAM_TYPE_WARN, __module, fmt, ##args)
 #define CAM_INFO(__module, fmt, args...) CAM_LOG(CAM_TYPE_INFO, __module, fmt, ##args)
 #define CAM_TRACE(__module, fmt, args...) \
 __CAM_LOG(CAM_PRINT_TRACE, CAM_TYPE_TRACE, __module, fmt, ##args)
