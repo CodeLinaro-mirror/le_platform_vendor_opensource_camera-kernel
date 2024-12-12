@@ -1352,7 +1352,8 @@ int cam_mem_mgr_map(struct cam_mem_mgr_map_cmd *cmd)
 	}
 
 	tbl.bufq[idx].dma_buf = dmabuf;
-	tbl.bufq[idx].len = len;
+	if (len)
+		tbl.bufq[idx].len = len;
 	tbl.bufq[idx].num_hdl = mmu_hdl_idx + cmd->num_hdl;
 	memcpy(&tbl.bufq[idx].hdls[mmu_hdl_idx], cmd->mmu_hdls,
 		sizeof(int32_t) * cmd->num_hdl);
@@ -1380,7 +1381,7 @@ int cam_mem_mgr_map(struct cam_mem_mgr_map_cmd *cmd)
 
 	cmd->out.buf_handle = tbl.bufq[idx].buf_handle;
 	cmd->out.vaddr = 0;
-	cmd->out.size = (uint32_t)len;
+	cmd->out.size = (uint32_t)tbl.bufq[idx].len;
 
 	CAM_DBG(CAM_MEM,
 		"fd=%d, flags=0x%x, num_hdl=%d, idx=%d, buf handle=%x, len=%zu, i_ino=%lu",

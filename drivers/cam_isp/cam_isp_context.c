@@ -1415,12 +1415,6 @@ static int __cam_isp_ctx_recover_sof_timestamp(struct cam_context *ctx)
 	uint64_t a, b, c;
 	int rc;
 
-	if (ctx_isp->frame_id < 1) {
-		CAM_ERR(CAM_ISP, "ctx:%u Timestamp recovery is not possible for the first frame",
-			ctx->ctx_id);
-		return -EPERM;
-	}
-
 	rc = __cam_isp_ctx_get_hw_timestamp(ctx, CAM_IFE_PIX_PATH_RES_MAX, &prev_ts, &curr_ts,
 			&boot_ts);
 	if (rc) {
@@ -1457,7 +1451,7 @@ static int __cam_isp_ctx_recover_sof_timestamp(struct cam_context *ctx)
 		return 0;
 	}
 
-	ctx_isp->boot_timestamp += (b - a);
+	ctx_isp->boot_timestamp = boot_ts - (curr_ts - b);
 	ctx_isp->sof_timestamp_val = b;
 	ctx_isp->frame_id++;
 	return 0;
@@ -6903,6 +6897,14 @@ static int __cam_isp_ctx_rdi_only_sof_in_bubble_state(
 		req = list_first_entry(&ctx->active_req_list,
 				struct cam_ctx_request, list);
 		req_isp = (struct cam_isp_ctx_req *) req->req_priv;
+
+		if ((!req_isp->bubble_detected) && (ctx_isp->active_req_cnt > 1)) {
+			req = list_last_entry(&ctx->active_req_list, struct cam_ctx_request, list);
+			req_isp = (struct cam_isp_ctx_req *) req->req_priv;
+			CAM_WARN(CAM_ISP,
+				"Two req in active list, check second req %lld ctx_id: %d",
+				req->request_id, ctx->ctx_id);
+		}
 
 		if (req_isp->bubble_detected) {
 			hw_cmd_args.ctxt_to_hw_map = ctx_isp->hw_ctx;

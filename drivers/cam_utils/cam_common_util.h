@@ -192,4 +192,21 @@ static inline int cam_common_register_mini_dump_cb(
 	return 0;
 }
 #endif
+/**
+ * @brief:                 Memory alloc and copy
+ *
+ * @dst:                   Address of destination address of memory
+ * @src:                   Source address of memory
+ * @size:                  Length of memory
+ *
+ * @return                 0 if success in register non-zero if failes
+ */
+int cam_common_mem_kdup(void **dst, void *src, size_t size);
+
+/**
+ * @brief:                 Free the memory
+ *
+ * @memory:                Address of memory
+ */
+void cam_common_mem_free(void *memory);
 #endif /* _CAM_COMMON_UTIL_H_ */

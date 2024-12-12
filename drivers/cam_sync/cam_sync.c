@@ -428,7 +428,7 @@ int cam_sync_merge(int32_t *sync_var, uint32_t num_objs, int32_t *merged_obj)
 int cam_sync_get_obj_ref(int32_t sync_var)
 {
 	struct sync_table_row *row = NULL;
-	uint32_t sync_obj;
+	uint32_t sync_obj, uid_validity;
 	uint16_t sync_uid;
 
 	sync_obj = (uint32_t)sync_var & sync_uid_access.fenceIdMask;
@@ -440,6 +440,18 @@ int cam_sync_get_obj_ref(int32_t sync_var)
 	row = sync_dev->sync_table + sync_obj;
 
 	spin_lock(&sync_dev->row_spinlocks[sync_obj]);
+
+	uid_validity = cam_sync_check_uid_valid(sync_var);
+
+	if (uid_validity == SYNC_UID_NEW) {
+		cam_sync_reinit_object(sync_dev->sync_table, sync_var);
+	} else if (uid_validity == SYNC_UID_OLD) {
+		spin_unlock(&sync_dev->row_spinlocks[sync_obj]);
+		CAM_ERR(CAM_SYNC, "Called for invalid fence, sync obj: %d, uid: %d",
+			sync_obj,
+			sync_uid);
+		return -EINVAL;
+	}
 
 	if (row->state != CAM_SYNC_STATE_ACTIVE) {
 		spin_unlock(&sync_dev->row_spinlocks[sync_obj]);

@@ -947,11 +947,6 @@ static int cam_ife_csid_ver2_handle_event_err(
 		return 0;
 	}
 
-	if (!res) {
-		CAM_ERR(CAM_ISP, "Invalid resource node data");
-		return -EINVAL;
-	}
-
 	evt.hw_idx   = csid_hw->hw_intf->hw_idx;
 	evt.reg_val  = irq_status;
 	evt.hw_type  = CAM_ISP_HW_TYPE_CSID;
@@ -959,14 +954,24 @@ static int cam_ife_csid_ver2_handle_event_err(
 	err_evt_info.err_type = err_type;
 	evt.event_data = (void *)&err_evt_info;
 	for (i = 0; i < CAM_IFE_PIX_PATH_RES_MAX; i++) {
-		if (csid_hw->token_data[i].res_id == res->res_id) {
-			token = csid_hw->token_data[i].token;
-			break;
+		if (res) {
+			if (csid_hw->token_data[i].res_id == res->res_id) {
+				token = csid_hw->token_data[i].token;
+				break;
+			}
+		} else {
+			if (csid_hw->token_data[i].token) {
+				token = csid_hw->token_data[i].token;
+				break;
+			}
 		}
 	}
 
 	if (!token) {
-		CAM_ERR(CAM_ISP, "cannot find token data for res :%d ", res->res_id);
+		if (res)
+			CAM_ERR(CAM_ISP, "cannot find token data for res :%d ", res->res_id);
+		else
+			CAM_ERR(CAM_ISP, "cannot find token data for null res");
 		goto end;
 	}
 

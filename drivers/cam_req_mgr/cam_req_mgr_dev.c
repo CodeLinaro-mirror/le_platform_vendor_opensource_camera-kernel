@@ -26,6 +26,7 @@
 #include "cam_req_mgr_dev.h"
 #include "cam_req_mgr_util.h"
 #include "cam_req_mgr_core.h"
+#include "cam_req_mgr_worker_wrapper.h"
 #include "cam_subdev.h"
 #include "cam_mem_mgr.h"
 #include "cam_debug_util.h"
@@ -37,6 +38,7 @@
 #define CAM_REQ_MGR_EVENT_MAX 30
 
 static struct cam_req_mgr_device g_dev;
+struct cam_req_mgr_core_worker *g_kt_worker;
 struct kmem_cache *g_cam_req_mgr_timer_cachep;
 static struct list_head cam_req_mgr_ordered_sd_list;
 
@@ -1002,6 +1004,14 @@ static int cam_req_mgr_component_master_bind(struct device *dev)
 		goto sysfs_fail;
 	}
 
+#ifdef CONFIG_KTHREAD_WORKER
+	rc = cam_req_mgr_worker_create("camkt-setprop", 2, &g_kt_worker,
+		CRM_WORKER_USAGE_IRQ, CAM_WORKER_FLAG_HIGH_PRIORITY);
+	if (rc < 0) {
+		CAM_ERR(CAM_CRM, "Failed to create setprop worker");
+		goto sysfs_fail;
+	}
+#endif
 	return rc;
 
 sysfs_fail:
