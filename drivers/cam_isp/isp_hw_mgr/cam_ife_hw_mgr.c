@@ -7258,18 +7258,41 @@ static int cam_ife_hw_mgr_set_secure_port_info(
 		CAM_ERR(CAM_ISP, "Invalid hw type %d or phy_id %d", hw_type, phy_id);
 		return -EINVAL;
 	}
+
+	CAM_DBG(CAM_ISP,
+		"hw_type 0x%x phy_id %d release %d shutdown %d ctx %d phy_ref_cnt %d sec_phy_ref cnt %d is_phy_secure %d",
+		hw_type, phy_id, is_release, is_shutdown, ife_ctx->ctx_index,
+		ife_ctx->hw_mgr->phy_ref_cnt[phy_id], ife_ctx->hw_mgr->sec_phy_ref_cnt[phy_id],
+		ife_ctx->hw_mgr->is_phy_secure[phy_id]);
+
 	if (ife_ctx->hw_mgr->phy_ref_cnt[phy_id] && !ife_ctx->hw_mgr->is_phy_secure[phy_id]) {
 		if (cam_ife_hw_mgr_is_secure_context(ife_ctx) && !is_release) {
 			ife_ctx->hw_mgr->is_phy_secure[phy_id] = true;
 			rc = cam_ife_hw_mgr_secure_phy_contexts(ife_ctx);
-			if (rc)
+			if (rc) {
+				CAM_ERR(CAM_ISP, "failure in secure phy contexts ctx %d",
+					ife_ctx->ctx_index);
 				goto end;
+			}
 		} else {
+			CAM_DBG(CAM_ISP,
+				"hw_type 0x%x phy_id %d release %d shutdown %d ctx %d phy_ref_cnt %d sec_phy_ref cnt %d is_phy_secure %d",
+				hw_type, phy_id, is_release, is_shutdown, ife_ctx->ctx_index,
+				ife_ctx->hw_mgr->phy_ref_cnt[phy_id],
+				ife_ctx->hw_mgr->sec_phy_ref_cnt[phy_id],
+				ife_ctx->hw_mgr->is_phy_secure[phy_id]);
 			goto end;
 		}
 	}
-	if (!ife_ctx->hw_mgr->phy_ref_cnt[phy_id] && !cam_ife_hw_mgr_is_secure_context(ife_ctx))
+	if (!ife_ctx->hw_mgr->phy_ref_cnt[phy_id] && !cam_ife_hw_mgr_is_secure_context(ife_ctx)) {
+		CAM_DBG(CAM_ISP,
+			"hw_type 0x%x phy_id %d release %d shutdown %d ctx %d phy_ref_cnt %d sec_phy_ref cnt %d is_phy_secure %d",
+			hw_type, phy_id, is_release, is_shutdown, ife_ctx->ctx_index,
+			ife_ctx->hw_mgr->phy_ref_cnt[phy_id],
+			ife_ctx->hw_mgr->sec_phy_ref_cnt[phy_id],
+			ife_ctx->hw_mgr->is_phy_secure[phy_id]);
 		goto end;
+	}
 
 	ife_ctx->hw_mgr->is_phy_secure[phy_id] = TRUE;
 
@@ -7299,16 +7322,18 @@ static int cam_ife_hw_mgr_set_secure_port_info(
 				sec_unsec_port_info[CAM_IFE_NON_SECURE_PORT_IDX].mask |= ife_ctx->res_list_ife_out[i].secure_mask;
 
 		CAM_DBG(CAM_ISP,
-			"%d: res_id 0x%x hw_type 0x%x protect %d phy_id %d mask 0x%x release %d",
+			"%d: res_id 0x%x hw_type 0x%x protect %d phy_id %d mask 0x%x release %d ctx %d",
 			i, ife_ctx->res_list_ife_out[i].res_id, sec_unsec_port_info[CAM_IFE_SECURE_PORT_IDX].hw_type,
 			sec_unsec_port_info[CAM_IFE_SECURE_PORT_IDX].protect,
 			sec_unsec_port_info[CAM_IFE_SECURE_PORT_IDX].phy_id,
-			sec_unsec_port_info[CAM_IFE_SECURE_PORT_IDX].mask, is_release);
+			sec_unsec_port_info[CAM_IFE_SECURE_PORT_IDX].mask, is_release,
+			ife_ctx->ctx_index);
 		CAM_DBG(CAM_ISP,
-			"%d: res_id 0x%x hw_type 0x%x protect %d phy_id %d mask 0x%x release %d",
+			"%d: res_id 0x%x hw_type 0x%x protect %d phy_id %d mask 0x%x release %d ctx %d",
 			i, ife_ctx->res_list_ife_out[i].res_id, sec_unsec_port_info[CAM_IFE_NON_SECURE_PORT_IDX].hw_type,
 			sec_unsec_port_info[CAM_IFE_NON_SECURE_PORT_IDX].protect, sec_unsec_port_info[CAM_IFE_NON_SECURE_PORT_IDX].phy_id,
-			sec_unsec_port_info[CAM_IFE_NON_SECURE_PORT_IDX].mask, is_release);
+			sec_unsec_port_info[CAM_IFE_NON_SECURE_PORT_IDX].mask, is_release,
+			ife_ctx->ctx_index);
 		}
 	}
 	/* During release no need to mark any port as non-secure */
@@ -7331,8 +7356,11 @@ end:
 			ife_ctx->hw_mgr->sec_phy_ref_cnt[phy_id]++;
 		}
 		ife_ctx->hw_mgr->phy_ref_cnt[phy_id]++;
-		CAM_DBG(CAM_ISP, "phy ref cnt %d sec_phy_ref cnt %d is_phy_sec %d is_release %d", ife_ctx->hw_mgr->phy_ref_cnt[phy_id],
-			ife_ctx->hw_mgr->sec_phy_ref_cnt[phy_id], ife_ctx->hw_mgr->is_phy_secure[phy_id], is_release);
+		CAM_DBG(CAM_ISP,
+			"phy ref cnt %d sec_phy_ref cnt %d is_phy_sec %d is_release %d ctx %d",
+			ife_ctx->hw_mgr->phy_ref_cnt[phy_id],
+			ife_ctx->hw_mgr->sec_phy_ref_cnt[phy_id],
+			ife_ctx->hw_mgr->is_phy_secure[phy_id], is_release, ife_ctx->ctx_index);
 	}
 	else {
 		ife_ctx->hw_mgr->phy_ref_cnt[phy_id]--;
@@ -7341,8 +7369,11 @@ end:
 		}
 		if (!ife_ctx->hw_mgr->sec_phy_ref_cnt[phy_id])
 			ife_ctx->hw_mgr->is_phy_secure[phy_id] = FALSE;
-		CAM_DBG(CAM_ISP, "phy ref cnt %d sec_phy_ref cnt %d is_phy_sec %d is_release %d", ife_ctx->hw_mgr->phy_ref_cnt[phy_id],
-			ife_ctx->hw_mgr->sec_phy_ref_cnt[phy_id], ife_ctx->hw_mgr->is_phy_secure[phy_id], is_release);
+		CAM_DBG(CAM_ISP,
+			"phy ref cnt %d sec_phy_ref cnt %d is_phy_sec %d is_release %d ctx %d",
+			ife_ctx->hw_mgr->phy_ref_cnt[phy_id],
+			ife_ctx->hw_mgr->sec_phy_ref_cnt[phy_id],
+			ife_ctx->hw_mgr->is_phy_secure[phy_id], is_release, ife_ctx->ctx_index);
 	}
 
 	return rc;
@@ -10121,7 +10152,9 @@ reset_scratch_buffers:
 	if (stop_isp->stop_only)
 		goto end;
 
+	mutex_lock(&g_ife_hw_mgr.ctx_mutex);
 	cam_ife_hw_mgr_set_secure_port_info(ctx, TRUE, stop_isp->is_shutdown);
+	mutex_unlock(&g_ife_hw_mgr.ctx_mutex);
 
 	if (cam_cdm_stream_off(ctx->cdm_handle))
 		CAM_ERR(CAM_ISP, "CDM stream off failed %d", ctx->cdm_handle);
@@ -10887,7 +10920,9 @@ static int cam_ife_mgr_start_hw(void *hw_mgr_priv, void *start_hw_args)
 		goto safe_disable;
 	}
 
+	mutex_lock(&g_ife_hw_mgr.ctx_mutex);
 	rc = cam_ife_hw_mgr_set_secure_port_info(ctx, FALSE, FALSE);
+	mutex_unlock(&g_ife_hw_mgr.ctx_mutex);
 	if (rc) {
 		CAM_ERR(CAM_ISP, "Setting secure non secure port failed ctx %d",
 			ctx->ctx_index);
@@ -13673,7 +13708,9 @@ static int cam_isp_packet_generic_blob_handler(void *user_data,
 		break;
 	case CAM_ISP_GENERIC_BLOB_TYPE_BW_CONFIG: {
 		struct cam_isp_bw_config    *bw_config;
+		struct cam_isp_bw_config    *bw_config_u;
 		struct cam_isp_prepare_hw_update_data   *prepare_hw_data;
+		size_t bw_config_size;
 
 		CAM_WARN_RATE_LIMIT_CUSTOM(CAM_PERF, 300, 1,
 			"Deprecated Blob TYPE_BW_CONFIG");
@@ -13682,12 +13719,27 @@ static int cam_isp_packet_generic_blob_handler(void *user_data,
 			return -EINVAL;
 		}
 
-		bw_config = (struct cam_isp_bw_config *)blob_data;
+		bw_config_u = (struct cam_isp_bw_config *)blob_data;
 
-		if (bw_config->num_rdi > CAM_IFE_RDI_NUM_MAX) {
-			CAM_ERR(CAM_ISP, "Invalid num_rdi %u in bw config",
-				bw_config->num_rdi);
+		if (bw_config_u->num_rdi > CAM_IFE_RDI_NUM_MAX || !bw_config_u->num_rdi) {
+			CAM_ERR(CAM_ISP, "Invalid num_rdi %u in bw config, ctx_idx: %u",
+				bw_config_u->num_rdi, ife_mgr_ctx->ctx_index);
 			return -EINVAL;
+		}
+
+		bw_config_size = sizeof(struct cam_isp_bw_config) + ((bw_config_u->num_rdi-1)*
+					sizeof(struct cam_isp_bw_vote));
+
+		rc = cam_common_mem_kdup((void **)&bw_config, bw_config_u, bw_config_size);
+		if (rc) {
+			CAM_ERR(CAM_ISP, "Alloc and copy request bw_config failed");
+			return rc;
+		}
+		if (bw_config_u->num_rdi != bw_config->num_rdi) {
+			CAM_ERR(CAM_ISP, "num_rdi changed,userspace:%d, kernel:%d",
+					bw_config_u->num_rdi, bw_config->num_rdi);
+			rc = -EINVAL;
+			goto free_kdup;
 		}
 
 		/* Check for integer overflow */
@@ -13699,7 +13751,8 @@ static int cam_isp_packet_generic_blob_handler(void *user_data,
 					"Max size exceeded in bw config num_rdi:%u size per port:%lu",
 					bw_config->num_rdi,
 					sizeof(struct cam_isp_bw_vote));
-				return -EINVAL;
+				rc = -EINVAL;
+				goto free_kdup;
 			}
 		}
 
@@ -13711,14 +13764,16 @@ static int cam_isp_packet_generic_blob_handler(void *user_data,
 				blob_size, sizeof(struct cam_isp_bw_config) +
 				(bw_config->num_rdi - 1) *
 				sizeof(struct cam_isp_bw_vote));
-			return -EINVAL;
+			rc = -EINVAL;
+			goto free_kdup;
 		}
 
 		if (!prepare || !prepare->priv ||
 			(bw_config->usage_type >= CAM_ISP_HW_USAGE_TYPE_MAX)) {
 			CAM_ERR(CAM_ISP, "Invalid inputs usage type %d",
 				bw_config->usage_type);
-			return -EINVAL;
+			rc = -EINVAL;
+			goto free_kdup;
 		}
 
 		prepare_hw_data = (struct cam_isp_prepare_hw_update_data  *)
@@ -13728,11 +13783,16 @@ static int cam_isp_packet_generic_blob_handler(void *user_data,
 			sizeof(prepare_hw_data->bw_clk_config.bw_config));
 		ife_mgr_ctx->bw_config_version = CAM_ISP_BW_CONFIG_V1;
 		prepare_hw_data->bw_clk_config.bw_config_valid = true;
+free_kdup:
+		cam_common_mem_free(bw_config);
+		return rc;
+
 	}
 		break;
 	case CAM_ISP_GENERIC_BLOB_TYPE_BW_CONFIG_V2: {
 		size_t bw_config_size = 0;
 		struct cam_isp_bw_config_v2    *bw_config;
+		struct cam_isp_bw_config_v2    *bw_config_u;
 		struct cam_isp_prepare_hw_update_data   *prepare_hw_data;
 
 		if (blob_size < sizeof(struct cam_isp_bw_config_v2)) {
@@ -13740,13 +13800,29 @@ static int cam_isp_packet_generic_blob_handler(void *user_data,
 			return -EINVAL;
 		}
 
-		bw_config = (struct cam_isp_bw_config_v2 *)blob_data;
+		bw_config_u = (struct cam_isp_bw_config_v2 *)blob_data;
 
-		if (bw_config->num_paths > CAM_ISP_MAX_PER_PATH_VOTES ||
-			!bw_config->num_paths) {
-			CAM_ERR(CAM_ISP, "Invalid num paths %d",
-				bw_config->num_paths);
+		if (bw_config_u->num_paths > CAM_ISP_MAX_PER_PATH_VOTES ||
+			!bw_config_u->num_paths) {
+			CAM_ERR(CAM_ISP, "Invalid num paths %d ctx_idx: %u",
+				bw_config_u->num_paths, ife_mgr_ctx->ctx_index);
 			return -EINVAL;
+		}
+
+		bw_config_size = sizeof(struct cam_isp_bw_config_v2) + ((bw_config_u->num_paths-1)*
+					sizeof(struct cam_axi_per_path_bw_vote));
+
+		rc = cam_common_mem_kdup((void **)&bw_config, bw_config_u, bw_config_size);
+		if (rc) {
+			CAM_ERR(CAM_ISP, "Alloc and copy request bw_config failed");
+			return rc;
+		}
+
+		if (bw_config_u->num_paths != bw_config->num_paths) {
+			CAM_ERR(CAM_ISP, "num_paths changed,userspace:%d, kernel:%d",
+					bw_config_u->num_paths, bw_config->num_paths);
+			rc = -EINVAL;
+			goto free_mem;
 		}
 
 		/* Check for integer overflow */
@@ -13760,7 +13836,8 @@ static int cam_isp_packet_generic_blob_handler(void *user_data,
 					bw_config->num_paths - 1,
 					sizeof(
 					struct cam_axi_per_path_bw_vote));
-				return -EINVAL;
+				rc = -EINVAL;
+				goto free_mem;
 			}
 		}
 
@@ -13773,14 +13850,16 @@ static int cam_isp_packet_generic_blob_handler(void *user_data,
 				blob_size, bw_config->num_paths,
 				sizeof(struct cam_isp_bw_config_v2),
 				sizeof(struct cam_axi_per_path_bw_vote));
-			return -EINVAL;
+			rc = -EINVAL;
+			goto free_mem;
 		}
 
 		if (!prepare || !prepare->priv ||
 			(bw_config->usage_type >= CAM_ISP_HW_USAGE_TYPE_MAX)) {
 			CAM_ERR(CAM_ISP, "Invalid inputs usage type %d",
 				bw_config->usage_type);
-			return -EINVAL;
+			rc = -EINVAL;
+			goto free_mem;
 		}
 
 		prepare_hw_data = (struct cam_isp_prepare_hw_update_data  *)
@@ -13796,6 +13875,9 @@ static int cam_isp_packet_generic_blob_handler(void *user_data,
 
 		ife_mgr_ctx->bw_config_version = CAM_ISP_BW_CONFIG_V2;
 		prepare_hw_data->bw_clk_config.bw_config_valid = true;
+free_mem:
+		cam_common_mem_free(bw_config);
+		return rc;
 	}
 		break;
 	case CAM_ISP_GENERIC_BLOB_TYPE_UBWC_CONFIG: {

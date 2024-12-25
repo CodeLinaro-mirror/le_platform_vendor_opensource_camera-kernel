@@ -1353,12 +1353,12 @@ int cam_cpas_soc_deinit_resources(struct cam_hw_soc_info *soc_info)
 }
 
 int cam_cpas_soc_enable_resources(struct cam_hw_soc_info *soc_info,
-	enum cam_vote_level default_level)
+	enum cam_vote_level default_level, bool enable_clocks, bool enable_irq)
 {
 	int rc = 0;
 
-	rc = cam_soc_util_enable_platform_resource(soc_info, true,
-		default_level, true);
+	rc = cam_soc_util_enable_platform_resource(soc_info, enable_clocks,
+		default_level, enable_irq);
 	if (rc)
 		CAM_ERR(CAM_CPAS, "enable platform resource failed, rc=%d", rc);
 

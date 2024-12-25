@@ -968,7 +968,10 @@ static int cam_ife_csid_ver2_handle_event_err(
 	}
 
 	if (!token) {
-		CAM_ERR(CAM_ISP, "cannot find token data for res :%d ", res->res_id);
+		if (res)
+			CAM_ERR(CAM_ISP, "cannot find token data for res :%d ", res->res_id);
+		else
+			CAM_ERR(CAM_ISP, "cannot find token data for null res");
 		goto end;
 	}
 

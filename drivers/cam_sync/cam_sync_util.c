@@ -466,6 +466,7 @@ int cam_sync_reinit_object(struct sync_table_row *table, uint32_t sync_var)
 		kfree(sync_cb);
 	}
 
+	atomic_set(&row->ref_cnt, 0);
 	row->state = CAM_SYNC_STATE_ACTIVE;
 	row->uid = sync_uid;
 	INIT_LIST_HEAD(&row->callback_list);
