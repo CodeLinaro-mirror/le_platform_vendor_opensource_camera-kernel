@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_IFE_CSID_LITE_690_H_
@@ -456,6 +456,7 @@ static struct cam_ife_csid_csi2_rx_reg_info
 
         .irq_mask_all                         = 0xFFFFFF,
         .misr_enable_shift_val                = 6,
+        .hot_plug_en                          = 16,
         .vc_mode_shift_val                    = 3,
         .capture_long_pkt_en_shift            = 0,
         .capture_short_pkt_en_shift           = 1,

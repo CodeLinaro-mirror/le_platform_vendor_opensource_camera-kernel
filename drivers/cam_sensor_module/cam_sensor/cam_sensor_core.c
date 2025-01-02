@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -344,6 +344,7 @@ static int32_t cam_sensor_i2c_pkt_parse(struct cam_sensor_ctrl_t *s_ctrl,
 	}
 
 end:
+	cam_mem_put_cpu_buf(config.packet_handle);
 	return rc;
 }
 
@@ -600,6 +601,10 @@ int32_t cam_handle_mem_ptr(uint64_t handle, uint32_t cmd,
 	CAM_DBG(CAM_SENSOR, "Received Header opcode: %u", probe_ver);
 
 	for (i = 0; i < pkt->num_cmd_buf; i++) {
+		rc = cam_packet_util_validate_cmd_desc(&cmd_desc[i]);
+		if (rc)
+			return rc;
+
 		if (!(cmd_desc[i].length))
 			continue;
 		rc = cam_mem_get_cpu_buf(cmd_desc[i].mem_handle,
@@ -633,9 +638,11 @@ int32_t cam_handle_mem_ptr(uint64_t handle, uint32_t cmd,
 				"Failed to parse the command Buffer Header");
 			goto end;
 		}
+		cam_mem_put_cpu_buf(cmd_desc[i].mem_handle);
 	}
 
 end:
+	cam_mem_put_cpu_buf(handle);
 	return rc;
 }
 
@@ -982,9 +989,7 @@ static int cam_sensor_process_read_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 	struct ais_sensor_cmd_i2c_read i2c_read;
 	struct cam_sensor_i2c_slave_info slave_info;
 
-	if (s_ctrl->sensor_state != CAM_SENSOR_ACQUIRE &&
-		(s_ctrl->sensor_state != CAM_SENSOR_CONFIG) &&
-		(s_ctrl->sensor_state != CAM_SENSOR_INIT)) {
+	if (s_ctrl->sensor_state != CAM_SENSOR_ACQUIRE) {
 		CAM_WARN(CAM_SENSOR,
 			"%d Not in right state to aquire %d",
 			s_ctrl->soc_info.index,
@@ -1755,15 +1760,21 @@ free_probe_cmd:
 		break;
 
 	case AIS_SENSOR_I2C_POWER_UP: {
+		CAM_ERR(CAM_SENSOR, "INFO AIS_SENSOR_I2C_POWER_UP received");
 		rc = camera_io_init(&(s_ctrl->io_master_info));
 		if (rc < 0)
 			CAM_ERR(CAM_SENSOR, "io_init failed: rc: %d", rc);
+		else
+			CAM_ERR(CAM_SENSOR, "INFO camera_io_init done successfully");
 	}
 		break;
 	case AIS_SENSOR_I2C_POWER_DOWN: {
+		CAM_ERR(CAM_SENSOR, "INFO AIS_SENSOR_I2C_POWER_DOWN received");
 		rc = camera_io_release(&(s_ctrl->io_master_info));
 		if (rc < 0)
 			CAM_ERR(CAM_SENSOR, "io_release failed: rc: %d", rc);
+		else
+			CAM_ERR(CAM_SENSOR, "INFO camera_io_release done successfully");
 	}
 		break;
 	case AIS_SENSOR_I2C_READ:
@@ -2202,10 +2213,6 @@ free_gpio_intr_deinit_config:
 				goto release_mutex;
 			}
 			s_ctrl->sensor_state = CAM_SENSOR_CONFIG;
-			CAM_INFO(CAM_SENSOR,
-					"CAM_CONFIG_DEV done sensor_id:0x%x,sensor_slave_addr:0x%x",
-					s_ctrl->sensordata->slave_info.sensor_id,
-					s_ctrl->sensordata->slave_info.sensor_slave_addr);
 		}
 
 #ifndef HNDL_CAMX_SNSR_SYNC

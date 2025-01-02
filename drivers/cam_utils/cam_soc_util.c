@@ -2500,7 +2500,7 @@ static int cam_soc_util_regulator_enable_default(
 	int j = 0, rc = 0;
 	uint32_t num_rgltr = soc_info->num_rgltr;
 
-	for (j = 0; j < num_rgltr; j++) {
+	for (j = 0; j < num_rgltr && j < CAM_SOC_MAX_REGULATOR; j++) {
 		if (soc_info->rgltr_ctrl_support == true) {
 			rc = cam_soc_util_regulator_enable(soc_info->rgltr[j],
 				soc_info->rgltr_name[j],
@@ -3217,8 +3217,7 @@ static int cam_soc_util_dump_dmi_reg_range_user_buf(
 		CAM_ERR(CAM_UTIL,
 			"Invalid input args soc_info: %pK, dump_args: %pK",
 			soc_info, dump_args);
-		rc = -EINVAL;
-		goto end;
+		return -EINVAL;
 	}
 
 	if (dmi_read->num_pre_writes > CAM_REG_DUMP_DMI_CONFIG_MAX ||
@@ -3226,15 +3225,14 @@ static int cam_soc_util_dump_dmi_reg_range_user_buf(
 		CAM_ERR(CAM_UTIL,
 			"Invalid number of requested writes, pre: %d post: %d",
 			dmi_read->num_pre_writes, dmi_read->num_post_writes);
-		rc = -EINVAL;
-		goto end;
+		return -EINVAL;
 	}
 
 	rc = cam_mem_get_cpu_buf(dump_args->buf_handle, &cpu_addr, &buf_len);
 	if (rc) {
 		CAM_ERR(CAM_UTIL, "Invalid handle %u rc %d",
 			dump_args->buf_handle, rc);
-		goto end;
+		return rc;
 	}
 
 	if (buf_len <= dump_args->offset) {
@@ -3320,6 +3318,7 @@ static int cam_soc_util_dump_dmi_reg_range_user_buf(
 		sizeof(struct cam_hw_soc_dump_header);
 
 end:
+	cam_mem_put_cpu_buf(dump_args->buf_handle);
 	return rc;
 }
 
@@ -3343,14 +3342,14 @@ static int cam_soc_util_dump_cont_reg_range_user_buf(
 		CAM_ERR(CAM_UTIL,
 			"Invalid input args soc_info: %pK, dump_out_buffer: %pK reg_read: %pK",
 			soc_info, dump_args, reg_read);
-		rc = -EINVAL;
-		goto end;
+		return -EINVAL;
 	}
+
 	rc = cam_mem_get_cpu_buf(dump_args->buf_handle, &cpu_addr, &buf_len);
 	if (rc) {
 		CAM_ERR(CAM_UTIL, "Invalid handle %u rc %d",
 			dump_args->buf_handle, rc);
-		goto end;
+		return rc;
 	}
 	if (buf_len <= dump_args->offset) {
 		CAM_WARN(CAM_UTIL, "Dump offset overshoot %zu %zu",
@@ -3400,6 +3399,7 @@ static int cam_soc_util_dump_cont_reg_range_user_buf(
 	dump_args->offset +=  hdr->size +
 		sizeof(struct cam_hw_soc_dump_header);
 end:
+	cam_mem_put_cpu_buf(dump_args->buf_handle);
 	return rc;
 }
 
@@ -3491,6 +3491,8 @@ int cam_soc_util_reg_dump_to_cmd_buf(void *ctx,
 	if (rc || !cpu_addr || (buf_size == 0)) {
 		CAM_ERR(CAM_UTIL, "Failed in Get cpu addr, rc=%d, cpu_addr=%pK",
 			rc, (void *)cpu_addr);
+		if (rc)
+			return rc;
 		goto end;
 	}
 
@@ -3692,6 +3694,7 @@ int cam_soc_util_reg_dump_to_cmd_buf(void *ctx,
 	}
 
 end:
+	cam_mem_put_cpu_buf(cmd_desc->mem_handle);
 	return rc;
 }
 

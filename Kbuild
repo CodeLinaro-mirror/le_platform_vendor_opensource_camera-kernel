@@ -32,6 +32,7 @@ ccflags-$(CONFIG_MSM_GLOBAL_SYNX) += -I$(KERNEL_ROOT)/drivers/media/platform/msm
 # After creating lists, add content of 'ccflags-m' variable to 'ccflags-y' one.
 # stack frame size error limit is 2048 by default, increasing it to 4096
 ccflags-y += ${ccflags-m} -Wframe-larger-than=4096 -DENABLE_ONLY_IFELITE=1 -DHNDL_CAMX_SNSR_SYNC=1
+ccflags-y += -DCAMERA_BUILD_FOR_AUTO=1
 
 camera-y := \
 	drivers/cam_req_mgr/cam_req_mgr_core.o \
@@ -41,12 +42,8 @@ camera-y := \
 	drivers/cam_req_mgr/cam_req_mgr_workq.o \
 	drivers/cam_req_mgr/cam_req_mgr_timer.o \
 	drivers/cam_req_mgr/cam_req_mgr_debug.o \
-	drivers/cam_req_mgr/cam_fastrpc.o \
 	drivers/cam_utils/cam_soc_util.o \
 	drivers/cam_utils/cam_packet_util.o \
-	drivers/cam_utils/cam_debug_util.o \
-	drivers/cam_utils/cam_trace.o \
-	drivers/cam_utils/cam_common_util.o \
 	drivers/cam_utils/cam_compat.o \
 	drivers/cam_core/cam_context.o \
 	drivers/cam_core/cam_context_utils.o \
@@ -156,7 +153,8 @@ camera-$(CONFIG_SPECTRA_JPEG) += \
 	drivers/cam_jpeg/jpeg_hw/jpeg_dma_hw/jpeg_dma_soc.o \
 	drivers/cam_jpeg/jpeg_hw/cam_jpeg_hw_mgr.o \
 	drivers/cam_jpeg/cam_jpeg_dev.o \
-	drivers/cam_jpeg/cam_jpeg_context.o
+	drivers/cam_jpeg/cam_jpeg_context.o \
+	drivers/cam_req_mgr/cam_fastrpc.o
 
 camera-$(CONFIG_SPECTRA_FD) += \
 	drivers/cam_fd/fd_hw_mgr/fd_hw/cam_fd_hw_dev.o \
@@ -262,6 +260,14 @@ camera-$(CONFIG_SPECTRA_TFE) += \
 	drivers/cam_isp/isp_hw_mgr/isp_hw/tfe_csid_hw/cam_tfe_csid_core.o \
 	drivers/cam_isp/isp_hw_mgr/isp_hw/tfe_csid_hw/cam_tfe_csid.o \
 	drivers/cam_isp/isp_hw_mgr/cam_tfe_hw_mgr.o
+
+camera-$(CONFIG_CAM_UTIL_COMMON) += \
+	drivers/cam_utils/cam_common_util.o \
+	drivers/cam_utils/cam_trace.o \
+	drivers/cam_utils/cam_debug_util.o
+
+camera-$(CONFIG_V4L2_LOOPBACK) += \
+	drivers/v4l2loopback-master/v4l2loopback.o
 
 camera-y += drivers/camera_main.o
 
