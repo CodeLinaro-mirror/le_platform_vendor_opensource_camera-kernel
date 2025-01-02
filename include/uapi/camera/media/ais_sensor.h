@@ -186,7 +186,7 @@ struct ais_sensor_cmd_i2c_burst {
 	uint8_t     data_type;
 	uint32_t    reg_addr;
 	uint32_t    count;
-	uint32_t    *data;
+	uint8_t    *data;
 	uint16_t    reserved;
 } __attribute__((packed));
 
