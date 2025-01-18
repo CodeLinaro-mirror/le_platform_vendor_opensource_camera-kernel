@@ -1222,7 +1222,8 @@ static int cam_mem_util_map_hw_va(uint32_t flags,
 	int i;
 	int rc = -1;
 	int dir = cam_mem_util_get_dma_dir(flags);
-	bool dis_delayed_unmap = false;
+	/* Delayed unmap should be disabled by default in QLI */
+	bool dis_delayed_unmap = true;
 	dma_addr_t hw_vaddr;
 	struct kref *ref_count;
 	struct cam_mem_buf_hw_hdl_info *hdl_info = NULL;
