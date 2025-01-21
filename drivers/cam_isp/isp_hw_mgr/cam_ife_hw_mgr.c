@@ -9865,9 +9865,10 @@ static int cam_ife_hw_mgr_res_stream_on_off_grp_cfg(
 	bool                       is_start_hw,
 	bool                      *per_port_feature_enable)
 {
-	int i, j = 0;
+	int i, j = 0, k = 0;
 	int rc = -EINVAL;
 	struct cam_ife_hw_mgr_stream_grp_config *grp_cfg = NULL;
+	struct cam_isp_hw_mgr_res *hw_mgr_res = NULL;
 
 	for (i = 0; i < CAM_ISP_STREAM_GROUP_CFG_MAX; i++) {
 		if (!g_ife_sns_grp_cfg.grp_cfg[i])
@@ -9951,6 +9952,14 @@ static int cam_ife_hw_mgr_res_stream_on_off_grp_cfg(
 			if (grp_cfg->stream_on_cnt > 0)
 				grp_cfg->stream_on_cnt--;
 		}
+
+		/* Stop IFE out resources */
+		for (k = 0; k < max_ife_out_res; k++) {
+			hw_mgr_res = &ctx->res_list_ife_out[k];
+			if (hw_mgr_res && hw_mgr_res->hw_res[0])
+				cam_ife_hw_mgr_stop_hw_res(hw_mgr_res, stop_isp->is_internal_stop);
+		}
+
 		if (grp_cfg->stream_on_cnt == 0) {
 			cam_ife_mgr_stop_hw_res_stream_grp(ctx, i,
 				csid_halt_type, stop_isp->is_internal_stop);
