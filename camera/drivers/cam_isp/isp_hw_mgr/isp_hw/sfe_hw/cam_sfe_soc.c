@@ -169,7 +169,8 @@ int cam_sfe_deinit_soc_resources(struct cam_hw_soc_info *soc_info)
 	return rc;
 }
 
-int cam_sfe_enable_soc_resources(struct cam_hw_soc_info *soc_info)
+int cam_sfe_enable_soc_resources(struct cam_hw_soc_info *soc_info,
+	bool rd_path_only)
 {
 	int                               rc = 0;
 	struct cam_sfe_soc_private       *soc_private;
@@ -187,7 +188,10 @@ int cam_sfe_enable_soc_resources(struct cam_hw_soc_info *soc_info)
 	ahb_vote.vote.level = CAM_LOWSVS_D1_VOTE;
 	axi_vote.num_paths = 1;
 	axi_vote.axi_path[0].path_data_type = CAM_AXI_PATH_DATA_SFE_NRDI;
-	axi_vote.axi_path[0].transac_type = CAM_AXI_TRANSACTION_WRITE;
+	if(rd_path_only)
+		axi_vote.axi_path[0].transac_type = CAM_AXI_TRANSACTION_READ;
+	else
+		axi_vote.axi_path[0].transac_type = CAM_AXI_TRANSACTION_WRITE;
 	axi_vote.axi_path[0].camnoc_bw = CAM_CPAS_DEFAULT_RT_AXI_BW;
 	axi_vote.axi_path[0].mnoc_ab_bw = CAM_CPAS_DEFAULT_RT_AXI_BW;
 	axi_vote.axi_path[0].mnoc_ib_bw = CAM_CPAS_DEFAULT_RT_AXI_BW;

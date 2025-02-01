@@ -321,7 +321,7 @@ static long cam_flash_subdev_ioctl(struct v4l2_subdev *sd,
 		rc = cam_flash_subdev_close_internal(sd, NULL);
 		break;
 	default:
-		CAM_ERR(CAM_FLASH, "Invalid ioctl cmd type");
+		CAM_ERR_RATE_LIMIT(CAM_FLASH, "Invalid ioctl cmd type");
 		rc = -ENOIOCTLCMD;
 		break;
 	}

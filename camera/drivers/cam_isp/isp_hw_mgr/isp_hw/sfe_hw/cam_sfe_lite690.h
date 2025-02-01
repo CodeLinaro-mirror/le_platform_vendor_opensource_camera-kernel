@@ -49,6 +49,13 @@ static struct cam_sfe_top_common_reg_offset  sfe_lite_690_top_commong_reg  = {
 	},
 };
 
+static struct cam_sfe_path_common_reg_data sfe_690_rd_top_reg_data = {
+	.sof_irq_mask                  = 0x1,
+	.eof_irq_mask                  = 0x2,
+	.subscribe_irq_mask            = 0x6,
+};
+
+
 static struct cam_sfe_top_common_reg_data sfe_lite_690_top_common_reg_data = {
 	.top_debug_cfg_en              = 0x1,
 };
@@ -56,6 +63,11 @@ static struct cam_sfe_top_common_reg_data sfe_lite_690_top_common_reg_data = {
 static struct cam_sfe_top_hw_info sfe_lite_690_top_hw_info = {
 	.common_reg = &sfe_lite_690_top_commong_reg,
 	.common_reg_data = &sfe_lite_690_top_common_reg_data,
+	.rd_top_reg_data = &sfe_690_rd_top_reg_data,
+	.num_inputs = 1,
+	.input_type = {
+		CAM_SFE_RD_VER_1_0,
+	},
 	.num_clc_module  = 2,
 	.clc_dbg_mod_info = &sfe_lite_690_clc_dbg_module_info,
 };
@@ -112,17 +124,17 @@ static struct cam_sfe_bus_rd_constraint_error_info sfe_lite_690_bus_rd_constrain
 
 static struct cam_sfe_bus_rd_hw_info sfe_lite_690_bus_rd_hw_info = {
 	.common_reg = {
-		.hw_version                   = 0x00000100,
-		.misr_reset                   = 0x0000011C,
-		.pwr_iso_cfg                  = 0x00000124,
-		.input_if_cmd                 = 0x00000114,
-		.test_bus_ctrl                = 0x0000012C,
-		.security_cfg                 = 0x00000120,
-		.cons_violation_status        = 0x00000134,
+		.hw_version                   = 0x00000500,
+		.misr_reset                   = 0x0000051C,
+		.pwr_iso_cfg                  = 0x00000524,
+		.input_if_cmd                 = 0x00000514,
+		.test_bus_ctrl                = 0x0000052C,
+		.security_cfg                 = 0x00000520,
+		.cons_violation_status        = 0x00000534,
 		.irq_reg_info = {
 			.num_registers = 1,
 			.irq_reg_set = sfe_lite_690_bus_rd_irq_reg,
-			.global_irq_cmd_offset = 0x0000010C,
+			.global_irq_cmd_offset = 0x0000050C,
 			.global_clear_bitmask  = 0x00000001,
 			.clear_all_bitmask     = 0xFFFFFFFF,
 		},
@@ -131,17 +143,17 @@ static struct cam_sfe_bus_rd_hw_info sfe_lite_690_bus_rd_hw_info = {
 	.bus_client_reg = {
 		/* BUS Client 0 */
 		{
-			.cfg                      = 0x00000150,
-			.image_addr               = 0x00000158,
-			.buf_width                = 0x0000015C,
-			.buf_height               = 0x00000160,
-			.stride                   = 0x00000164,
-			.unpacker_cfg             = 0x00000168,
-			.latency_buf_allocation   = 0x0000017C,
-			.system_cache_cfg         = 0x0000019C,
-			.debug_status_cfg         = 0x00000190,
-			.debug_status_0           = 0x00000194,
-			.debug_status_1           = 0x00000198,
+			.cfg                      = 0x00000550,
+			.image_addr               = 0x00000558,
+			.buf_width                = 0x0000055C,
+			.buf_height               = 0x00000560,
+			.stride                   = 0x00000564,
+			.unpacker_cfg             = 0x00000568,
+			.latency_buf_allocation   = 0x0000057C,
+			.system_cache_cfg         = 0x0000059C,
+			.debug_status_cfg         = 0x00000590,
+			.debug_status_0           = 0x00000594,
+			.debug_status_1           = 0x00000598,
 			.name                     = "Fetch0",
 		},
 	},
@@ -165,6 +177,7 @@ static struct cam_sfe_bus_rd_hw_info sfe_lite_690_bus_rd_hw_info = {
 	.sys_cache_default_val  = 0x20,
 	.irq_err_mask           = 0x9,
 	.constraint_error_info  = &sfe_lite_690_bus_rd_constraint_error_info,
+	.rd_only                = true,
 };
 
 static struct cam_irq_register_set sfe_lite_690_top_irq_reg_set[1] = {

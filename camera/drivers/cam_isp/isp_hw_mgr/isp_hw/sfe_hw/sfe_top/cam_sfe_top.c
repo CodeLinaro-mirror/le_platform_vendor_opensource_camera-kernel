@@ -2253,77 +2253,59 @@ int cam_sfe_top_init(
 		hw_intf->hw_idx, hw_version);
 	for (i = 0, j = 0; i < top_priv->num_in_ports &&
 		j < CAM_SFE_RDI_MAX; i++) {
-		top_priv->in_rsrc[i].res_type =
-			CAM_ISP_RESOURCE_SFE_IN;
+		top_priv->in_rsrc[i].res_type = CAM_ISP_RESOURCE_SFE_IN;
 		top_priv->in_rsrc[i].hw_intf = hw_intf;
 		top_priv->in_rsrc[i].res_state =
 			CAM_ISP_RESOURCE_STATE_AVAILABLE;
 		top_priv->req_clk_rate[i] = 0;
 
+		path_data = kzalloc(sizeof(struct cam_sfe_path_data),
+			GFP_KERNEL);
+		if (!path_data) {
+			CAM_DBG(CAM_SFE,
+				"Failed to alloc SFE [%u] for input type %d",
+				hw_intf->hw_idx,
+				sfe_top_hw_info->input_type[i]);
+			goto deinit_resources;
+		}
+
 		if (sfe_top_hw_info->input_type[i] ==
 			CAM_SFE_PIX_VER_1_0) {
-			top_priv->in_rsrc[i].res_id =
-				CAM_ISP_HW_SFE_IN_PIX;
-
-			path_data = kzalloc(sizeof(struct cam_sfe_path_data),
-				GFP_KERNEL);
-			if (!path_data) {
-				CAM_DBG(CAM_SFE,
-					"Failed to alloc SFE [%u] pix data",
-					hw_intf->hw_idx);
-				goto deinit_resources;
-			}
-			top_priv->in_rsrc[i].res_priv = path_data;
-			path_data->mem_base =
-				soc_info->reg_map[SFE_CORE_BASE_IDX].mem_base;
+			top_priv->in_rsrc[i].res_id = CAM_ISP_HW_SFE_IN_PIX;
 			path_data->path_reg_data =
 				sfe_top_hw_info->pix_reg_data;
-			path_data->common_reg = sfe_top_hw_info->common_reg;
-			path_data->common_reg_data =
-				sfe_top_hw_info->common_reg_data;
-			path_data->modules_reg =
-				sfe_top_hw_info->modules_hw_info;
-			path_data->top_priv = top_priv;
-			path_data->hw_intf = hw_intf;
-			path_data->soc_info = soc_info;
 			scnprintf(top_priv->in_rsrc[i].res_name,
 				CAM_ISP_RES_NAME_LEN, "PIX");
 		} else if (sfe_top_hw_info->input_type[i] ==
 			CAM_SFE_RDI_VER_1_0) {
 			top_priv->in_rsrc[i].res_id =
 				CAM_ISP_HW_SFE_IN_RDI0 + j;
-
-			path_data = kzalloc(sizeof(struct cam_sfe_path_data),
-					GFP_KERNEL);
-			if (!path_data) {
-				CAM_DBG(CAM_SFE,
-					"Failed to alloc SFE [%u] rdi data res_id: %u",
-					hw_intf->hw_idx,
-					(CAM_ISP_HW_SFE_IN_RDI0 + j));
-				goto deinit_resources;
-			}
-
 			scnprintf(top_priv->in_rsrc[i].res_name,
 				CAM_ISP_RES_NAME_LEN, "RDI%d", j);
-
-			top_priv->in_rsrc[i].res_priv = path_data;
-
-			path_data->mem_base =
-				soc_info->reg_map[SFE_CORE_BASE_IDX].mem_base;
-			path_data->hw_intf = hw_intf;
-			path_data->common_reg = sfe_top_hw_info->common_reg;
-			path_data->common_reg_data =
-				sfe_top_hw_info->common_reg_data;
-			path_data->modules_reg =
-				sfe_top_hw_info->modules_hw_info;
-			path_data->soc_info = soc_info;
-			path_data->top_priv = top_priv;
 			path_data->path_reg_data =
 				sfe_top_hw_info->rdi_reg_data[j++];
+		} else if (sfe_top_hw_info->input_type[i] ==
+			CAM_SFE_RD_VER_1_0) {
+			top_priv->in_rsrc[i].res_id = CAM_ISP_HW_SFE_IN_RD;
+			path_data->path_reg_data =
+				sfe_top_hw_info->rd_top_reg_data;
+			scnprintf(top_priv->in_rsrc[i].res_name,
+				CAM_ISP_RES_NAME_LEN, "RD");
 		} else {
-			CAM_WARN(CAM_SFE, "Invalid SFE input type: %u",
+			CAM_ERR(CAM_SFE, "Invalid SFE input type: %u",
 				sfe_top_hw_info->input_type[i]);
+			rc = -EINVAL;
+			goto deinit_resources;
 		}
+
+		path_data->mem_base = soc_info->reg_map[SFE_CORE_BASE_IDX].mem_base;
+		path_data->common_reg = sfe_top_hw_info->common_reg;
+		path_data->common_reg_data = sfe_top_hw_info->common_reg_data;
+		path_data->modules_reg = sfe_top_hw_info->modules_hw_info;
+		path_data->top_priv = top_priv;
+		path_data->hw_intf = hw_intf;
+		path_data->soc_info = soc_info;
+		top_priv->in_rsrc[i].res_priv = path_data;
 	}
 
 	top_priv->common_data.soc_info = soc_info;

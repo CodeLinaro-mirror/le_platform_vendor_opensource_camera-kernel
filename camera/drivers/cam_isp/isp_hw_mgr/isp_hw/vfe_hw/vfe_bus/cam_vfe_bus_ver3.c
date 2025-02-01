@@ -976,8 +976,7 @@ static int cam_vfe_bus_ver3_acquire_wm(
 		rsrc_data->width, rsrc_data->height);
 
 	if (((vfe_out_res_id >= CAM_VFE_BUS_VER3_VFE_OUT_RDI0) &&
-		(vfe_out_res_id <= CAM_VFE_BUS_VER3_VFE_OUT_RDI4)) ||
-		(vfe_out_res_id == CAM_VFE_BUS_VER3_VFE_OUT_RDI5)) {
+		(vfe_out_res_id <= CAM_VFE_BUS_VER3_VFE_OUT_RDI5))) {
 		if (rsrc_data->default_line_based)
 			rsrc_data->wm_mode = CAM_VFE_WM_LINE_BASED_MODE;
 		else
@@ -3987,7 +3986,7 @@ static int cam_vfe_bus_ver3_update_wm_config(
 			/* Reconfigure only for valid packer fmt */
 			if (packer_fmt != PACKER_FMT_VER3_MAX) {
 				if ((vfe_out_data->out_type >= CAM_VFE_BUS_VER3_VFE_OUT_RDI0) &&
-					(vfe_out_data->out_type <= CAM_VFE_BUS_VER3_VFE_OUT_RDI3)) {
+					(vfe_out_data->out_type <= CAM_VFE_BUS_VER3_VFE_OUT_RDI5)) {
 					if (wm_config->wm_mode != wm_data->wm_mode) {
 						wm_data->wm_mode = wm_config->wm_mode;
 						cam_vfe_bus_ver3_config_rdi_wm(wm_data);

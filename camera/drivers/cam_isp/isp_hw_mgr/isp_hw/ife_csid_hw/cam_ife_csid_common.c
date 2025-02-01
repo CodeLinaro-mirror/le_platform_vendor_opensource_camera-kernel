@@ -169,6 +169,10 @@ static int cam_ife_csid_validate_rdi_format(uint32_t in_format,
 	case CAM_FORMAT_YUV422:
 		switch (out_format) {
 		case CAM_FORMAT_YUV422:
+		case CAM_FORMAT_PLAIN128:
+		case CAM_FORMAT_PLAIN8:
+		case CAM_FORMAT_MIPI_RAW_8:
+		case CAM_FORMAT_MIPI_RAW_16:
 			break;
 		default:
 			rc = -EINVAL;

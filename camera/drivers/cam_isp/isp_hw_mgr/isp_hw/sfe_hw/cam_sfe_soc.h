@@ -63,11 +63,13 @@ int cam_sfe_deinit_soc_resources(struct cam_hw_soc_info *soc_info);
  * @brief:                   Enable regulator, irq resources, Clocks
  *
  * @soc_info:                Device soc information
+ * @rd_path_only:            Indicate whether hw has only read path
  *
  * @Return:                  0: Success
  *                           Non-zero: Failure
  */
-int cam_sfe_enable_soc_resources(struct cam_hw_soc_info *soc_info);
+int cam_sfe_enable_soc_resources(struct cam_hw_soc_info *soc_info,
+	bool rd_path_only);
 
 /*
  * cam_sfe_disable_soc_resources()

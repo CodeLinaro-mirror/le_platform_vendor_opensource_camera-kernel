@@ -135,6 +135,7 @@ struct cam_sfe_bus_rd_priv {
 	uint32_t                            top_irq_shift;
 	uint32_t                            latency_buf_allocation;
 	uint32_t                            sys_cache_default_cfg;
+	bool                                rd_only;
 };
 
 static void cam_sfe_bus_rd_pxls_to_bytes(uint32_t pxls, uint32_t fmt,
@@ -1061,6 +1062,7 @@ static int cam_sfe_bus_acquire_bus_rd(void *bus_priv, void *acquire_args,
 
 	rsrc_node->res_state = CAM_ISP_RESOURCE_STATE_RESERVED;
 	bus_rd_acquire_args->rsrc_node = rsrc_node;
+	bus_rd_acquire_args->sfe_rd_only = bus_rd_priv->rd_only;
 
 	CAM_DBG(CAM_SFE, "SFE:%d acquire RD 0x%x successful",
 		rsrc_data->common_data->core_index, acq_args->rsrc_type);
@@ -2117,6 +2119,7 @@ int cam_sfe_bus_rd_init(
 	bus_priv->top_irq_shift                 = bus_rd_hw_info->top_irq_shift;
 	bus_priv->latency_buf_allocation        = bus_rd_hw_info->latency_buf_allocation;
 	bus_priv->sys_cache_default_cfg         = bus_rd_hw_info->sys_cache_default_val;
+	bus_priv->rd_only                       = bus_rd_hw_info->rd_only;
 	bus_priv->bus_rd_hw_info = bus_rd_hw_info;
 
 	rc = cam_irq_controller_init(drv_name,

@@ -480,7 +480,7 @@ int cam_vfe_top_bw_update(struct cam_vfe_soc_private *soc_private,
 		if (top_common->mux_rsrc[i].res_id == res->res_id) {
 			mux_axi_vote->num_paths = 1;
 			if ((res->res_id >= CAM_ISP_HW_VFE_IN_RDI0) &&
-				(res->res_id <= CAM_ISP_HW_VFE_IN_RDI3)) {
+				(res->res_id <= CAM_ISP_HW_VFE_IN_RDI5)) {
 				mux_axi_vote->axi_path[0].path_data_type =
 					CAM_AXI_PATH_DATA_IFE_RDI0 +
 					(res->res_id - CAM_ISP_HW_VFE_IN_RDI0);

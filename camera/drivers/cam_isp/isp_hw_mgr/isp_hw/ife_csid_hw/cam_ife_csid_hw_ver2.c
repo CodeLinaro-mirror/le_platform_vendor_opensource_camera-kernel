@@ -4828,7 +4828,7 @@ static int cam_ife_csid_ver2_program_top(
 
 	val = (uint32_t)input_core_sel << top_reg->input_core_type_shift_val;
 
-	if ((csid_hw->top_cfg.offline_sfe_en) ||
+	if ((top_reg->sfe_offline_en_shift_val && csid_hw->top_cfg.offline_sfe_en) ||
 		(top_reg->sfe_pipeline_bypassed && csid_hw->top_cfg.sfe_fs))
 		val |= BIT(top_reg->sfe_offline_en_shift_val);
 

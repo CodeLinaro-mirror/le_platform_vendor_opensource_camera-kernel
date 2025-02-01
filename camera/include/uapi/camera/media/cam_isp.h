@@ -166,6 +166,7 @@
 #define CAM_ISP_RDI4_PATH         0x80
 #define CAM_ISP_PXL1_PATH         0x100
 #define CAM_ISP_PXL2_PATH         0x200
+#define CAM_ISP_RDI5_PATH         0x400
 
 /*
  * Multi Context Mask

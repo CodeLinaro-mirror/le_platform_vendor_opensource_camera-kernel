@@ -476,4 +476,6 @@ void cam_isp_update_hw_entry(
 	struct cam_kmd_buf_info            *kmd_buf_info,
 	uint32_t                            update_size,
 	bool                                combine);
+
+int cam_isp_count_hw_entries(struct cam_hw_prepare_update_args *prepare);
 #endif /*_CAM_ISP_HW_PARSER_H */

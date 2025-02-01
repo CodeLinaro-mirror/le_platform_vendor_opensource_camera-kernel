@@ -27,6 +27,7 @@ enum cam_isp_hw_sfe_in {
 	CAM_ISP_HW_SFE_IN_RDI2,
 	CAM_ISP_HW_SFE_IN_RDI3,
 	CAM_ISP_HW_SFE_IN_RDI4,
+	CAM_ISP_HW_SFE_IN_RD,
 	CAM_ISP_HW_SFE_IN_MAX,
 };
 
@@ -270,6 +271,7 @@ struct cam_sfe_hw_get_hw_cap {
  * @unpacket_fmt:            Unpacker format for read engine
  * @is_offline:              Flag to indicate offline usecase
  * @secure_mode:             If fetch is from secure/non-secure buffer
+ * @sfe_rd_only:             This indicates whether sfe HW has read only capbality
  */
 struct cam_sfe_hw_sfe_bus_rd_acquire_args {
 	struct cam_isp_resource_node         *rsrc_node;
@@ -278,6 +280,7 @@ struct cam_sfe_hw_sfe_bus_rd_acquire_args {
 	uint32_t                              unpacker_fmt;
 	bool                                  is_offline;
 	bool                                  secure_mode;
+	bool                                  sfe_rd_only;
 };
 
 /*

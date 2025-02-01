@@ -81,7 +81,7 @@ static long cam_subdev_ioctl(struct v4l2_subdev *sd, unsigned int cmd,
 				rc, node->name);
 		break;
 	default:
-		CAM_ERR(CAM_CORE, "Invalid command %d for %s", cmd,
+		CAM_ERR_RATE_LIMIT(CAM_CORE, "Invalid command %d for %s", cmd,
 			node->name);
 		rc = -EINVAL;
 	}

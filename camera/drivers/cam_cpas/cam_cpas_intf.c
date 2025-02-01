@@ -1486,7 +1486,7 @@ static long cam_cpas_subdev_ioctl(struct v4l2_subdev *sd,
 		rc = __cam_cpas_subdev_close(sd, NULL);
 		break;
 	default:
-		CAM_ERR(CAM_CPAS, "Invalid command %d for CPAS!", cmd);
+		CAM_ERR_RATE_LIMIT(CAM_CPAS, "Invalid command %d for CPAS!", cmd);
 		rc = -EINVAL;
 		break;
 	}

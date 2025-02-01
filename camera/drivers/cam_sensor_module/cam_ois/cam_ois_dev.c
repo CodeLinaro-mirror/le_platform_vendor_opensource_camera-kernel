@@ -74,7 +74,7 @@ static long cam_ois_subdev_ioctl(struct v4l2_subdev *sd,
 		rc = cam_ois_subdev_close_internal(sd, NULL);
 		break;
 	default:
-		CAM_ERR(CAM_OIS, "Wrong IOCTL cmd: %u", cmd);
+		CAM_ERR_RATE_LIMIT(CAM_OIS, "Wrong IOCTL cmd: %u", cmd);
 		rc = -ENOIOCTLCMD;
 		break;
 	}

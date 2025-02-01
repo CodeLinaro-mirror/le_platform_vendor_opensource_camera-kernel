@@ -12,8 +12,9 @@
 #define CAM_SFE_PIX_VER_1_0    0x10
 #define CAM_SFE_RDI_VER_1_0    0x1000
 #define CAM_SFE_TOP_VER_1_0    0x10000
+#define CAM_SFE_RD_VER_1_0     0x100000
 
-#define CAM_SFE_TOP_IN_PORT_MAX                6
+#define CAM_SFE_TOP_IN_PORT_MAX                7
 #define CAM_SFE_RDI_MAX                        5
 
 #define CAM_SHIFT_TOP_CORE_CFG_MODE_SEL        2
@@ -164,6 +165,7 @@ struct cam_sfe_top_hw_info {
 	struct cam_sfe_top_module_desc           *ipp_module_desc;
 	struct cam_sfe_wr_client_desc            *wr_client_desc;
 	struct cam_sfe_path_common_reg_data      *pix_reg_data;
+	struct cam_sfe_path_common_reg_data      *rd_top_reg_data;
 	struct cam_sfe_path_common_reg_data      *rdi_reg_data[CAM_SFE_RDI_MAX];
 	uint32_t                                  num_inputs;
 	uint32_t                                  input_type[

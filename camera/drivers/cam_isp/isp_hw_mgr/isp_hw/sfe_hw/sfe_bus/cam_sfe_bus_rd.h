@@ -152,6 +152,7 @@ struct cam_sfe_bus_rd_hw_info {
 	uint32_t irq_err_mask;
 	uint32_t fs_sync_shift;
 	struct cam_sfe_bus_rd_constraint_error_info *constraint_error_info;
+	bool rd_only;
 };
 
 /*

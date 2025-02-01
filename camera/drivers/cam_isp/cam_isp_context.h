@@ -392,8 +392,6 @@ struct cam_isp_fcg_prediction_tracker {
  * @use_default_apply:         Use default settings in case of frame skip
  * @init_timestamp:            Timestamp at which this context is initialized
  * @isp_device_type:           ISP device type
- * @rxd_epoch:                 Indicate whether epoch has been received. Used to
- *                             decide whether to apply request in offline ctx
  * @workq:                     Worker thread for offline ife
  * @trigger_id:                ID provided by CRM for each ctx on the link
  * @last_bufdone_err_apply_req_id:  last bufdone error apply request id
@@ -466,7 +464,6 @@ struct cam_isp_context {
 	bool                                  use_default_apply;
 	unsigned int                          init_timestamp;
 	uint32_t                              isp_device_type;
-	atomic_t                              rxd_epoch;
 	struct cam_req_mgr_core_workq        *workq;
 	int32_t                               trigger_id;
 	int64_t                               last_bufdone_err_apply_req_id;
