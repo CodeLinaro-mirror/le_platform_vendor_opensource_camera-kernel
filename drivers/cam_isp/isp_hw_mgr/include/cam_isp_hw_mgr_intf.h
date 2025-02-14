@@ -18,6 +18,7 @@
 #include <linux/list.h>
 #include <media/cam_isp.h>
 #include "cam_hw_mgr_intf.h"
+#include "cam_packet_util.h"
 
 /*
  * bit position in resource bitmap
@@ -133,14 +134,16 @@ struct cam_isp_bw_config_internal {
  * @bw_config_valid:        Flag indicating whether the bw_config at the index
  *                          is valid or not
  * @fps:                    fps vaue which has been updated in hw
+ * @kmd_cmd_buff_info:      reference to kmd buffer
  *
  */
 struct cam_isp_prepare_hw_update_data {
 	uint32_t                              packet_opcode_type;
 	struct cam_isp_bw_config_internal     bw_config[CAM_IFE_HW_NUM_MAX];
 	struct cam_isp_bw_config_internal_ab  bw_config_ab[CAM_IFE_HW_NUM_MAX];
-	bool                                bw_config_valid[CAM_IFE_HW_NUM_MAX];
-	uint32_t                            fps;
+	bool                                  bw_config_valid[CAM_IFE_HW_NUM_MAX];
+	uint32_t                              fps;
+	struct cam_kmd_buf_info               kmd_cmd_buff_info;
 };
 
 

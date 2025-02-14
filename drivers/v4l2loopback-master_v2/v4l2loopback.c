@@ -348,6 +348,7 @@ struct v4l2_streamdata {
 	/* pixel and stream format */
 	struct v4l2_pix_format pix_format;
 	struct v4l2_captureparm capture_param;
+	struct v4l2_fract fps;
 
 	/* streamon/streamoff ctrl*/
 	struct completion ctrl_complete;
@@ -1335,6 +1336,8 @@ static int vidioc_s_parm(struct file *file, void *priv,
 		struct v4l2_streamparm *parm)
 {
 	struct v4l2_loopback_device *dev;
+	struct v4l2_loopback_opener *opener;
+	struct v4l2_streamdata *data;
 
 	MARK();
 	dev = v4l2loopback_getdevice(file);
@@ -1342,11 +1345,68 @@ static int vidioc_s_parm(struct file *file, void *priv,
 		CAM_ERR(CAM_V4L2, "dev is null");
 		return -EINVAL;
 	}
+	opener = fh_to_opener(file->private_data);
+	if (!opener) {
+		CAM_ERR(CAM_V4L2, "opener is null");
+		return -EINVAL;
+	}
+
+	if (opener->data) {
+		data = opener->data;
+	} else {
+		CAM_ERR(CAM_V4L2, "opener data is null");
+		return -EINVAL;
+	}
+
+	CAM_DBG(CAM_V4L2, "opener: %p data: %p",
+		opener, data);
 
 	if (parm->type != V4L2_BUF_TYPE_VIDEO_CAPTURE &&
 		parm->type !=  V4L2_BUF_TYPE_VIDEO_OUTPUT)
 		return -EINVAL;
+	else {
+		if (parm->type ==  V4L2_BUF_TYPE_VIDEO_OUTPUT) {
+			data->fps = parm->parm.output.timeperframe;
+		}
+	}
+	return 0;
+}
 
+int vidioc_enum_frameintervals(struct file *file, void *fh, struct v4l2_frmivalenum *fival)
+{
+	struct v4l2_loopback_device *dev;
+	struct v4l2_loopback_opener *opener;
+	struct v4l2_streamdata *data;
+
+	MARK();
+	dev = v4l2loopback_getdevice(file);
+	if (!dev) {
+		CAM_ERR(CAM_V4L2, "dev is null");
+		return -EINVAL;
+	}
+	opener = fh_to_opener(file->private_data);
+	if (!opener) {
+		CAM_ERR(CAM_V4L2, "opener is null");
+		return -EINVAL;
+	}
+
+	if (opener->data) {
+		data = opener->data;
+	} else {
+		CAM_ERR(CAM_V4L2, "opener data is null");
+		return -EINVAL;
+	}
+
+	CAM_DBG(CAM_V4L2, "opener: %p data: %p",
+		opener, data);
+
+	if (fival->index == 0U) {
+		fival->type = V4L2_FRMIVAL_TYPE_DISCRETE;
+		fival->discrete = data->fps;
+	} else
+	{
+		return -EINVAL;
+	}
 	return 0;
 }
 
@@ -3242,7 +3302,7 @@ static const struct v4l2_file_operations v4l2_loopback_fops = {
 static const struct v4l2_ioctl_ops v4l2_loopback_ioctl_ops = {
 	.vidioc_querycap         = &vidioc_querycap,
 	.vidioc_enum_framesizes  = &vidioc_enum_framesizes,
-	//.vidioc_enum_frameintervals = &vidioc_enum_frameintervals,
+	.vidioc_enum_frameintervals = &vidioc_enum_frameintervals,
 
 #ifdef V4L2LOOPBACK_WITH_OUTPUT
 	.vidioc_enum_output       = &vidioc_enum_output,
