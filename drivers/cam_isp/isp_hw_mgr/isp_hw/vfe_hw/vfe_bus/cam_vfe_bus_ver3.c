@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 
@@ -1770,14 +1770,8 @@ static int cam_vfe_bus_ver3_start_comp_grp(
 		rsrc_data->comp_grp_type, comp_grp->res_state,
 		rsrc_data->composite_mask);
 
-	if (comp_grp->res_state == CAM_ISP_RESOURCE_STATE_STREAMING) {
-		if (comp_grp->is_per_port_start)
-			bus_irq_reg_mask[CAM_VFE_BUS_VER3_IRQ_REG0] =
-				(0x1 << (rsrc_data->comp_grp_type +
-				vfe_out_data->buf_done_mask_shift +
-				rsrc_data->common_data->comp_done_shift));
+	if (comp_grp->res_state == CAM_ISP_RESOURCE_STATE_STREAMING)
 		return 0;
-	}
 
 	if (!common_data->comp_config_needed)
 		goto skip_comp_cfg;
@@ -2283,9 +2277,8 @@ static int cam_vfe_bus_ver3_start_vfe_out(
 	for (i = 0; i < rsrc_data->num_wm; i++)
 		rc = cam_vfe_bus_ver3_start_wm(&rsrc_data->wm_res[i]);
 
-	rsrc_data->comp_grp->is_per_port_start = vfe_out->is_per_port_start;
-	if ((!bus_priv->common_data.buf_done_evt_control) ||
-		(bus_priv->common_data.buf_done_evt_control && rsrc_data->primary_port_en))
+	if ((!vfe_out->is_per_port_start) && ((!bus_priv->common_data.buf_done_evt_control) ||
+		(bus_priv->common_data.buf_done_evt_control && rsrc_data->primary_port_en)))
 		rc = cam_vfe_bus_ver3_start_comp_grp(rsrc_data,
 			rsrc_data->stored_irq_masks[CAM_VFE_BUS_VER3_BUF_DONE_MASK]);
 
