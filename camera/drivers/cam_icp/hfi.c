@@ -174,6 +174,11 @@ void cam_hfi_queue_dump(int client_handle, bool dump_queue_data)
 	}
 
 	qtbl = (struct hfi_qtbl *)hfi_mem->qtbl.kva;
+	if(!qtbl) {
+		CAM_ERR(CAM_HFI, "NULL Pointer qtbl %p", qtbl);
+		return;
+	}
+
 	CAM_INFO(CAM_HFI,
 		"[%s] hfi hdl: %u qtbl header: version=0x%08x tbl_size=%u numq=%u qhdr_size=%u",
 		hfi->client_name, client_handle, qtbl->q_tbl_hdr.qtbl_version,
@@ -181,6 +186,11 @@ void cam_hfi_queue_dump(int client_handle, bool dump_queue_data)
 		qtbl->q_tbl_hdr.qtbl_qhdr_size);
 
 	q_hdr = &qtbl->q_hdr[Q_CMD];
+	if(!q_hdr) {
+		CAM_ERR(CAM_HFI, "NULL Pointer q_hdr %p ", q_hdr);
+		return;
+	}
+
 	CAM_INFO(CAM_HFI,
 		"cmd_q: addr=0x%08x size=%u read_idx=%u write_idx=%u",
 		hfi_mem->cmd_q.iova,
@@ -195,6 +205,11 @@ void cam_hfi_queue_dump(int client_handle, bool dump_queue_data)
 		hfi_queue_dump(dwords, num_dwords);
 
 	q_hdr = &qtbl->q_hdr[Q_MSG];
+	if(!q_hdr) {
+		CAM_ERR(CAM_HFI, "NULL Pointer q_hdr %p ", q_hdr);
+		return;
+	}
+
 	CAM_INFO(CAM_HFI,
 		"msg_q: addr=0x%08x size=%u read_idx=%u write_idx=%u",
 		hfi_mem->msg_q.iova,
