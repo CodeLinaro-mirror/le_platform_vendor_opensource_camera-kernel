@@ -2847,10 +2847,9 @@ static int cam_ife_csid_ver2_disable_path(
 	if (res->res_state != CAM_ISP_RESOURCE_STATE_STREAMING) {
 		/* possible reason can be irqs are already disabled in case per port feature*/
 		CAM_DBG(CAM_ISP,
-			"CSID:%u path res type:%d res_id:%d Invalid state:%d",
+			"CSID:%u path res type:%d res_id:%d Invalid state:%d possible reason:per port enabled",
 			csid_hw->hw_intf->hw_idx,
 			res->res_type, res->res_id, res->res_state);
-		return 0;
 	}
 
 	if (res->res_id >= CAM_IFE_PIX_PATH_RES_MAX) {
