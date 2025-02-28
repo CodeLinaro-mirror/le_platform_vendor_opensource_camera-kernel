@@ -127,6 +127,17 @@ enum cam_isp_state_change_trigger {
 	CAM_ISP_STATE_CHANGE_TRIGGER_MAX
 };
 
+/**
+ * enum cam_isp_ctx_flush_event - Different types of Flush event for affected ctx
+ * in case of group stream configurations
+ *
+ */
+enum cam_isp_ctx_flush_event {
+	CAM_ISP_CTX_FLUSH_AFFECTED_CTX_REQ_LIST,
+	CAM_ISP_CTX_FLUSH_AFFECTED_CTX_SET_FLUSH_IN_PROGRESS,
+	CAM_ISP_CTX_FLUSH_EVENT_MAX
+};
+
 #define CAM_ISP_CTX_DISABLE_RECOVERY_AEB           BIT(0)
 #define CAM_ISP_CTX_DISABLE_RECOVERY_BUS_OVERFLOW  BIT(1)
 #define CAM_ISP_CTX_DISABLE_RECOVERY_BUBBLE        BIT(2)
@@ -417,6 +428,7 @@ struct cam_isp_fcg_prediction_tracker {
  * @is_shdr:                   true, if usecase is sdhr
  * @is_shdr_master:            Flag to indicate master context in shdr usecase
  * @last_num_exp:              Last num of exposure
+ * @flush_in_progress          indicates whether flush is in progress
  *
  */
 struct cam_isp_context {
@@ -483,6 +495,8 @@ struct cam_isp_context {
 	bool                                  is_tfe_shdr;
 	bool                                  is_shdr_master;
 	uint32_t                              last_num_exp;
+	atomic_t                              flush_in_progress;
+	struct mutex                          isp_mutex;
 };
 
 /**

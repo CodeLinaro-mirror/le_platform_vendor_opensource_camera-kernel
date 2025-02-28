@@ -356,7 +356,8 @@ static int cam_vfe_bus_acquire_rm(
 	struct cam_isp_resource_node               **rm_res,
 	uint32_t                                    *client_done_mask,
 	uint32_t                                     is_dual,
-	uint32_t                                     unpacker_fmt)
+	uint32_t                                     unpacker_fmt,
+	bool                                         is_per_port_acquire)
 {
 	uint32_t                                     rm_idx = 0;
 	struct cam_isp_resource_node                *rm_res_local = NULL;
@@ -381,6 +382,8 @@ static int cam_vfe_bus_acquire_rm(
 		return -EALREADY;
 	}
 	rm_res_local->res_state = CAM_ISP_RESOURCE_STATE_RESERVED;
+	if (is_per_port_acquire)
+		rm_res_local->is_per_port_acquire = true;
 	rm_res_local->tasklet_info = tasklet;
 
 	rsrc_data = rm_res_local->res_priv;
@@ -552,6 +555,7 @@ static int cam_vfe_bus_acquire_vfe_bus_rd(void *bus_priv, void *acquire_args,
 	struct cam_vfe_hw_vfe_bus_rd_acquire_args    *bus_rd_acquire_args;
 	struct cam_isp_resource_node                 *rsrc_node = NULL;
 	struct cam_vfe_bus_rd_ver1_vfe_bus_rd_data   *rsrc_data = NULL;
+	bool                                          is_per_port_acquire = false;
 
 	if (!bus_priv || !acquire_args) {
 		CAM_ERR(CAM_ISP, "Invalid Param");
@@ -577,6 +581,8 @@ static int cam_vfe_bus_acquire_vfe_bus_rd(void *bus_priv, void *acquire_args,
 		return -EBUSY;
 	}
 
+	if (acq_args->vfe_in.in_port->per_port_en && acq_args->per_port_acquire)
+		is_per_port_acquire = true;
 	rsrc_node->res_id = acq_args->rsrc_type;
 	rsrc_data = rsrc_node->res_priv;
 
@@ -601,7 +607,8 @@ static int cam_vfe_bus_acquire_vfe_bus_rd(void *bus_priv, void *acquire_args,
 			&rsrc_data->rm_res[i],
 			&client_done_mask,
 			bus_rd_acquire_args->is_dual,
-			bus_rd_acquire_args->unpacker_fmt);
+			bus_rd_acquire_args->unpacker_fmt,
+			is_per_port_acquire);
 		if (rc) {
 			CAM_ERR(CAM_ISP,
 				"VFE:%d RM:%d acquire failed rc:%d",
@@ -612,6 +619,8 @@ static int cam_vfe_bus_acquire_vfe_bus_rd(void *bus_priv, void *acquire_args,
 	}
 
 	rsrc_node->res_state = CAM_ISP_RESOURCE_STATE_RESERVED;
+	rsrc_node->is_per_port_acquire = is_per_port_acquire;
+
 	bus_rd_acquire_args->rsrc_node = rsrc_node;
 
 	CAM_DBG(CAM_ISP, "VFE:%d acquire RD 0x%x successful",

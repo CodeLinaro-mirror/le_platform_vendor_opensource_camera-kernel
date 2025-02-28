@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2025, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <media/cam_defs.h>
@@ -786,6 +786,51 @@ static void cam_isp_validate_for_ife_scratch(
 	}
 }
 
+static int cam_isp_get_outport_res_id(
+	void                               *priv,
+	struct cam_hw_prepare_update_args  *prepare,
+	struct cam_buf_io_cfg              *io_cfg,
+	uint32_t                           *res_type,
+	uint32_t                           *res_id)
+{
+	int         rc = 0;
+	uint32_t    out_port;
+	struct cam_isp_prepare_hw_update_data *prepare_hw_data = NULL;
+
+	prepare_hw_data = (struct cam_isp_prepare_hw_update_data  *)
+			prepare->priv;
+
+	if ((io_cfg->resource_type >= CAM_ISP_IFE_OUT_RES_VIRTUAL_RDI0 &&
+		io_cfg->resource_type <= CAM_ISP_IFE_OUT_RES_VIRTUAL_RDI5) &&
+		prepare_hw_data->per_port_enable) {
+		if (prepare_hw_data->virtual_rdi_mapping_cb) {
+			out_port = prepare_hw_data->virtual_rdi_mapping_cb(priv,
+				io_cfg->resource_type, true);
+
+			if (out_port < 0) {
+				CAM_ERR(CAM_ISP,
+					"Failed to get virtual rdi port mapping for out_res: %d req:%d",
+					io_cfg->resource_type, prepare->packet->header.request_id);
+				return -EINVAL;
+			}
+			*res_id = out_port & 0xFF;
+			*res_type = out_port;
+		} else {
+			CAM_ERR(CAM_ISP,
+				"invalid params: no virtual rdi mapping cb for out_res: %d req:%d",
+				io_cfg->resource_type, prepare->packet->header.request_id);
+			return -EINVAL;
+		}
+	} else {
+		*res_id = io_cfg->resource_type & 0xFF;
+		*res_type = io_cfg->resource_type;
+	}
+	CAM_DBG(CAM_ISP,
+		"out_res_type: %d req:%d res_id:%d",
+		*res_type, prepare->packet->header.request_id, *res_id);
+	return rc;
+}
+
 static int cam_isp_io_buf_get_entries_util(
 	struct cam_isp_io_buf_info              *buf_info,
 	struct cam_buf_io_cfg                   *io_cfg,
@@ -796,6 +841,8 @@ static int cam_isp_io_buf_get_entries_util(
 	struct cam_hw_fence_map_entry          *map_entries  =  NULL;
 	struct cam_isp_hw_mgr_res              *hw_mgr_res_temp;
 	bool                                    found = false;
+	uint32_t                                res_type;
+	int rc = -EINVAL;
 
 	CAM_DBG(CAM_REQ,
 		"req_id %llu resource_type:%d fence:%d direction %d format %d",
@@ -804,28 +851,38 @@ static int cam_isp_io_buf_get_entries_util(
 		io_cfg->direction, io_cfg->format);
 
 	if (io_cfg->direction == CAM_BUF_OUTPUT) {
-		res_id = io_cfg->resource_type & 0xFF;
+		rc = cam_isp_get_outport_res_id(buf_info->prepare->ctxt_to_hw_map,
+			buf_info->prepare,
+			io_cfg, &res_type, &res_id);
+		if (rc) {
+			CAM_ERR(CAM_ISP,
+				"failed to get outport res_id\n"
+				"req_id %llu resource_type:%d fence:%d direction %d",
+				buf_info->prepare->packet->header.request_id,
+				io_cfg->resource_type, io_cfg->fence,
+				io_cfg->direction);
+		}
 
-		if (io_cfg->resource_type < buf_info->out_base ||
-			io_cfg->resource_type >= buf_info->out_max)
+		if (res_type < buf_info->out_base ||
+			res_type >= buf_info->out_max)
 			return -ENOMSG;
 
 		if ((buf_info->base->hw_type == CAM_ISP_HW_TYPE_SFE)  &&
 				(buf_info->scratch_check_cfg->validate_for_sfe)) {
 			cam_isp_validate_for_sfe_scratch(
 				&buf_info->scratch_check_cfg->sfe_scratch_res_info,
-				io_cfg->resource_type, buf_info->out_base);
+				res_type, buf_info->out_base);
 		} else if ((buf_info->base->hw_type == CAM_ISP_HW_TYPE_VFE) &&
 				(buf_info->scratch_check_cfg->validate_for_ife)) {
 			cam_isp_validate_for_ife_scratch(
 				&buf_info->scratch_check_cfg->ife_scratch_res_info,
-				io_cfg->resource_type);
+				res_type);
 		}
 		*hw_mgr_res = &buf_info->res_list_isp_out[buf_info->out_map[res_id]];
 
 		if ((*hw_mgr_res)->res_type == CAM_ISP_RESOURCE_UNINT) {
 			CAM_ERR(CAM_ISP, "io res id:%d not valid",
-				io_cfg->resource_type);
+				res_type);
 			return -EINVAL;
 		}
 	} else if (io_cfg->direction == CAM_BUF_INPUT) {
@@ -869,13 +926,14 @@ static int cam_isp_io_buf_get_entries_util(
 			num_entries = buf_info->prepare->num_out_map_entries;
 			map_entries = &buf_info->prepare->out_map_entries[num_entries];
 			buf_info->prepare->num_out_map_entries++;
+			map_entries->resource_handle = res_type;
 		} else if (io_cfg->direction == CAM_BUF_INPUT &&
 			(buf_info->prepare->num_in_map_entries <
 				 buf_info->prepare->max_in_map_entries)) {
 			num_entries = buf_info->prepare->num_in_map_entries;
 			map_entries = &buf_info->prepare->in_map_entries[num_entries];
 			buf_info->prepare->num_in_map_entries++;
-
+			map_entries->resource_handle = io_cfg->resource_type;
 		} else {
 			CAM_ERR(CAM_ISP, "dir: %d max_ln:%d max_out: %u in: %u out %u",
 				io_cfg->direction,
@@ -885,7 +943,6 @@ static int cam_isp_io_buf_get_entries_util(
 				buf_info->prepare->num_out_map_entries);
 			return -EINVAL;
 		}
-		map_entries->resource_handle = io_cfg->resource_type;
 		map_entries->sync_id = io_cfg->fence;
 	}
 
@@ -915,13 +972,26 @@ static int cam_isp_add_io_buffers_util(
 	bool                                is_buf_secure;
 	struct cam_isp_hw_get_cmd_update    secure_mode;
 	uint32_t                            mode = 0;
+	uint32_t                            res_id, res_type;
 
 	if (io_cfg->direction == CAM_BUF_OUTPUT) {
 		secure_mode_cmd = CAM_ISP_HW_CMD_GET_WM_SECURE_MODE;
 		bus_update_cmd = CAM_ISP_HW_CMD_GET_BUF_UPDATE;
+		rc = cam_isp_get_outport_res_id(buf_info->prepare->ctxt_to_hw_map,
+			buf_info->prepare,
+			io_cfg, &res_type, &res_id);
+		if (rc) {
+			CAM_ERR(CAM_ISP,
+				"failed to get outport res_id\n"
+				"req_id %llu resource_type:%d fence:%d direction %d",
+				buf_info->prepare->packet->header.request_id,
+				io_cfg->resource_type, io_cfg->fence,
+				io_cfg->direction);
+	}
 	} else if (io_cfg->direction == CAM_BUF_INPUT) {
 		secure_mode_cmd = CAM_ISP_HW_CMD_GET_RM_SECURE_MODE;
 		bus_update_cmd = CAM_ISP_HW_CMD_GET_BUF_UPDATE_RM;
+		res_type = io_cfg->resource_type;
 
 	} else {
 		CAM_ERR(CAM_ISP, "Invalid dir %d", io_cfg->direction);
@@ -934,9 +1004,9 @@ static int cam_isp_add_io_buffers_util(
 		return -EINVAL;
 	}
 
-	if (res->res_id != io_cfg->resource_type) {
+	if (res->res_id != res_type) {
 		CAM_ERR(CAM_ISP, "err res id:%d io res id:%d",
-			res->res_id, io_cfg->resource_type);
+			res->res_id, res_type);
 		return -EINVAL;
 	}
 
@@ -1017,6 +1087,7 @@ static int cam_isp_add_io_buffers_util(
 	bus_port_update.io_cfg    = io_cfg;
 	bus_port_update.frame_header = 0;
 	bus_port_update.fh_enabled = false;
+	bus_port_update.unpacker_fmt =  buf_info->unpacker_fmt;
 
 	for (plane_id = 0; plane_id < CAM_PACKET_MAX_PLANES; plane_id++)
 		bus_port_update.image_buf_offset[plane_id] = 0;

@@ -211,7 +211,7 @@ static struct cam_vfe_top_ver4_hw_info vfe69x_top_hw_info = {
 		.common_reg     = &vfe69x_top_common_reg,
 	},
 	.wr_client_desc         = vfe690x_wr_client_desc,
-	.num_mux = 5,
+	.num_mux = 7,
 	.mux_type = {
 		CAM_VFE_CAMIF_VER_4_0,
 		CAM_VFE_RDI_VER_1_0,
@@ -536,7 +536,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe690x_bus_hw_info = {
 	.num_comp_grp    = 6,
 	.support_consumed_addr = true,
 	.comp_done_mask = {
-		BIT(0), BIT(1), BIT(2), BIT(3), BIT(4), BIT(6)
+		BIT(0), BIT(1), BIT(2), BIT(3), BIT(4), BIT(5)
 	},
 	.top_irq_shift   = 0,
 	.max_out_res = CAM_ISP_IFE_OUT_RES_BASE + 33,

@@ -57,7 +57,8 @@
 #define CSIPHY_STANDARD_CHANNEL_PARAMS   BIT(13)
 #define CSIPHY_DNP_PARAMS                BIT(14)
 
-#define CSIPHY_MAX_INSTANCES_PER_PHY     3
+#define CSIPHY_MAX_INSTANCES_PER_PHY           3
+#define CSIPHY_MAX_INSTANCES_PER_AGGREG_RX_PHY 6
 
 #define CAM_CSIPHY_MAX_DPHY_LANES            4
 #define CAM_CSIPHY_MAX_CPHY_LANES            3
@@ -346,6 +347,16 @@ struct cam_csiphy_param {
 	uint32_t                         channel_type;
 };
 
+/**
+ * cam_lanes_assigned_info     :  Provides info on each lane assign
+ * @lane_assign                :  Lane sensor will be using
+ * @lane_assign_cnt            :  Number of sensors having same lane assign
+ */
+struct cam_lanes_assigned_info {
+	int16_t                    lane_assign;
+	uint8_t                    lane_assign_cnt;
+};
+
 struct csiphy_work_queue {
 	struct csiphy_device *csiphy_dev;
 	int32_t acquire_idx;
@@ -419,6 +430,7 @@ struct cam_csiphy_dev_aux_setting_params {
  * @skip_aux_settings          : Debugfs flag to ignore calls to update aux settings
  * @domain_id_security         : Flag to determine if target has domain-id based security
  * @preamble_enable            : To enable preamble pattern
+ * @is_aggregator_rx           : Is PHY an RX for aggregator
  */
 struct csiphy_device {
 	char                                     device_name[CAM_CTX_DEV_NAME_MAX_LENGTH];
@@ -442,11 +454,11 @@ struct csiphy_device {
 	int32_t                                  ref_count;
 	struct cam_subdev                        v4l2_dev_str;
 	struct cam_csiphy_param                  csiphy_info[
-					CSIPHY_MAX_INSTANCES_PER_PHY];
+					CSIPHY_MAX_INSTANCES_PER_AGGREG_RX_PHY];
 	struct cam_hw_soc_info                   soc_info;
 	uint64_t                                 current_data_rate;
 	uint64_t                                 csiphy_cpas_cp_reg_mask[
-					CSIPHY_MAX_INSTANCES_PER_PHY];
+					CSIPHY_MAX_INSTANCES_PER_AGGREG_RX_PHY];
 	struct cam_req_mgr_kmd_ops               ops;
 	struct cam_req_mgr_crm_cb               *crm_cb;
 	struct cam_csiphy_dev_cdr_sweep_params   cdr_params;
@@ -458,6 +470,10 @@ struct csiphy_device {
 	bool                                     skip_aux_settings;
 	bool                                     domain_id_security;
 	uint16_t                                 preamble_enable;
+	bool                                     is_aggregator_rx;
+	uint32_t                                 lanes_enabled;
+	struct cam_lanes_assigned_info           lanes_assigned[
+					CSIPHY_MAX_INSTANCES_PER_AGGREG_RX_PHY];
 };
 
 /**

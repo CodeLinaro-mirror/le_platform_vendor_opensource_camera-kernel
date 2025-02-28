@@ -117,6 +117,25 @@ int32_t camera_io_dev_poll(struct camera_io_master *io_master_info,
 	enum camera_sensor_i2c_type data_type,
 	uint32_t delay_ms);
 
+/**
+ * @io_master_info: I2C/SPI master information
+ * @addr: write_setting: I2C reg write settings
+ *
+ * This API abstracts dev CCI read append write
+ */
+int32_t camera_io_dev_read_append_write(
+	struct camera_io_master *io_master_info,
+	struct cam_sensor_i2c_reg_setting *write_setting);
+
+/**
+ * @io_master_info: I2C/SPI master information
+ * @addr: seq_xfer: I2C reg write settings
+ *
+ * This API abstracts dev CCI lock/unlock write
+ */
+int32_t camera_io_dev_sequential_xfer(struct camera_io_master *io_master_info,
+	struct cam_cmd_i2c_sequential_xfer *seq_xfer);
+
 #include "cam_sensor_i2c.h"
 #include "cam_sensor_spi.h"
 #include "cam_sensor_i3c.h"

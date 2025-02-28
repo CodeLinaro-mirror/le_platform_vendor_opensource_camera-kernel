@@ -168,6 +168,13 @@
 #define CAM_ISP_PXL2_PATH         0x200
 #define CAM_ISP_RDI5_PATH         0x400
 
+#define CAM_ISP_VIRTUAL_RDI0_PATH 0x800
+#define CAM_ISP_VIRTUAL_RDI1_PATH 0x1000
+#define CAM_ISP_VIRTUAL_RDI2_PATH 0x2000
+#define CAM_ISP_VIRTUAL_RDI3_PATH 0x4000
+#define CAM_ISP_VIRTUAL_RDI4_PATH 0x8000
+#define CAM_ISP_VIRTUAL_RDI5_PATH 0x10000
+
 /*
  * Multi Context Mask
  */
@@ -243,6 +250,14 @@
  * to indicate if RCS to be enabled.
  */
 #define CAM_IFE_WM_RCS_EN                    BIT(1)
+
+/* ISP stream config params */
+#define CAM_ISP_STREAM_GROUP_CFG_MAX   12
+
+/*Perport in Lemans is supported for ife lites, no ife full support hence
+ *6 rdi paths for ife_lite
+ */
+#define CAM_ISP_STREAM_CFG_MAX         6
 
 /**
  * struct cam_isp_irq_comp_cfg - CSID composite config for MC-based TFE
@@ -483,7 +498,7 @@ struct cam_isp_in_port_info {
  *                              PPP is an exception CSID PPP -> IFE PPP
  * @feature_flag:               See the macros defined under feature flag above
  * @ife_res_1:                  payload for future use.
- * @ife_res_2:                  payload for future use.
+ * @sensor_id:                  Sensor id for pipeline.
  * @data:                       payload that contains the output resources
  *
  */
@@ -519,7 +534,7 @@ struct cam_isp_in_port_info_v2 {
 	__u32                           sfe_in_path_type;
 	__u32                           feature_flag;
 	__u32                           ife_res_1;
-	__u32                           ife_res_2;
+	__u32                           sensor_id;
 	struct cam_isp_out_port_info_v2 data[1];
 };
 
@@ -1097,6 +1112,84 @@ struct cam_isp_tpg_core_config {
 	__u32   throttle_pattern;
 	__u32   tpg_params[3];
 } __attribute__((packed));
+
+/**
+ * struct cam_isp_sensor_stream_config  -  camera sensor stream configurations
+ *
+ * @version                     : version details
+ * @sensor_id                   : camera sensor unique index
+ * @context_id                  : sensor context id to which this vc/dt belongs to
+ * @vc                          : input virtual channel number
+ * @dt                          : input data type number
+ * @color_filter_arrangement    : indicates YUV CHROMA Downscale conversion enabled
+ * @decode_format               : input data format
+ * @path_id                     : indicates pxl or rdi path
+ * @error_threshold             : Error Threshold
+ * @syncId                      : if sensors are in sync then it indicates which
+                                  all sensors are in sync, sharing same sync id.
+                                  syncid = -1 indicates sensor is not in sync mode
+ * @frame_freeze_count          : if calculated CRC value is same for consecutive
+                                  frames then it is frame freeze.
+                                  frame freeze count indicates tolerable rate for
+                                  consecutive frame freezes
+ * @reserved                    : Reserved field for allignment
+ */
+struct cam_isp_sensor_stream_config {
+	__u32     version;
+	__u32     sensor_id;
+	__u32     context_id;
+	__u32     vc;
+	__u32     dt;
+	__u32     color_filter_arrangement;
+	__u32     decode_format;
+	__u32     path_id;
+	__u32     error_threshold;
+	__u32     sync_id;
+	__u32     frame_freeze_count;
+	__u64     reserved;
+};
+
+/**
+ * struct cam_isp_stream_grp_config  -  camera sensor stream group configurations
+ *
+ * @version                     : version details
+ * @res_type                    : input resource type
+ * @lane_type                   : lane type: c-phy or d-phy.
+ * @lane_num                    : active lane number
+ * @lane_cfg                    : lane configurations: 4 bits per lane
+ * @feature_mask                : feature flag
+ * @stream_cfg_cnt              : count of number of sensor configurations
+ * @enable_error_recovery       : indicates error recovery is enabled/disabled
+ * @recovery_threshold          : indicates recovery threshold.
+ * @reserved                    : Reserved field for allignment
+ * @stream_cfg                  : stream config data
+ */
+struct cam_isp_stream_grp_config {
+	__u32                                 version;
+	__u32                                 res_type;
+	__u32                                 lane_type;
+	__u32                                 lane_num;
+	__u32                                 lane_cfg;
+	__u32                                 feature_mask;
+	__u32                                 stream_cfg_cnt;
+	bool                                  enable_error_recovery;
+	__u32                                 recovery_threshold;
+	__u32                                 reserved;
+	struct cam_isp_sensor_stream_config   stream_cfg[CAM_ISP_STREAM_CFG_MAX];
+};
+
+/**
+ * struct cam_isp_sensor_group_config  -  sensor group configurations
+ *
+ * @version                     : version details
+ * @num_grp_cfg                 : count of total active group configs
+ * @stream_grp_cfg              : stream group data
+ */
+struct cam_isp_sensor_group_config {
+	__u32                             version;
+	__u32                             num_grp_cfg;
+	struct cam_isp_stream_grp_config  stream_grp_cfg[CAM_ISP_STREAM_GROUP_CFG_MAX];
+};
 
 /**
  * struct cam_isp_acquire_hw_info - ISP acquire HW params

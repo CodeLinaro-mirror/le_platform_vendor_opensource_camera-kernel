@@ -74,6 +74,9 @@
 #define CAM_ISP_IFE_MAX_FCG_PREDICTIONS   CAM_ISP_MAX_FCG_PREDICTIONS
 #define CAM_ISP_SFE_MAX_FCG_PREDICTIONS   CAM_ISP_MAX_FCG_PREDICTIONS
 
+/* ctx get virtual rdi mapping callback function type */
+typedef int (*cam_hw_get_virtual_rdi_mapping_cb_func)(void *context,
+	uint32_t out_port, bool is_virtual_rdi);
 /**
  *  enum cam_isp_hw_event_type - Collection of the ISP hardware events
  */
@@ -351,6 +354,9 @@ struct cam_isp_fcg_config_info {
  * @wm_bitmask:            Bitmask of acquired out resource
  * @mup_en:                Flag if dynamic sensor switch is enabled
  * @fcg_info:              Track FCG config for further usage in config stage
+ * @virtual_rdi_mapping_cb:  virtual rdi mapping cb function for
+ *                           respective sensor via ife_ctx
+ * @per_port_enable:         Indicates if perport feature is enabled or not
  *
  */
 struct cam_isp_prepare_hw_update_data {
@@ -374,6 +380,8 @@ struct cam_isp_prepare_hw_update_data {
 	uint64_t                              wm_bitmask;
 	bool                                  mup_en;
 	struct cam_isp_fcg_config_info        fcg_info;
+	cam_hw_get_virtual_rdi_mapping_cb_func virtual_rdi_mapping_cb;
+	bool                                  per_port_enable;
 };
 
 
@@ -484,6 +492,9 @@ enum cam_isp_hw_mgr_command {
 	CAM_ISP_HW_MGR_GET_LAST_CONSUMED_ADDR,
 	CAM_ISP_HW_MGR_CMD_CHECK_START_OFFLINE,
 	CAM_ISP_HW_MGR_CMD_FLUSH_OFFLINE,
+	CAM_ISP_HW_MGR_GET_ACTIVE_HW_CTX_CNT,
+	CAM_ISP_HW_MGR_UPDATE_FLUSH_IN_PROGRESS,
+	CAM_ISP_HW_MGR_GET_HW_CTX,
 	CAM_ISP_HW_MGR_CMD_MAX,
 };
 
@@ -505,6 +516,12 @@ enum cam_isp_ctx_type {
  * @last_cdm_done:         Last cdm done request
  * @sof_ts:                SOF timestamps (current, boot and previous)
  * @cdm_done_ts:           CDM callback done timestamp
+ * @hw_ctx_cnt:            count of active ife ctxs
+ * @stream_grp_cfg_index:  index of sensor group stream configuration
+ * @acquire_type:          indicates whether it is  virtual/hybrid/real acquire
+ * @sensor_id:             unique sensor id
+ * @out_port_id:           out resource id
+ * @ptr:                   void pointer out param
  */
 struct cam_isp_hw_cmd_args {
 	uint32_t                          cmd_type;
@@ -512,16 +529,37 @@ struct cam_isp_hw_cmd_args {
 	union {
 		uint32_t                         sof_irq_enable;
 		uint32_t                         ctx_type;
-		uint32_t                         packet_op_code;
 		uint64_t                         last_cdm_done;
 		int64_t                          req_id;
+		struct {
+			uint32_t                     packet_op_code;
+			uint32_t                     hw_mgr_ctx_id;
+		}packet_info;
 		struct {
 			uint64_t                      curr;
 			uint64_t                      prev;
 			uint64_t                      boot;
 		} sof_ts;
+		struct {
+			uint32_t                  hw_ctx_cnt;
+			int                       stream_grp_cfg_index;
+		} active_hw_ctx;
+		uint32_t                      out_port_id;
+		void                         *ptr;
 	} u;
 	struct timespec64 cdm_done_ts;
+};
+
+/**
+ * struct cam_isp_hw_active_hw_ctx
+ *
+ * @index:                 index of active hw ctx
+ * @stream_grp_cfg_index:  sensor group configuration index
+ *
+ */
+struct cam_isp_hw_active_hw_ctx {
+	int         index;
+	int         stream_grp_cfg_index;
 };
 
 /**

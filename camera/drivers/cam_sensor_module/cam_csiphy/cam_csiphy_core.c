@@ -330,6 +330,7 @@ void cam_csiphy_query_cap(struct csiphy_device *csiphy_dev,
 	csiphy_cap->slot_info = soc_info->index;
 	csiphy_cap->version = csiphy_dev->hw_version;
 	csiphy_cap->clk_lane = csiphy_dev->clk_lane;
+	csiphy_cap->reserved = csiphy_dev->is_aggregator_rx;
 }
 
 int cam_csiphy_dump_status_reg(struct csiphy_device *csiphy_dev)
@@ -1439,7 +1440,6 @@ int32_t cam_csiphy_config_dev(struct csiphy_device *csiphy_dev,
 
 	lane_enable = csiphy_dev->csiphy_info[index].lane_enable;
 
-
 	if (csiphy_dev->csiphy_info[index].csiphy_3phase) {
 		rc = cam_csiphy_cphy_data_rate_config(csiphy_dev, index, datarate_variant_idx);
 		if (rc) {
@@ -1450,6 +1450,7 @@ int32_t cam_csiphy_config_dev(struct csiphy_device *csiphy_dev,
 		}
 	}
 
+	csiphy_dev->lanes_enabled = lane_enable;
 	intermediate_var = csiphy_dev->csiphy_info[index].settle_time;
 	do_div(intermediate_var, 200000000);
 	settle_cnt = intermediate_var;
@@ -1579,6 +1580,11 @@ void cam_csiphy_shutdown(struct csiphy_device *csiphy_dev)
 	}
 
 	csiphy_dev->ref_count = 0;
+	for (i = 0; i < csiphy_dev->session_max_device_support; i++) {
+		csiphy_dev->lanes_assigned[i].lane_assign = -1;
+		csiphy_dev->lanes_assigned[i].lane_assign_cnt = 0;
+	}
+	csiphy_dev->lanes_enabled = 0x0;
 	csiphy_dev->acquire_count = 0;
 	csiphy_dev->start_dev_count = 0;
 	csiphy_dev->csiphy_state = CAM_CSIPHY_INIT;
@@ -1641,6 +1647,8 @@ static int cam_csiphy_update_lane_selection(struct csiphy_device *csiphy, int in
 	else
 		lane_enable &= ~csiphy->csiphy_info[index].lane_enable;
 
+	csiphy->lanes_enabled = lane_enable;
+
 	CAM_INFO(CAM_CSIPHY, "lane_reg_addr: 0x%x, lane_assign: 0x%x, lane_enable: 0x%x, delay: %d",
 		lane_reg_addr, csiphy->csiphy_info[index].lane_assign, lane_enable, delay);
 
@@ -1650,6 +1658,65 @@ static int cam_csiphy_update_lane_selection(struct csiphy_device *csiphy, int in
 		usleep_range(delay, delay + 5);
 
 	return 0;
+}
+
+static void cam_csiphy_update_lane_assign_info(
+	struct csiphy_device *csiphy, int index, bool enable)
+{
+	int i = 0;
+
+	CAM_DBG(CAM_CSIPHY,
+		"acquire_cnt: %d phy_idx: %d offset: %d lane_assign: 0x%x, lanes_enabled: 0x%x max_dev_support: %d",
+		csiphy->acquire_count,
+		csiphy->soc_info.index,
+		index,
+		csiphy->csiphy_info[index].lane_assign,
+		csiphy->lanes_enabled,
+		csiphy->session_max_device_support);
+
+	if (enable) {
+		for (i = 0; i < csiphy->session_max_device_support; i++) {
+			if (csiphy->lanes_assigned[i].lane_assign
+				== csiphy->csiphy_info[index].lane_assign){
+				csiphy->lanes_assigned[i].lane_assign_cnt++;
+				break;
+			}
+		}
+		if (i == csiphy->session_max_device_support) {
+			for (i = 0; i < csiphy->session_max_device_support; i++) {
+				if (csiphy->lanes_assigned[i].lane_assign_cnt == 0) {
+					csiphy->lanes_assigned[i].lane_assign =
+						csiphy->csiphy_info[index].lane_assign;
+					csiphy->lanes_assigned[i].lane_assign_cnt++;
+					break;
+				}
+			}
+		}
+	} else {
+		for (i = 0; i < csiphy->session_max_device_support; i++) {
+			if (csiphy->lanes_assigned[i].lane_assign
+				== csiphy->csiphy_info[index].lane_assign) {
+				csiphy->lanes_assigned[i].lane_assign_cnt--;
+				if (csiphy->lanes_assigned[i].lane_assign_cnt == 0) {
+					csiphy->lanes_assigned[i].lane_assign = -1;
+					cam_csiphy_update_lane_selection(csiphy, index, false);
+				}
+				break;
+			}
+		}
+	}
+
+
+	if (i < csiphy->session_max_device_support && i >= 0) {
+		CAM_DBG(CAM_CSIPHY,
+			"lane_assign_cnt: 0%d, lane_assign: 0x%x, lanes_enabled: 0x%x",
+			csiphy->lanes_assigned[i].lane_assign_cnt,
+			csiphy->lanes_assigned[i].lane_assign,
+			csiphy->lanes_enabled);
+	} else {
+		CAM_ERR(CAM_CSIPHY,
+			"Array out of bounds: > i: %d", i);
+	}
 }
 
 static int __csiphy_cpas_configure_for_main_or_aon(
@@ -2120,7 +2187,7 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 			csiphy_dev->combo_mode);
 		if ((csiphy_dev->csiphy_state == CAM_CSIPHY_START) &&
 			(csiphy_dev->combo_mode == 0) &&
-			(csiphy_dev->acquire_count > 0)) {
+			(csiphy_dev->acquire_count > 0) && (csiphy_dev->is_aggregator_rx == 0)) {
 			CAM_ERR(CAM_CSIPHY,
 				"NonComboMode does not support multiple acquire: Acquire_count: %d",
 				csiphy_dev->acquire_count);
@@ -2191,18 +2258,31 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 			csiphy_dev->session_max_device_support = 1;
 		}
 
+		if (csiphy_dev->is_aggregator_rx)
+			csiphy_dev->session_max_device_support =
+				CSIPHY_MAX_INSTANCES_PER_AGGREG_RX_PHY;
+
 		bridge_params.ops = NULL;
 		bridge_params.session_hdl = csiphy_acq_dev.session_handle;
 		bridge_params.v4l2_sub_dev_flag = 0;
 		bridge_params.media_entity_flag = 0;
 		bridge_params.priv = csiphy_dev;
 		bridge_params.dev_id = CAM_CSIPHY;
-		index = csiphy_dev->acquire_count;
 		csiphy_acq_dev.device_handle =
 			cam_create_device_hdl(&bridge_params);
 		if (csiphy_acq_dev.device_handle <= 0) {
 			rc = -EFAULT;
 			CAM_ERR(CAM_CSIPHY, "Can not create device handle");
+			goto release_mutex;
+		}
+
+		for (index = 0; index < csiphy_dev->session_max_device_support; index++) {
+			if (csiphy_dev->csiphy_info[index].hdl_data.device_hdl == -1)
+				break;
+		}
+
+		if (index >= csiphy_dev->session_max_device_support) {
+			CAM_ERR(CAM_CSIPHY, "Index is invalid: %d", index);
 			goto release_mutex;
 		}
 
@@ -2299,6 +2379,8 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 
 		param = &csiphy_dev->csiphy_info[offset];
 
+		cam_csiphy_update_lane_assign_info(csiphy_dev, offset, false);
+
 		if (--csiphy_dev->start_dev_count) {
 #ifdef CONFIG_SECURE_CAMERA
 			if (param->secure_mode)
@@ -2307,8 +2389,6 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 #endif
 			param->secure_mode = CAM_SECURE_MODE_NON_SECURE;
 			param->csiphy_cpas_cp_reg_mask = 0;
-
-			cam_csiphy_update_lane_selection(csiphy_dev, offset, false);
 
 			if (soc_info->is_clk_drv_en && param->use_hw_client_voting) {
 				rc = cam_soc_util_set_src_clk_rate(soc_info, param->conn_csid_idx,
@@ -2532,7 +2612,22 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 			goto release_mutex;
 		}
 
+		cam_csiphy_update_lane_assign_info(csiphy_dev, offset, true);
+
 		if (csiphy_dev->start_dev_count) {
+			if (csiphy_dev->is_aggregator_rx) {
+				if ((csiphy_dev->lanes_enabled
+					& csiphy_dev->csiphy_info[offset].lane_enable)
+					== csiphy_dev->csiphy_info[offset].lane_enable) {
+					csiphy_dev->start_dev_count++;
+					CAM_INFO(CAM_CSIPHY,
+						"CAM_START_PHYDEV: %d dev_cnt: %u, slot: %d",
+						soc_info->index,
+						csiphy_dev->start_dev_count,
+						offset);
+					goto release_mutex;
+				}
+			}
 			clk_vote_level_high =
 				csiphy_dev->ctrl_reg->getclockvoting(csiphy_dev, offset);
 			clk_vote_level_low = clk_vote_level_high;

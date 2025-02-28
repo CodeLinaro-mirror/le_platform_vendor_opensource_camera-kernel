@@ -20,6 +20,7 @@
 #include <linux/debugfs.h>
 #include <linux/platform_device.h>
 #include <linux/semaphore.h>
+#include <linux/wait.h>
 #include <media/cam_sensor.h>
 #include <media/v4l2-event.h>
 #include <media/v4l2-ioctl.h>
@@ -91,6 +92,9 @@ enum cam_cci_cmd_type {
 	MSM_CCI_GPIO_WRITE,
 	MSM_CCI_I2C_WRITE_SYNC,
 	MSM_CCI_I2C_WRITE_SYNC_BLOCK,
+	MSM_CCI_I2C_READ_APPEND_WRITE,
+	MSM_CCI_I2C_SEQUENTIAL_XFER_LOCK,
+	MSM_CCI_I2C_SEQUENTIAL_XFER_UNLOCK
 };
 
 enum cci_i2c_queue_t {
@@ -151,6 +155,11 @@ struct cam_cci_master_info {
 	uint32_t num_words_in_data_queue[NUM_QUEUES];
 	int32_t data_queue_start_index[NUM_QUEUES];
 	int32_t half_queue_mark[NUM_QUEUES];
+	struct mutex master_lock_mutex;
+	bool is_master_locked;
+	bool is_read_append_locked;
+	wait_queue_head_t lock_wait;
+	uint16_t master_usage_cnt;
 };
 
 struct cam_cci_clk_params_t {
@@ -291,6 +300,7 @@ struct cam_sensor_cci_client {
 	uint16_t id_map;
 	uint16_t cci_device;
 	bool is_probing;
+	bool is_master_owned;
 };
 
 struct cam_cci_ctrl {

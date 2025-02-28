@@ -333,6 +333,11 @@ int32_t cam_csiphy_parse_dt_info(struct platform_device *pdev,
 		is_regulator_enable_sync = 0;
 	}
 
+	if (!of_property_read_bool(soc_info->dev->of_node, "aggregator-rx"))
+		csiphy_dev->is_aggregator_rx = false;
+	else
+		csiphy_dev->is_aggregator_rx = true;
+
 	csiphy_dev->prgm_cmn_reg_across_csiphy = (bool) is_regulator_enable_sync;
 
 	if (of_device_is_compatible(soc_info->dev->of_node, "qcom,csiphy-v1.3.0")) {

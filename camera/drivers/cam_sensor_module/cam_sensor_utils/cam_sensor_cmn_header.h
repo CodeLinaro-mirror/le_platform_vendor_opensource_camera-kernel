@@ -164,7 +164,10 @@ enum cam_sensor_i2c_cmd_type {
 	CAM_SENSOR_I2C_READ_RANDOM,
 	CAM_SENSOR_I2C_READ_SEQ,
 	CAM_SENSOR_I2C_POLL,
-	CAM_SENSOR_I2C_SET_I2C_INFO
+	CAM_SENSOR_I2C_SET_I2C_INFO,
+	CAM_SENSOR_I2C_READ_APPEND_WRITE,
+	CAM_SENSOR_I2C_SEQUENTIAL_XFER_LOCK,
+	CAM_SENSOR_I2C_SEQUENTIAL_XFER_UNLOCK
 };
 
 struct common_header {
@@ -239,6 +242,7 @@ struct i2c_settings_list {
 	struct cam_sensor_i2c_reg_setting i2c_settings;
 	struct cam_sensor_i2c_seq_reg seq_settings;
 	struct cam_cmd_i2c_info slave_info;
+	struct cam_cmd_i2c_sequential_xfer seq_xfer;
 	enum cam_sensor_i2c_cmd_type op_code;
 	struct list_head list;
 };
@@ -308,6 +312,9 @@ enum msm_sensor_camera_id_t {
 	CAMERA_18,
 	CAMERA_19,
 	CAMERA_20,
+	CAMERA_21,
+	CAMERA_22,
+	CAMERA_23,
 	MAX_CAMERAS,
 };
 

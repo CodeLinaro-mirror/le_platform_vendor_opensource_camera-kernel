@@ -256,7 +256,12 @@ static void cam_cci_init_cci_params(struct cci_device *new_cci_dev)
 		new_cci_dev->cci_master_info[i].status = 0;
 		new_cci_dev->cci_master_info[i].freq_ref_cnt = 0;
 		new_cci_dev->cci_master_info[i].is_initilized = false;
+		new_cci_dev->cci_master_info[i].is_master_locked = false;
+		new_cci_dev->cci_master_info[i].is_read_append_locked = false;
+		new_cci_dev->cci_master_info[i].master_usage_cnt = 0;
 		mutex_init(&new_cci_dev->cci_master_info[i].mutex);
+		mutex_init(&new_cci_dev->cci_master_info[i].master_lock_mutex);
+		init_waitqueue_head(&new_cci_dev->cci_master_info[i].lock_wait);
 		sema_init(&new_cci_dev->cci_master_info[i].master_sem, 1);
 		mutex_init(&new_cci_dev->cci_master_info[i].freq_cnt_lock);
 		init_completion(

@@ -13,7 +13,8 @@
 #include "cam_isp_hw.h"
 
 #define CAM_ISP_HW_NUM_MAX                       8
-
+#define CAM_ISP_IN_SENSOR_ID_UNKNOWN             0xdeadbeef
+#define CAM_IFE_STREAM_GRP_INDEX_NONE            0xdeadbeef
 /**
  * struct cam_isp_hw_mgr_ctx - common acquired context for managers
  *
@@ -25,6 +26,7 @@
  * @mini_dump_cb:          Callback for mini dump
  * @sec_pf_evt_cb:         Callback interface to ISP context for CDM page fault
  *                         set during device acquire
+ * @virtual_rdi_mapping_cb Callback query for virtual rdi mapping
  *
  */
 struct cam_isp_hw_mgr_ctx {
@@ -33,6 +35,7 @@ struct cam_isp_hw_mgr_ctx {
 	void                           *cb_priv;
 	cam_ctx_mini_dump_cb_func       mini_dump_cb;
 	cam_hw_pagefault_cb_func        sec_pf_evt_cb;
+	cam_hw_get_virtual_rdi_mapping_cb_func virtual_rdi_mapping_cb;
 };
 
 /**
@@ -73,8 +76,12 @@ struct cam_isp_hw_mgr {
  *                       acquired
  * @is_secure            informs whether the resource is in secure mode or not
  * @num_children:        number of the child resource node.
+ * @vc:                  input virtual channel number
+ * @dt:                  input data type number
  * @use_wm_pack:         Flag to indicate if WM is to be used for packing
  * @hw_ctxt_id:          HW context ID mask corresponding to this resource
+ * @linked:              Indicates if this hw res to linked to any ife context
+ * @decode_format        input data format
  *
  */
 struct cam_isp_hw_mgr_res {
@@ -85,8 +92,12 @@ struct cam_isp_hw_mgr_res {
 	struct cam_isp_resource_node    *hw_res[CAM_ISP_HW_SPLIT_MAX];
 	uint32_t                         is_secure;
 	uint32_t                         num_children;
+	uint32_t                         vc;
+	uint32_t                         dt;
 	bool                             use_wm_pack;
 	uint32_t                         hw_ctxt_id_mask;
+	bool                             linked;
+	uint32_t                         decode_format;
 };
 
 

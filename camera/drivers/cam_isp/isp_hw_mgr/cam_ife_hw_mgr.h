@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2025, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_IFE_HW_MGR_H_
@@ -30,8 +30,9 @@ enum cam_ife_ctx_master_type {
 };
 
 /* IFE resource constants */
-#define CAM_IFE_HW_IN_RES_MAX            (CAM_ISP_IFE_IN_RES_MAX & 0xFF)
-#define CAM_IFE_HW_RES_POOL_MAX          64
+#define CAM_IFE_HW_IN_RES_MAX                 (CAM_ISP_IFE_IN_RES_MAX & 0xFF)
+#define CAM_IFE_HW_RES_POOL_MAX               64
+#define CAM_IFE_HW_STREAM_GRP_RES_POOL_MAX    32
 
 /* IFE_HW_MGR ctx config */
 #define CAM_IFE_CTX_CFG_FRAME_HEADER_TS   BIT(0)
@@ -65,6 +66,8 @@ enum cam_ife_ctx_master_type {
  * @disable_isp_drv:           Disable ISP DRV config
  * @enable_presil_reg_dump:    Enable per req regdump in presil
  * @enable_cdm_cmd_check:      Enable invalid command check in cmd_buf
+ * @disable_line_based_mode:   Disable line based mode for per port
+ *                             feature with duplicate sensors
  */
 struct cam_ife_hw_mgr_debug {
 	struct dentry  *dentry;
@@ -88,6 +91,7 @@ struct cam_ife_hw_mgr_debug {
 	bool           disable_isp_drv;
 	bool           enable_presil_reg_dump;
 	bool           enable_cdm_cmd_check;
+	bool           disable_line_based_mode;
 };
 
 /**
@@ -203,7 +207,8 @@ struct cam_ife_hw_mgr_ctx_scratch_buf_info {
  *                       for the cache type
  * @rdi_pd_context:      Flag to specify the context has
  *                       only rdi and PD resource without PIX port.
- *
+ * @per_port_en:         Indicates if per port feature is enabled or not
+
  */
 struct cam_ife_hw_mgr_ctx_flags {
 	bool   ctx_in_use;
@@ -225,6 +230,7 @@ struct cam_ife_hw_mgr_ctx_flags {
 	bool   rdi_lcr_en;
 	bool   sys_cache_usage[CAM_LLCC_MAX];
 	bool   rdi_pd_context;
+	bool   per_port_en;
 };
 
 /**
@@ -238,27 +244,53 @@ struct cam_ife_cdm_user_data {
 	uint64_t                                  request_id;
 };
 
+/**
+ * struct cam_ife_mgr_bw_data - contain data to calc bandwidth for context
+ *
+ * @format:                    image format
+ * @width:                     image width
+ * @height:                    image height
+ * @framerate:                 framerate
+ *
+ */
+struct cam_ife_mgr_bw_data {
+	uint32_t format;
+	uint32_t width;
+	uint32_t height;
+	uint32_t framerate;
+};
+
 /* struct cam_ife_hw_mgr_ctx - IFE HW manager Context object
  *
  * concr_ctx:             HW Context currently used from this manager context
  * hw_mgr:                IFE hw mgr which owns this context
  * event_cb:              event callbacks
- * @mini_dump_cb          Callback for mini dump
  * cb_priv:               event callbacks data
  * ctx_in_use:            indicates if context is active
- * is_offline:            indicates if context is used for offline processing
  * ctx_idx:               index of this context
+ * bw_data:               contains data for BW usage calculation
+ * num_in_ports:          number of context input ports
+ * in_ports:              context input ports
+ * unpacker_fmt:          IFE input unpacker for offline isp
+ * is_offline:            indicates if context is used for offline processing
+ * stop_done_complete:    completion signaled when context is ceased operation
+ * is_stopping:           if context is about to cease operation
+ * @virtual_rdi_mapping_cb Callback query for virtual rdi mapping
  *
  */
 struct cam_ife_hw_mgr_ctx {
-	struct cam_ife_hw_concrete_ctx *concr_ctx;
-	struct cam_ife_hw_mgr          *hw_mgr;
-	cam_hw_event_cb_func            event_cb[CAM_ISP_HW_EVENT_MAX];
-	void                           *cb_priv;
-	uint32_t                        ctx_in_use;
-	bool                            is_offline;
-	uint32_t                        ctx_idx;
-	struct completion               stop_done_complete;
+	struct cam_ife_hw_concrete_ctx         *concr_ctx;
+	struct cam_ife_hw_mgr                  *hw_mgr;
+	cam_hw_event_cb_func                    event_cb[CAM_ISP_HW_EVENT_MAX];
+	void                                   *cb_priv;
+	uint32_t                                ctx_in_use;
+	uint32_t                                ctx_idx;
+	struct cam_ife_mgr_bw_data              bw_data;
+	uint32_t                                num_in_ports;
+	struct cam_isp_in_port_generic_info    *in_ports;
+	uint32_t                                unpacker_fmt;
+	bool                                    is_offline;
+	cam_hw_get_virtual_rdi_mapping_cb_func  virtual_rdi_mapping_cb;
 };
 
 
@@ -291,12 +323,25 @@ struct cam_isp_comp_record_query {
 	struct cam_isp_context_comp_record        *sfe_bus_comp_grp;
 };
 
+/** struct cam_ife_virtual_rdi_mapping - mapping table between UMd and KMD RDI resources
+ *
+ * @rdi_path_count           : indicates how many rdi paths are acquired for this sensor
+ * @virtual_rdi              : requested virtual RDI port by UMD
+ * @acquired_rdi             : acquired RDI port by KMD
+ */
+struct cam_ife_virtual_rdi_mapping {
+	uint32_t   rdi_path_count;
+	uint32_t   virtual_rdi[CAM_ISP_STREAM_CFG_MAX];
+	uint32_t   acquired_rdi[CAM_ISP_STREAM_CFG_MAX];
+};
+
 /**
  * struct cam_ife_hw_concrete_ctx - IFE HW Context object that contains
  *                                  HW specific data
  *
  * @list:                   used by the ctx list.
  * @common:                 common acquired context data
+ * @sensor_id:              Sensor id for context
  * @ctx_index:              acquired context id.
  * @left_hw_idx:            hw index for master core [left]
  * @right_hw_idx:           hw index for slave core [right]
@@ -362,15 +407,17 @@ struct cam_isp_comp_record_query {
  * @is_hw_ctx_acq:          If acquire for ife ctx is having hw ctx acquired
  * @acq_hw_ctxt_src_dst_map: Src to dst hw ctxt map for acquired pixel paths
  * @ctx_state               Indicates context state
+ * @offline_clk             IFE Clock value to be configured for offline processing
+ * @offline_sfe_clk         SFE Clock value to be configured for offline processing
+ * @mapping_table:          mapping between virtual rdi and acquired rdi
  *
  */
 
 struct cam_ife_hw_concrete_ctx {
 	struct list_head                     list;
 	struct cam_isp_hw_mgr_ctx            common;
-
 	void                                *tasklet_info;
-
+	uint32_t                             sensor_id;
 	uint32_t                             ctx_index;
 	uint32_t                             left_hw_idx;
 	uint32_t                             right_hw_idx;
@@ -442,6 +489,9 @@ struct cam_ife_hw_concrete_ctx {
 	bool                                 waiting_start;
 	uint32_t                             start_ctx_idx;
 	bool                                 sfe_rd_only;
+	uint32_t                             offline_clk;
+	uint32_t                             offline_sfe_clk;
+	struct cam_ife_virtual_rdi_mapping   mapping_table;
 };
 
 /**
@@ -490,7 +540,6 @@ struct cam_ife_mgr_offline_in_queue {
 	struct cam_hw_config_args         cfg;
 	bool                              ready;
 };
-
 
 /**
  * struct cam_isp_bus_hw_caps - BUS capabilities
@@ -616,6 +665,12 @@ enum cam_isp_irq_inject_common_param_pos {
  * @input_queue:           input request queue for offline processing
  * @in_proc_queue:         currently processed requests queuse
  * @starting_offline_cnt:  number of offline HWs that are currently starting
+ * @offline_clk:           offline ife clock
+ * @offline_sfe_clk:       offline sfe clock
+ * @max_clk_threshold:     Peak sfe clock
+ * @nom_clk_threshold:     nominal sfe clock
+ * @min_clk_threshold:     Min sfe clock
+ * @offline_reconfig:      offline ISP need to reconfigure or not
  */
 struct cam_ife_hw_mgr {
 	struct cam_isp_hw_mgr          mgr_common;
@@ -653,7 +708,142 @@ struct cam_ife_hw_mgr {
 	struct cam_ife_offline_hw        acquired_hw_pool[CAM_CTX_MAX];
 	struct cam_ife_mgr_offline_in_queue   input_queue;
 	struct cam_ife_mgr_offline_in_queue   in_proc_queue;
-	uint32_t   starting_offline_cnt;
+	uint32_t                         starting_offline_cnt;
+	uint32_t                         max_ife_lite_out_res;
+	uint32_t                         offline_clk;
+	uint32_t                         offline_sfe_clk;
+	uint32_t                         max_clk_threshold;
+	uint32_t                         nom_clk_threshold;
+	uint32_t                         min_clk_threshold;
+	uint32_t                         bytes_per_clk;
+	bool                             offline_reconfig;
+};
+
+/**
+ * struct cam_ife_hw_mgr_sensor_stream_config  -  camera sensor stream configurations
+ *
+ * @priv                        : Context data
+ * @sensor_id                   : camera sensor unique index
+ * @contextId                   : sensor context id to which this vc/dt belongs to
+ * @color_filter_arrangement    : indicates YUV CHROMA Downscale conversion enabled
+ * @num_valid_vc_dt_pxl         : valid vc and dt for pxl path
+ * @num_valid_vc_dt_rdi         : valid vc and dt in array for rdi path
+ * @pxl_vc                      : input virtual channel number for pxl path
+ * @pxl_dt                      : input data type number for pxl path
+ * @ppp_vc                      : input virtual channel number for ppp path
+ * @ppp_dt                      : input data type number for ppp path
+ * @lcr_vc                      : input virtual channel number for lcr path
+ * @lcr_dt                      : input data type number for lcr path
+ * @rdi_vc                      : input virtual channel number for rdi path
+ * @rdi_dt                      : input data type number for rdi path
+ * @error_threshold             : Error Threshold
+ * @sync_id                     : if sensors are in sync then it indicates which
+ *                                all sensors are in sync, sharing same sync id.
+ *                                syncid = -1 indicates sensor is not in sync mode
+ * @frame_freeze_count          : if calculated CRC value is same for consecutive
+ *                                frames then it is frame freeze.
+ *                                frame freeze count indicates tolerable rate for
+ *                                consecutive frame freezes
+ * @decode_format               : input data format
+ * @rdi_vc_dt_updated           : Indicates count of rdi vc-dt associated to any hw res
+ * @yuv_rdi_vc_dt_updated       : Indicates vc dt is updated for rdi path with yuv conversion
+ * @pxl_vc_dt_updated           : Indicates if pxl vc-dt is associated to any hw res
+ * @lcr_vc_dt_updated           : Indicates if lcr vc-dt associated to any hw res
+ * @ppp_vc_dt_updated           : Indicates if ppp vc-dt is associated to any hw res
+ * @acquired                    : indicates whether acquire is done for this sensor id
+ * @is_streamon                 : indicates whether streamon is done for this sensor id
+ */
+struct cam_ife_hw_mgr_sensor_stream_config {
+	void                                      *priv;
+	uint32_t                                   sensor_id;
+	uint32_t                                   context_id;
+	uint32_t                                   color_filter_arrangement;
+	uint32_t                                   num_valid_vc_dt_pxl;
+	uint32_t                                   num_valid_vc_dt_rdi;
+	uint32_t                                   num_valid_vc_dt_ppp;
+	uint32_t                                   num_valid_vc_dt_lcr;
+	uint32_t                                   pxl_vc;
+	uint32_t                                   pxl_dt;
+	uint32_t                                   ppp_vc;
+	uint32_t                                   ppp_dt;
+	uint32_t                                   lcr_vc;
+	uint32_t                                   lcr_dt;
+	uint32_t                                   rdi_vc[CAM_ISP_VC_DT_CFG];
+	uint32_t                                   rdi_dt[CAM_ISP_VC_DT_CFG];
+	uint32_t                                   error_threshold;
+	uint32_t                                   sync_id;
+	uint32_t                                   frame_freeze_count;
+	uint32_t                                   decode_format;
+	uint32_t                                   rdi_vc_dt_updated;
+	bool                                       yuv_rdi_vc_dt_updated;
+	bool                                       pxl_vc_dt_updated;
+	bool                                       lcr_vc_dt_updated;
+	bool                                       ppp_vc_dt_updated;
+	bool                                       acquired;
+	bool                                       is_streamon;
+};
+
+/**
+ * struct cam_ife_hw_mgr_stream_grp_config  -  camera sensor stream group configurations
+ *
+ * @res_type                      : input resource type
+ * @lane_type                     : lane type: c-phy or d-phy.
+ * @lane_num                      : active lane number
+ * @lane_cfg                      : lane configurations: 4 bits per lane
+ * @feature_mask                  : feature flag
+ * @acquire_cnt                   : count of number of acquire calls
+ * @stream_cfg_cnt                : number of sensor configurations for pxl and rdi paths
+ * @rdi_stream_cfg_cnt            : number of sensor configurations for only rdi path
+ * @rdi_yuv_conversion_stream_cnt : Indicates how many yuv sensors need yuv 420 conversions
+ * @hw_ctx_cnt                    : count of number of hw ctx
+ * @stream_on_cnt                 : count of number of streamon calls for this ife device
+ * @enable_error_recovery         : indicates error recovery is enabled/disabled
+ * @recovery_threshold            : indicates recovery threshold
+ * @res_ife_csid_list             : CSID resource list
+ * @res_ife_src_list              : IFE input resource list
+ * @res_list_ife_out              : IFE output resources array
+ * @lock                          : mutex lock
+ * @free_res_list                 : Free resources list for the branch node
+ * @acquired_hw_idx               : Index of acquired HW
+ * @res_pool                      : memory storage for the free resource list
+ * @mapping_table                 : mapping table between UMd and KMD RDI resources
+ * @stream_cfg                    : stream config data
+ * @recovery_in_progress          : Indicates if ife is process of frame drop recovery
+ */
+struct cam_ife_hw_mgr_stream_grp_config {
+	uint32_t                                      res_type;
+	uint32_t                                      lane_type;
+	uint32_t                                      lane_num;
+	uint32_t                                      lane_cfg;
+	uint32_t                                      feature_mask;
+	uint32_t                                      acquire_cnt;
+	uint32_t                                      stream_cfg_cnt;
+	uint32_t                                      rdi_stream_cfg_cnt;
+	uint32_t                                      rdi_yuv_conversion_stream_cnt;
+	uint32_t                                      hw_ctx_cnt;
+	bool                                          enable_error_recovery;
+	uint32_t                                      recovery_threshold;
+	int32_t                                       stream_on_cnt;
+	struct list_head                              res_ife_csid_list;
+	struct list_head                              res_ife_src_list;
+	struct cam_isp_hw_mgr_res                    *res_list_ife_out;
+	struct mutex                                  lock;
+	struct list_head                              free_res_list;
+	uint32_t                                      acquired_hw_idx;
+	struct cam_isp_hw_mgr_res                     res_pool[CAM_IFE_HW_STREAM_GRP_RES_POOL_MAX];
+	struct cam_ife_hw_mgr_sensor_stream_config    stream_cfg[CAM_ISP_STREAM_CFG_MAX];
+	bool                                          recovery_in_progress;
+};
+
+/**
+ * struct cam_ife_hw_mgr_sensor_grp_cfg  -  sensor group configurations
+ *
+ * @num_grp_cfg                 : count of total active group configs
+ * @grp_cfg                     : stream group data
+ */
+struct cam_ife_hw_mgr_sensor_grp_cfg {
+	uint32_t                                  num_grp_cfg;
+	struct cam_ife_hw_mgr_stream_grp_config  *grp_cfg[CAM_ISP_STREAM_GROUP_CFG_MAX];
 };
 
 /**
@@ -748,4 +938,35 @@ int cam_ife_hw_mgr_init(struct cam_hw_mgr_intf *hw_mgr_intf, int *iommu_hdl,
 void cam_ife_hw_mgr_deinit(void);
 int cam_ife_mgr_config_hw(void *hw_mgr_priv, void *config_hw_args);
 int cam_ife_mgr_prepare_hw_update(void *hw_mgr_priv, void *prepare_hw_update_args);
+int cam_ife_mgr_update_offline_ife_out(struct cam_ife_hw_mgr_ctx *ife_ctx);
+int cam_convert_hw_idx_to_ife_hw_num(int hw_idx);
+int cam_ife_hw_mgr_get_res(struct list_head *src_list, struct cam_isp_hw_mgr_res **res);
+int cam_ife_hw_mgr_event_handler(void *priv, uint32_t evt_id, void *evt_info);
+int cam_ife_hw_mgr_put_res(struct list_head *src_list, struct cam_isp_hw_mgr_res  **res);
+int cam_ife_hw_mgr_is_rdi_res(uint32_t res_id);
+bool cam_isp_is_ctx_primary_rdi(struct cam_ife_hw_mgr_ctx  *ctx);
+bool cam_ife_hw_mgr_is_ife_out_port(uint32_t res_id);
+bool cam_ife_hw_mgr_check_path_port_compat(uint32_t in_type, uint32_t out_type);
+int cam_convert_rdi_out_res_id_to_src(int res_id);
+enum cam_ife_pix_path_res_id cam_ife_hw_mgr_get_ife_csid_rdi_res_type(uint32_t out_port_type);
+int cam_ife_hw_mgr_acquire_res_ife_csid_pxl(struct cam_ife_hw_mgr_ctx *ife_ctx,
+	struct cam_isp_in_port_generic_info *in_port, bool is_ipp, bool crop_enable,
+	int index);
+int cam_ife_hw_mgr_acquire_res_ife_csid_rdi(struct cam_ife_hw_mgr_ctx  *ife_ctx,
+	struct cam_isp_in_port_generic_info *in_port,
+	uint32_t *acquired_rdi_res, int index, bool per_port_acquire);
+int cam_ife_hw_mgr_acquire_res_ife_src(struct cam_ife_hw_mgr_ctx *ife_ctx,
+	struct cam_isp_in_port_generic_info *in_port, bool acquire_lcr, bool acquire_ppp,
+	bool is_rdi_res, uint32_t *acquired_hw_id, uint32_t *acquired_hw_path,
+	uint32_t res_path_id, int index);
+int cam_ife_hw_mgr_acquire_res_ife_out(struct cam_ife_hw_mgr_ctx *ife_ctx,
+	struct cam_isp_in_port_generic_info *in_port, int index);
+int cam_ife_mgr_csid_stop_hw(struct cam_ife_hw_mgr_ctx *ctx, struct list_head  *stop_list,
+		uint32_t  base_idx, uint32_t stop_cmd);
+int cam_ife_mgr_finish_clk_bw_update(struct cam_ife_hw_mgr_ctx *ctx,
+	uint64_t request_id, bool skip_clk_data_rst);
+void cam_ife_hw_mgr_stop_hw_res(struct cam_isp_hw_mgr_res *isp_hw_res);
+int cam_ife_hw_mgr_start_hw_res(struct cam_isp_hw_mgr_res *isp_hw_res,
+	struct cam_ife_hw_mgr_ctx *ctx);
+int cam_ife_hw_mgr_free_hw_res(struct cam_isp_hw_mgr_res *isp_hw_res, bool del_list);
 #endif /* _CAM_IFE_HW_MGR_H_ */

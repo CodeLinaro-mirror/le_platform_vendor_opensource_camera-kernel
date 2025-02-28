@@ -359,7 +359,7 @@ camera-$(CONFIG_SPECTRA_ISP) += \
 	camera/drivers/cam_isp/isp_hw_mgr/isp_hw/vfe_hw/vfe17x/cam_vfe.o \
 	camera/drivers/cam_isp/isp_hw_mgr/cam_isp_hw_mgr.o \
 	camera/drivers/cam_isp/isp_hw_mgr/cam_ife_hw_mgr.o \
-	camera/drivers/cam_isp/isp_hw_mgr/cam_offline_ife_hw_mgr.o \
+	camera/drivers/cam_isp/isp_hw_mgr/cam_ife_hw_mgr_addons.o \
 	camera/drivers/cam_isp/cam_isp_dev.o \
 	camera/drivers/cam_isp/cam_isp_context.o
 

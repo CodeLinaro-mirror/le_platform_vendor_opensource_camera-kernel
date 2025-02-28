@@ -238,7 +238,7 @@ int cam_tasklet_init(
 
 	tasklet = kzalloc(sizeof(struct cam_tasklet_info), GFP_KERNEL);
 	if (!tasklet) {
-		CAM_DBG(CAM_ISP,
+		CAM_ERR(CAM_ISP,
 			"Error! Unable to allocate memory for tasklet");
 		*tasklet_info = NULL;
 		return -ENOMEM;

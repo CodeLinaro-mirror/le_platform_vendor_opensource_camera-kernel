@@ -757,6 +757,19 @@ struct cam_ife_csid_ver2_reg_info {
 };
 
 /*
+ * struct cam_ife_csid_token_info: place holder for csid res path context private data
+ *
+ * @token:        context private of ife hw manager
+ * @res_id:       Unique resource ID within res_type objects
+ *                for a particular HW
+ *
+ */
+struct cam_ife_csid_token_info {
+	void                    *token;
+	int                      res_id;
+};
+
+/*
  * struct cam_ife_csid_ver2_hw: place holder for csid hw
  *
  * @path_res:                 array of path resources
@@ -778,7 +791,7 @@ struct cam_ife_csid_ver2_reg_info {
  * @buf_done_irq_controller:  buf done irq controller
  * @hw_info:                  hw info
  * @core_info:                csid core info
- * @token:                    Context private of ife hw manager
+ * @token_data:               array of context private of ife hw manager
  * @event_cb:                 Event cb to ife hw manager
  * @counters:                 counters used in csid hw
  * @log_buf:                  Log Buffer to dump info
@@ -796,6 +809,8 @@ struct cam_ife_csid_ver2_reg_info {
  * @discard_frame_per_path:   Count of paths dropping initial frames
  * @drv_init_done:            Indicates if drv init config is done
  * @is_drv_config_en:         If drv config is enabled
+ * @init_global_reset_cnt:    Count of global reset called during init
+ * @rup_aup_mask:             rup aup mask enabled for particular HW
  *
  */
 struct cam_ife_csid_ver2_hw {
@@ -807,7 +822,7 @@ struct cam_ife_csid_ver2_hw {
 	struct cam_ife_csid_hw_counters        counters;
 	struct cam_ife_csid_hw_flags           flags;
 	struct cam_ife_csid_debug_info         debug_info;
-	struct cam_ife_csid_timestamp          timestamp;
+	struct cam_ife_csid_timestamp          timestamp[CAM_IFE_PIX_PATH_RES_MAX];
 	struct cam_ife_csid_ver2_evt_payload   rx_evt_payload[
 						CAM_IFE_CSID_VER2_PAYLOAD_MAX];
 	struct cam_ife_csid_ver2_evt_payload   path_evt_payload[
@@ -826,7 +841,7 @@ struct cam_ife_csid_ver2_hw {
 	struct cam_hw_intf                    *hw_intf;
 	struct cam_hw_info                    *hw_info;
 	struct cam_ife_csid_core_info         *core_info;
-	void                                  *token;
+	struct cam_ife_csid_token_info         token_data[CAM_IFE_PIX_PATH_RES_MAX];
 	cam_hw_mgr_event_cb_func               event_cb;
 	uint8_t                                log_buf
 						[CAM_IFE_CSID_LOG_BUF_LEN];
@@ -846,6 +861,8 @@ struct cam_ife_csid_ver2_hw {
 	atomic_t                               discard_frame_per_path;
 	bool                                   drv_init_done;
 	bool                                   is_drv_config_en;
+	atomic_t                               init_global_reset_cnt;
+	uint32_t                               rup_aup_mask;
 };
 
 /*

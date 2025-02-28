@@ -116,13 +116,28 @@ int cam_sensor_fill_i3c_device_id(struct device_node *dev, int num_entries,
 	return 0;
 }
 
+
+static struct i2c_settings_list*
+	cam_sensor_get_list_ptr(void)
+{
+	struct i2c_settings_list *tmp;
+
+	tmp = kzalloc(sizeof(struct i2c_settings_list), GFP_KERNEL);
+	if (!tmp) {
+		CAM_ERR(CAM_SENSOR_UTIL, "Not Enough memory for list");
+		return NULL;
+	}
+
+	return tmp;
+}
+
 static struct i2c_settings_list*
 	cam_sensor_get_i2c_ptr(struct i2c_settings_array *i2c_reg_settings,
 		uint32_t size)
 {
 	struct i2c_settings_list *tmp;
 
-	tmp = kzalloc(sizeof(struct i2c_settings_list), GFP_KERNEL);
+	tmp = cam_sensor_get_list_ptr();
 
 	if (tmp != NULL)
 		list_add_tail(&(tmp->list),
@@ -564,17 +579,88 @@ static int cam_sensor_handle_slave_info(
 {
 	int rc = 0;
 	struct cam_cmd_i2c_info *i2c_info = (struct cam_cmd_i2c_info *)cmd_buf;
-	struct i2c_settings_list  *i2c_list;
+	struct i2c_settings_list *i2c_list;
 
 	i2c_list =
-			cam_sensor_get_i2c_ptr(i2c_reg_settings, 1);
+		cam_sensor_get_i2c_ptr(i2c_reg_settings, 1);
 	if (!i2c_list || !i2c_list->i2c_settings.reg_setting) {
-			CAM_ERR(CAM_SENSOR_UTIL, "Failed in allocating mem for list");
-			return -ENOMEM;
+		CAM_ERR(CAM_SENSOR_UTIL, "Failed in allocating mem for list");
+		return -ENOMEM;
 	}
 
 	i2c_list->op_code = CAM_SENSOR_I2C_SET_I2C_INFO;
 	i2c_list->slave_info = *i2c_info;
+
+	return rc;
+}
+
+static int cam_sensor_handle_sequential_xfer(
+	uint32_t *cmd_buf,
+	struct i2c_settings_array *i2c_reg_settings,
+	enum cam_sensor_i2c_cmd_type opcode,
+	struct list_head **list_ptr)
+{
+	int rc = 0;
+	struct cam_cmd_i2c_sequential_xfer *i2c_info =
+		(struct cam_cmd_i2c_sequential_xfer *)cmd_buf;
+	struct i2c_settings_list *i2c_list;
+
+	i2c_list =
+		cam_sensor_get_list_ptr();
+	if (!i2c_list) {
+		CAM_ERR(CAM_SENSOR_UTIL, "Failed in allocating mem for list");
+		return -ENOMEM;
+	}
+
+	list_add_tail(&(i2c_list->list),
+		&(i2c_reg_settings->list_head));
+	if (opcode == CAMERA_SENSOR_CMD_TYPE_I2C_SEQUENTIAL_XFER_LOCK)
+		i2c_list->op_code = CAM_SENSOR_I2C_SEQUENTIAL_XFER_LOCK;
+	else
+		i2c_list->op_code = CAM_SENSOR_I2C_SEQUENTIAL_XFER_UNLOCK;
+
+	i2c_list->seq_xfer = *i2c_info;
+
+	return rc;
+}
+
+static int cam_sensor_handle_read_append_write(
+	struct cam_cmd_i2c_random_wr *cam_cmd_i2c_rd_append_wr,
+	struct i2c_settings_array *i2c_reg_settings,
+	uint32_t *cmd_length_in_bytes, int32_t *offset,
+	struct list_head **list)
+{
+	struct i2c_settings_list *i2c_list;
+	int32_t rc = 0, cnt, payload_count;
+
+	payload_count = cam_cmd_i2c_rd_append_wr->header.count;
+	i2c_list = cam_sensor_get_i2c_ptr(i2c_reg_settings,
+		payload_count);
+	if (i2c_list == NULL ||
+		i2c_list->i2c_settings.reg_setting == NULL) {
+		CAM_ERR(CAM_SENSOR_UTIL, "Failed in allocating i2c_list");
+		return -ENOMEM;
+	}
+
+	*cmd_length_in_bytes = (sizeof(struct i2c_rdwr_header) +
+		sizeof(struct i2c_random_wr_payload) *
+		payload_count);
+	i2c_list->op_code = CAM_SENSOR_I2C_READ_APPEND_WRITE;
+	i2c_list->i2c_settings.addr_type =
+		cam_cmd_i2c_rd_append_wr->header.addr_type;
+	i2c_list->i2c_settings.data_type =
+		cam_cmd_i2c_rd_append_wr->header.data_type;
+
+	for (cnt = 0; cnt < payload_count; cnt++) {
+		i2c_list->i2c_settings.reg_setting[cnt].reg_addr =
+			cam_cmd_i2c_rd_append_wr->random_wr_payload[cnt].reg_addr;
+		i2c_list->i2c_settings.reg_setting[cnt].reg_data =
+			cam_cmd_i2c_rd_append_wr->random_wr_payload[cnt].reg_data;
+		i2c_list->i2c_settings.reg_setting[cnt].data_mask =
+			cam_cmd_i2c_rd_append_wr->random_wr_payload[cnt].mask;
+	}
+	*offset = cnt;
+	*list = &(i2c_list->list);
 
 	return rc;
 }
@@ -600,7 +686,7 @@ int cam_sensor_i2c_command_parser(
 	int32_t num_cmd_buffers,
 	struct cam_buf_io_cfg *io_cfg)
 {
-	int16_t                   rc = 0, i = 0;
+	int16_t                   rc = 0, i = 0, xfer_lock_cnt = 0;
 	size_t                    len_of_buff = 0;
 	uintptr_t                 generic_ptr;
 	uint16_t                  cmd_length_in_bytes = 0;
@@ -693,6 +779,46 @@ int cam_sensor_i2c_command_parser(
 				if (rc < 0) {
 					CAM_ERR(CAM_SENSOR_UTIL,
 					"Failed in random write %d", rc);
+					rc = -EINVAL;
+					goto end;
+				}
+
+				cmd_buf += cmd_length_in_bytes /
+					sizeof(uint32_t);
+				byte_cnt += cmd_length_in_bytes;
+				break;
+			}
+			case CAMERA_SENSOR_CMD_TYPE_I2C_RD_APPEND_WR: {
+				uint32_t cmd_length_in_bytes   = 0;
+				struct cam_cmd_i2c_random_wr
+					*cam_cmd_i2c_random_wr =
+					(struct cam_cmd_i2c_random_wr *)cmd_buf;
+
+				if ((remain_len - byte_cnt) <
+					sizeof(struct cam_cmd_i2c_random_wr)) {
+					CAM_ERR(CAM_SENSOR_UTIL,
+						"Not enough buffer provided");
+					rc = -EINVAL;
+					goto end;
+				}
+				tot_size = sizeof(struct i2c_rdwr_header) +
+					(sizeof(struct i2c_random_wr_payload) *
+					cam_cmd_i2c_random_wr->header.count);
+
+				if (tot_size > (remain_len - byte_cnt)) {
+					CAM_ERR(CAM_SENSOR_UTIL,
+						"Not enough buffer provided");
+					rc = -EINVAL;
+					goto end;
+				}
+
+				rc = cam_sensor_handle_read_append_write(
+					cam_cmd_i2c_random_wr,
+					i2c_reg_settings,
+					&cmd_length_in_bytes, &j, &list);
+				if (rc < 0) {
+					CAM_ERR(CAM_SENSOR_UTIL,
+					"Failed in read append write %d", rc);
 					rc = -EINVAL;
 					goto end;
 				}
@@ -816,6 +942,52 @@ int cam_sensor_i2c_command_parser(
 				byte_cnt += cmd_length_in_bytes;
 				break;
 			}
+
+			case CAMERA_SENSOR_CMD_TYPE_I2C_SEQUENTIAL_XFER_LOCK:
+			case CAMERA_SENSOR_CMD_TYPE_I2C_SEQUENTIAL_XFER_UNLOCK:{
+				CAM_DBG(CAM_SENSOR_UTIL,"Handle sequential xfer cmd: %d",
+					cmm_hdr->cmd_type);
+				if (remain_len - byte_cnt <
+					sizeof(struct cam_cmd_i2c_sequential_xfer)) {
+					CAM_ERR(CAM_SENSOR_UTIL,
+						"Not enough buffer space");
+					rc = -EINVAL;
+					goto end;
+				}
+
+				/* While packaging xfer locks make sure they are in pairs*/
+				if (CAMERA_SENSOR_CMD_TYPE_I2C_SEQUENTIAL_XFER_LOCK == cmm_hdr->cmd_type) {
+					if(0 == xfer_lock_cnt) {
+						xfer_lock_cnt++;
+					} else {
+						CAM_ERR(CAM_SENSOR_UTIL, "Not expecting again lock without unlock");
+						rc = -EINVAL;
+						goto end;
+					}
+				} else {
+					if(1 == xfer_lock_cnt) {
+						xfer_lock_cnt--;
+					} else {
+						CAM_ERR(CAM_SENSOR_UTIL, "Not expecting unlock without lock");
+						rc = -EINVAL;
+						goto end;
+					}
+				}
+				rc = cam_sensor_handle_sequential_xfer(
+					cmd_buf, i2c_reg_settings, cmm_hdr->cmd_type, &list);
+				if (rc) {
+					CAM_ERR(CAM_SENSOR_UTIL,
+					"Handle sequential xfer failed with rc: %d",
+					rc);
+					goto end;
+				}
+				cmd_length_in_bytes =
+					sizeof(struct cam_cmd_i2c_sequential_xfer);
+				cmd_buf +=
+					cmd_length_in_bytes / sizeof(uint32_t);
+				byte_cnt += cmd_length_in_bytes;
+				break;
+			}
 			case CAMERA_SENSOR_CMD_TYPE_I2C_RNDM_RD: {
 				uint16_t cmd_length_in_bytes   = 0;
 				struct cam_cmd_i2c_random_rd *i2c_random_rd =
@@ -907,6 +1079,12 @@ int cam_sensor_i2c_command_parser(
 		}
 		i2c_reg_settings->is_settings_valid = 1;
 		cam_mem_put_cpu_buf(cmd_desc[i].mem_handle);
+	}
+
+	if(0 != xfer_lock_cnt) {
+		CAM_ERR(CAM_SENSOR_UTIL, "Invalid xfer_lock_cnt=%d with rc=%d",
+			xfer_lock_cnt, rc);
+		rc = -EINVAL;
 	}
 
 	return rc;

@@ -6072,11 +6072,12 @@ static int cam_tfe_mgr_cmd(void *hw_mgr_priv, void *cmd_args)
 				isp_hw_cmd_args->cmd_data;
 			if ((packet->header.op_code & 0xF) ==
 				CAM_ISP_TFE_PACKET_INIT_DEV)
-				isp_hw_cmd_args->u.packet_op_code =
+				isp_hw_cmd_args->u.packet_info.packet_op_code =
 				CAM_ISP_TFE_PACKET_INIT_DEV;
 			else
-				isp_hw_cmd_args->u.packet_op_code =
+				isp_hw_cmd_args->u.packet_info.packet_op_code =
 				CAM_ISP_TFE_PACKET_CONFIG_DEV;
+			isp_hw_cmd_args->u.packet_info.hw_mgr_ctx_id = ctx->ctx_index;
 			break;
 		case CAM_ISP_HW_MGR_GET_LAST_CDM_DONE:
 			isp_hw_cmd_args->u.last_cdm_done =

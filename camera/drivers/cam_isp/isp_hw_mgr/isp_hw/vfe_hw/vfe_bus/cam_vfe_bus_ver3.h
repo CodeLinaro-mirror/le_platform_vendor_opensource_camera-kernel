@@ -15,6 +15,7 @@
 #define CAM_VFE_BUS_VER3_MAX_MID_PER_PORT    4
 #define CAM_VFE_BUS_VER3_CONS_ERR_MAX        32
 #define CAM_VFE_BUS_VER3_MAX_CLIENTS         28
+#define CAM_VFE_BUS_VER3_IRQ_MAX             2
 
 enum cam_vfe_bus_ver3_vfe_core_id {
 	CAM_VFE_BUS_VER3_VFE_CORE_0,

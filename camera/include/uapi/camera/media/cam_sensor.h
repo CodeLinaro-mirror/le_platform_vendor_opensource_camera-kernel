@@ -60,6 +60,10 @@ enum camera_sensor_cmd_type {
 	CAMERA_SENSOR_CMD_TYPE_RD_DATA,
 	CAMERA_SENSOR_FLASH_CMD_TYPE_INIT_FIRE,
 	CAMERA_SENSOR_OIS_CMD_TYPE_FW_INFO,
+	CAMERA_SENSOR_CMD_TYPE_RES_INFO,
+	CAMERA_SENSOR_CMD_TYPE_I2C_RD_APPEND_WR,
+	CAMERA_SENSOR_CMD_TYPE_I2C_SEQUENTIAL_XFER_LOCK,
+	CAMERA_SENSOR_CMD_TYPE_I2C_SEQUENTIAL_XFER_UNLOCK,
 	CAMERA_SENSOR_CMD_TYPE_MAX,
 };
 
@@ -93,6 +97,9 @@ enum camera_sensor_i2c_op_code {
 	CAMERA_SENSOR_I2C_OP_CONT_WR_SEQN_VERF,
 	CAMERA_SENSOR_I2C_OP_RNDM_RD,
 	CAMERA_SENSOR_I2C_OP_CONT_RD,
+	CAMERA_SENSOR_I2C_OP_RD_APPEND_WR,
+	CAMERA_SENSOR_I2C_OP_SEQUENTIAL_XFER_LOCK,
+	CAMERA_SENSOR_I2C_OP_SEQUENTIAL_XFER_UNLOCK,
 	CAMERA_SENSOR_I2C_OP_MAX,
 };
 
@@ -600,11 +607,13 @@ struct i2c_rdwr_header {
  *
  * @ reg_addr        :   Register address
  * @ reg_data        :   Register data
+ * @ mask            :   mask value
  *
  */
 struct i2c_random_wr_payload {
 	__u32     reg_addr;
 	__u32     reg_data;
+	__u32     mask;
 } __attribute__((packed));
 
 /**
@@ -658,6 +667,23 @@ struct cam_cmd_i2c_random_rd {
 struct cam_cmd_i2c_continuous_rd {
 	struct i2c_rdwr_header header;
 	__u32                  reg_addr;
+} __attribute__((packed));
+
+/**
+ * struct cam_cmd_i2c_continuous_rd - I2C continuous continuous read command
+ * @ header          :   header of READ/WRITE I2C command
+ * @ reserved        :
+ * @ op_code         :   Opcode
+ * @ cmd_type        :   Explains type of command
+ * @ lock            :   lock or unlock
+ *
+ */
+struct cam_cmd_i2c_sequential_xfer {
+	struct i2c_rdwr_header header;
+	__u16    reserved;
+	__u8     op_code;
+	__u8     cmd_type;
+	__u32    lock;
 } __attribute__((packed));
 
 /**

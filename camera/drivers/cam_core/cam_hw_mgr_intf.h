@@ -634,37 +634,38 @@ struct cam_hw_inject_evt_param {
 /**
  * cam_hw_mgr_intf - HW manager interface
  *
- * @hw_mgr_priv:               HW manager object
- * @hw_get_caps:               Function pointer for get hw caps
- *                               args = cam_query_cap_cmd
- * @hw_get_caps_v2:            Function pointer for get hw caps v2
- *                               args = cam_query_cap_cmd_v2
- * @hw_acquire:                Function poniter for acquire hw resources
- *                               args = cam_hw_acquire_args
- * @hw_release:                Function pointer for release hw device resource
- *                               args = cam_hw_release_args
- * @hw_start:                  Function pointer for start hw devices
- *                               args = cam_hw_start_args
- * @hw_stop:                   Function pointer for stop hw devices
- *                               args = cam_hw_stop_args
- * @hw_prepare_update:         Function pointer for prepare hw update for hw
- *                             devices args = cam_hw_prepare_update_args
- * @hw_config_stream_settings: Function pointer for configure stream for hw
- *                             devices args = cam_hw_stream_setttings
- * @hw_config:                 Function pointer for configure hw devices
- *                               args = cam_hw_config_args
- * @hw_read:                   Function pointer for read hardware registers
- * @hw_write:                  Function pointer for Write hardware registers
- * @hw_cmd:                    Function pointer for any customized commands for
- *                             the hardware manager
- * @hw_open:                   Function pointer for HW init
- * @hw_close:                  Function pointer for HW deinit
- * @hw_flush:                  Function pointer for HW flush
- * @hw_reset:                  Function pointer for HW reset
- * @hw_dump:                   Function pointer for HW dump
- * @hw_recovery:               Function pointer for HW recovery callback
- * @hw_inject_evt:             Function pointer for HW event injection callback
- * @synx_trigger:              Function pointer for synx test trigger
+ * @hw_mgr_priv:                         HW manager object
+ * @hw_get_caps:                         Function pointer for get hw caps
+ *                                         args = cam_query_cap_cmd
+ * @hw_get_caps_v2:                      Function pointer for get hw caps v2
+ *                                         args = cam_query_cap_cmd_v2
+ * @hw_acquire:                          Function poniter for acquire hw resources
+ *                                         args = cam_hw_acquire_args
+ * @hw_release:                          Function pointer for release hw device resource
+ *                                         args = cam_hw_release_args
+ * @hw_start:                            Function pointer for start hw devices
+ *                                         args = cam_hw_start_args
+ * @hw_stop:                             Function pointer for stop hw devices
+ *                                         args = cam_hw_stop_args
+ * @hw_prepare_update:                   Function pointer for prepare hw update for hw
+ *                                       devices args = cam_hw_prepare_update_args
+ * @hw_config_stream_settings:           Function pointer for configure stream for hw
+ *                                       devices args = cam_hw_stream_setttings
+ * @hw_config:                           Function pointer for configure hw devices
+ *                                         args = cam_hw_config_args
+ * @hw_read:                             Function pointer for read hardware registers
+ * @hw_write:                            Function pointer for Write hardware registers
+ * @hw_cmd:                              Function pointer for any customized commands for
+ *                                       the hardware manager
+ * @hw_open:                             Function pointer for HW init
+ * @hw_close:                            Function pointer for HW deinit
+ * @hw_flush:                            Function pointer for HW flush
+ * @hw_reset:                            Function pointer for HW reset
+ * @hw_dump:                             Function pointer for HW dump
+ * @hw_recovery:                         Function pointer for HW recovery callback
+ * @hw_inject_evt:                       Function pointer for HW event injection callback
+ * @synx_trigger:                        Function pointer for synx test trigger
+ * @hw_update_sensor_grp_stream_cfg:     Function pointer for sensor group config data update
  *
  */
 struct cam_hw_mgr_intf {
@@ -691,6 +692,7 @@ struct cam_hw_mgr_intf {
 	int (*hw_recovery)(void *hw_priv, void *hw_recovery_args);
 	void (*hw_inject_evt)(void *hw_priv, void *evt_args);
 	int (*synx_trigger)(void *hw_priv, void *synx_params);
+	int (*hw_update_sensor_grp_stream_cfg)(void *hw_priv, void *hw_cfg_args);
 };
 
 #endif /* _CAM_HW_MGR_INTF_H_ */

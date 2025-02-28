@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2025, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_ISP_HW_PARSER_H_
@@ -156,6 +156,7 @@ struct cam_isp_io_buf_info {
 	uint32_t                                 out_base;
 	uint32_t                                 out_max;
 	uint32_t                                 major_version;
+	uint32_t                                 unpacker_fmt;
 	bool                                     fill_fence;
 };
 

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2025, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_ISP_HW_H_
@@ -260,6 +260,15 @@ enum cam_isp_hw_cmd_type {
 	CAM_ISP_HW_CMD_SET_SYNC_HW_IDX,
 	CAM_ISP_HW_CMD_BUS_WM_DISABLE,
 	CAM_ISP_HW_CMD_BUFFER_ALIGNMENT_UPDATE,
+	CAM_ISP_HW_CMD_GET_CLK_THRESHOLDS,
+	CAM_ISP_HW_CMD_WM_UPDATE,
+	CAM_ISP_HW_CMD_UPDATE_CSID_RES_DATA,
+	CAM_ISP_HW_CMD_UPDATE_VFE_SRC_RES_DATA,
+	CAM_ISP_HW_CMD_UPDATE_VFE_OUT_RES_DATA,
+	CAM_ISP_HW_CMD_UPDATE_CSID_RES_IRQ_MASK,
+	CAM_ISP_HW_CMD_UPDATE_VFE_SRC_RES_IRQ_MASK,
+	CAM_ISP_HW_CMD_UPDATE_VFE_OUT_RES_IRQ_MASK,
+	CAM_ISP_HW_CMD_GET_NUM_OUT_RES,
 	CAM_ISP_HW_CMD_MAX,
 };
 
@@ -291,6 +300,9 @@ enum cam_isp_hw_cmd_type {
  * @res_name:                     Name of resource
  * @is_rdi_primary_res:           Indicates whether RDI is primiary resource or not.
  *                                Based on this, We need to enable interrupts on RDI path only.
+ * @is_per_port_start:            Indicates start_hw is called on real streamon call or
+ *                                on per port streamon call
+ * @is_per_port_acquire:          Indicates if resource is yet to be really acquired
  */
 struct cam_isp_resource_node {
 	enum cam_isp_resource_type     res_type;
@@ -315,6 +327,8 @@ struct cam_isp_resource_node {
 	CAM_IRQ_HANDLER_BOTTOM_HALF    bottom_half_handler;
 	uint8_t                        res_name[CAM_ISP_RES_NAME_LEN];
 	bool                           is_rdi_primary_res;
+	bool                           is_per_port_start;
+	bool                           is_per_port_acquire;
 };
 
 /*
@@ -419,6 +433,7 @@ struct cam_isp_hw_cmd_buf_update {
  * @ stride:           stride of scratch buffer
  * @ slice_height:     slice height of scratch buffer
  * @ io_cfg:           IO buffer config information sent from UMD
+ * @ unpacker_fmt:     input unpacker format
  *
  */
 struct cam_isp_hw_get_wm_update {
@@ -433,6 +448,7 @@ struct cam_isp_hw_get_wm_update {
 	uint32_t                        stride;
 	uint32_t                        slice_height;
 	struct cam_buf_io_cfg          *io_cfg;
+	uint32_t                        unpacker_fmt;
 };
 
 /*
@@ -536,6 +552,24 @@ struct cam_isp_hw_get_cmd_update {
 	};
 	bool trigger_cdm_en;
 	bool reg_write;
+};
+
+/*
+ * struct cam_isp_hw_get_off_clk_thr:
+ *
+ * @Brief:         Get thresholds for offline HW
+ *
+ * @max_clk_threshold:      min clock threshold
+ * @nom_clk_threshold:      nom clock threshold
+ * @min_clk_threshold:      max clock threshold
+ * @bytes_per_clk:          bytes per clock processed
+ *
+ */
+struct cam_isp_hw_get_off_clk_thr {
+	uint32_t   max_clk_threshold;
+	uint32_t   nom_clk_threshold;
+	uint32_t   min_clk_threshold;
+	uint32_t   bytes_per_clk;
 };
 
 /*
@@ -688,6 +722,7 @@ enum cam_isp_irq_inject_reg_unit_type {
 	CAM_ISP_CSID_PATH_RDI2_REG,
 	CAM_ISP_CSID_PATH_RDI3_REG,
 	CAM_ISP_CSID_PATH_RDI4_REG,
+	CAM_ISP_CSID_PATH_RDI5_REG,
 	CAM_ISP_IFE_0_BUS_WR_INPUT_IF_IRQ_SET_0_REG,
 	CAM_ISP_IFE_0_BUS_WR_INPUT_IF_IRQ_SET_1_REG,
 	CAM_ISP_SFE_0_BUS_RD_INPUT_IF_IRQ_SET_REG,
