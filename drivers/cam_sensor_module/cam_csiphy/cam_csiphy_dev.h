@@ -302,7 +302,7 @@ struct cam_csiphy_param {
  * @lane_assign_cnt            :  Number of sensors having same lane assign
  */
 struct cam_lanes_assigned_info {
-	uint16_t                   lane_assign;
+	int16_t                    lane_assign;
 	uint8_t                    lane_assign_cnt;
 };
 

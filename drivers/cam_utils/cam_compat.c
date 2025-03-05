@@ -114,7 +114,7 @@ int cam_csiphy_notify_secure_mode(struct csiphy_device *csiphy_dev,
 		params.phy_lane_sel_mask = csiphy_dev->csiphy_info[offset].csiphy_cpas_cp_reg_mask;
 		params.protect = protect ? 1 : 0;
 
-		CAM_DBG(CAM_UTIL, "phy_sel_m: %d protect: %d",
+		CAM_DBG(CAM_UTIL, "phy_sel_m: %lx protect: %d",
 					params.phy_lane_sel_mask,
 					params.protect);
 
