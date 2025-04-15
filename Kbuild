@@ -3,6 +3,7 @@
 ifeq ($(CONFIG_QCOM_CAMERA_DEBUG), y)
 $(info "CAMERA_KERNEL_ROOT is: $(CAMERA_KERNEL_ROOT)")
 $(info "KERNEL_ROOT is: $(KERNEL_ROOT)")
+$(info "STAGING_INCDIR is: $(STAGING_INCDIR)")
 endif
 
 # Include Architecture configurations
@@ -77,6 +78,8 @@ LINUXINCLUDE +=                                 \
 # Optional include directories
 ccflags-$(CONFIG_MSM_GLOBAL_SYNX) += -I$(KERNEL_ROOT)/drivers/media/platform/msm/synx
 ccflags-$(CONFIG_MSM_GLOBAL_SYNX_V2) += -I$(KERNEL_ROOT)/drivers/media/platform/msm/synx
+ccflags-$(CONFIG_MSM_GLOBAL_SYNX_V2) += -I$(STAGING_INCDIR)
+ccflags-$(CONFIG_MSM_GLOBAL_SYNX_V2) += -I$(STAGING_INCDIR)/linux
 
 # After creating lists, add content of 'ccflags-m' variable to 'ccflags-y' one.
 ccflags-y += ${ccflags-m}
