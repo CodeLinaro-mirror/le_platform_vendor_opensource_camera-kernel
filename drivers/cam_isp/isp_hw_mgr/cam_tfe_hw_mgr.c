@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -4485,7 +4485,8 @@ static int cam_tfe_mgr_prepare_hw_update(void *hw_mgr_priv,
 			CAM_ISP_TFE_OUT_RES_BASE,
 			CAM_TFE_HW_OUT_RES_MAX, 0, 0, fill_fence,
 			CAM_ISP_HW_TYPE_TFE,
-			&frame_header_info, &check_for_scratch, FALSE);
+			&frame_header_info, &check_for_scratch, FALSE,
+			g_tfe_hw_mgr.tfe_devices[ctx->base[i].idx]->hw_intf);
 
 		if (rc) {
 			CAM_ERR(CAM_ISP,

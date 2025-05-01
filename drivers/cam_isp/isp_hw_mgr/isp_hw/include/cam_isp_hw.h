@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_ISP_HW_H_
@@ -15,6 +15,7 @@
 #include "cam_hw_intf.h"
 #include "cam_cdm_intf_api.h"
 #include "cam_hw_mgr_intf.h"
+#include "cam_sync_api.h"
 
 /* Maximum length of tag while dumping */
 #define CAM_ISP_HW_DUMP_TAG_MAX_LEN 32
@@ -22,6 +23,9 @@
 #define CAM_ISP_HW_MAX_PID_VAL      4
 /* Maximum number of output ports that map to an architecture specific input path */
 #define CAM_ISP_HW_PATH_PORT_MAP_MAX    3
+
+/* Maximum number of ife lite power domain group */
+#define CAM_ISP_HW_MAX_GROUP_IDX  8
 
 /*
  * MAX len of ISP Resource Name
@@ -227,6 +231,13 @@ enum cam_isp_hw_cmd_type {
 	CAM_ISP_HW_CMD_FAST_RESULT_NOTIFIER_CFG,
 	CAM_ISP_HW_CMD_GET_PATH_VC_INFO,
 	CAM_ISP_HW_CMD_LAST_CONSUMED_ADDR_INFO,
+	CAM_IFE_CSID_SET_CSID_RX_CAPTURE_VC_DT_RST,
+	CAM_ISP_HW_CMD_IPCC_CONFIG,
+	CAM_ISP_HW_CMD_HWFENCE_CONFIG,
+	CAM_ISP_HW_CMD_GET_NUM_IPCC_CLIENTS,
+	CAM_ISP_HW_CMD_SET_HWFENCE_MODE,
+	CAM_ISP_HW_CMD_UPDATE_HWFENCE_INFO,
+	CAM_ISP_HW_CMD_GET_HWFENCE_DEVICE_INFO,
 	CAM_ISP_HW_CMD_MAX,
 };
 
@@ -342,6 +353,7 @@ struct cam_isp_hw_compdone_event_info {
  * @reg_val:           Any critical register value captured during irq handling
  * @hw_type:           Hw Type sending the event
  * @in_core_idx:       Input core type if CSID error evt
+ * @global_timestamp   Global timestamp for buf done event
  * @event_data:        Any additional data specific to this event
  *
  */
@@ -353,6 +365,7 @@ struct cam_isp_hw_event_info {
 	uint32_t                       reg_val;
 	uint32_t                       hw_type;
 	uint32_t                       in_core_idx;
+	uint64_t                       global_timestamp;
 	void                          *event_data;
 };
 
@@ -525,14 +538,21 @@ struct cam_isp_hw_intf_data {
  * @Brief:         ISP hw bus capabilities
  *
  * @support_consumed_addr:  Indicate whether HW has last consumed addr reg
+ * @num_src_groups:         Maximum number of source groups
+ * @num_ipcc_clients:       Maximum number of IFE Bus clients (each HW context is treated
+ *		            as a separate client) supporting HW Fencing
  * @max_out_res_type:       Maximum value of out resource type supported by hw
  * @out_fifo_depth:         Maximum output fifo depth
+ * @ipcc_en:                Indicate if IPCC is enabled
  *
  */
 struct cam_isp_hw_bus_cap {
 	bool                    support_consumed_addr;
+	uint32_t                num_src_groups;
+	uint32_t                num_ipcc_clients;
 	uint32_t                max_out_res_type;
 	uint32_t                out_fifo_depth;
+	bool                    ipcc_en;
 };
 
 /**

@@ -52,16 +52,6 @@ int32_t cam_camera_cci_i2c_read_seq(struct cam_sensor_cci_client *client,
 
 /**
  * @client: CCI client structure
- * @trigger_data: GPIO register setting
- *
- * This API handles CCI random write
- */
-int32_t cam_cci_gpio_write_table(
-	struct camera_io_master *client,
-	struct cam_sensor_trigger_per_frame_data *trigger_data);
-
-/**
- * @client: CCI client structure
  * @write_setting: I2C register setting
  *
  * This API handles CCI random write
@@ -69,6 +59,18 @@ int32_t cam_cci_gpio_write_table(
 int32_t cam_cci_i2c_write_table(
 	struct camera_io_master *client,
 	struct cam_sensor_i2c_reg_setting *write_setting);
+
+/**
+ * @client: CCI client structure
+ * @event_list:    event information
+ * @context_id:     context Id
+ *
+ * This API handles CCI random write
+ */
+int32_t cam_cci_event_write_table(
+	struct camera_io_master *client,
+	struct cam_sensor_event_list *event_list,
+	uint32_t context_id);
 
 /**
  * @client: CCI client structure

@@ -546,6 +546,20 @@ static int cam_cci_create_debugfs_entry(struct cci_device *cci_dev)
 			rc = PTR_ERR(dbgfileptr);
 		}
 	}
+
+	/* Create the CCI directory for this cci */
+	snprintf(client_name, sizeof(client_name), "CCI%d",
+		cci_dev->soc_info.index);
+	dbgfileptr = debugfs_create_dir(client_name, debugfs_root);
+	if (IS_ERR(dbgfileptr)) {
+		CAM_ERR(CAM_CCI, "Could not create a debugfs PHY indx subdirectory. rc: %ld",
+			dbgfileptr);
+		return -ENOENT;
+	}
+
+        debugfs_create_bool("en_cci_event_debug", 0644,
+                dbgfileptr, &cci_dev->en_cci_event_debug);
+
 end:
 	return rc;
 }

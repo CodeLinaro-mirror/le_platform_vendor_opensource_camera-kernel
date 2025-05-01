@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only WITH Linux-syscall-note */
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __UAPI_CAM_DEFS_H__
@@ -281,6 +281,24 @@ struct cam_iommu_handle {
 /* synx test cmd types */
 #define CAM_SYNX_TEST_CMD_TYPE_CORE_CTRL       1
 #define CAM_SYNX_TEST_CMD_TYPE_SYNX_CMD        2
+
+/* Macros for populating fence info */
+#define CAM_NUM_HW_MAX     16
+#define CAM_NUM_ID_MAX     32
+
+/* Macros for populating supported fencing modes */
+#define CAM_HW_FENCE_FRAME_BASED    BIT(0)
+#define CAM_HW_FENCE_SLICE_BASED    BIT(1)
+
+/**
+ * enum cam_hw_fence_types - types of HW level fencing
+ *
+ */
+enum cam_hw_fence_types {
+	CAM_NO_FENCING,
+	CAM_HW_FENCING,
+	CAM_SYNX_FENCING,
+};
 
 /**
  * struct cam_plane_cfg - Plane configuration info
@@ -1145,4 +1163,54 @@ struct cam_synx_test_params {
 	} u;
 } __attribute__((__packed__));
 
+/**
+ * struct cam_hw_fence_session_info - Session hdl
+ *        pertaining to each session for respective
+ *        HW cores, for some cores certain fields hold
+ *        no meaning
+ *
+ * @dev_type         : Indicating the HW type CAM_ISP_IFE0_HW, CAM_ISP_TFE0_HW
+ *                     CAM_ICP_DEV_TYPE_ICP, CAM_ISP_IFE0_LITE_HW, etc.
+ * @client_ipcc_id   : Indicates client IPCC ID if applicable
+ * @supported_modes  : Frame/Slice or both
+ * @resource_type    : Indicates the port, referenced from the UAPI
+ * @session_cookie   : Fence session cookie pertaining to this HW and group
+ * @source_group     : source group info
+ * @plane            : Plane information
+ *
+ */
+struct cam_hw_fence_session_info {
+	__u32 dev_type;
+	__u32 client_ipcc_id;
+	__u32 supported_modes;
+	__u32 resource_type;
+	__u32 session_cookie;
+	__u32 source_group;
+	__u32 plane;
+};
+
+/**
+ * struct cam_hw_fence_session_info - HW fence info for each hw fence/synx
+ *        session for different camera HW blocks. This will help identify
+ *        the session for which a fence needs to be created
+ *
+ * @version              : Struct version
+ * @fencing_type         : If this HW supports HW level fencing or not, and
+ *                         the protocol it supports HW fencing/synx/..
+ * @num_valid_hws        : Number of HWs for which fence_info is populated
+ * @num_resources_per_hw : It indicates number of resources per HW for which
+ *                         fence_info is populated
+ * @fence_session_info   : This is a 2D table where the row indicates
+ *                         the HW type (CAM_ISP_IFE0_HW,
+ *                         CAM_ICP_DEV_TYPE_ICP, CAM_ISP_IFE0_LITE_HW, etc.).
+ *                         Each column here would represent the group, if any
+ *                         applicable to the type of HW
+ */
+struct cam_hw_fence_device_info {
+	__u32  version;
+	__u32  fencing_type;
+	__u32  num_valid_hws;
+	__u32  num_resources_per_hw[CAM_NUM_HW_MAX];
+	struct cam_hw_fence_session_info fence_info[CAM_NUM_HW_MAX][CAM_NUM_ID_MAX];
+};
 #endif /* __UAPI_CAM_DEFS_H__ */

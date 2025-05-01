@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -743,6 +743,22 @@ static long cam_private_ioctl(struct file *file, void *fh,
 		rc = cam_req_mgr_batch_request(&cmd);
 		if (rc)
 			CAM_ERR(CAM_CORE, "Batch request failed");
+		}
+		break;
+	case CAM_REQ_MGR_FAST_CROP_SYNC: {
+		struct cam_req_mgr_fast_crop_sync cmd;
+
+		if (k_ioctl->size != sizeof(cmd))
+			return -EINVAL;
+		if (copy_from_user(&cmd,
+			u64_to_user_ptr(k_ioctl->handle),
+			sizeof(struct cam_req_mgr_fast_crop_sync))) {
+			rc = -EFAULT;
+			break;
+		}
+		rc = cam_req_mgr_fast_crop_sync_cmd(&cmd);
+		if (rc)
+			CAM_ERR(CAM_CORE, "Fast crop sync failed");
 		}
 		break;
 	default:

@@ -3597,7 +3597,7 @@ static int cam_smmu_map_stage2_buffer_and_add_to_list(int idx, int ion_fd,
 		&iommu_cb_set.csf_version);
 
 	CAM_DBG(CAM_SMMU,
-		"idx=%d, ion_fd=%d, i_ino=%lu, dev=%pOFfp, paddr=0x%llx, len=%zu buf pxy hdl 0x%",
+		"idx=%d, ion_fd=%d, i_ino=%lu, dev=%pOFfp, paddr=0x%llx, len=%zu buf pxy hdl 0x%x",
 		idx, ion_fd, mapping_info->i_ino,
 		iommu_cb_set.cb_info[idx].dev->of_node,
 		*paddr_ptr, *len_ptr, smmu_proxy_buf_hdl);

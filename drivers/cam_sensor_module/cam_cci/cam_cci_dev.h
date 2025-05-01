@@ -88,6 +88,22 @@ enum cci_i2c_sync {
 	MSM_SYNC_ENABLE,
 };
 
+enum cam_cci_cmd_state {
+	CCI_INVALID_QUEUE = 0,
+	CCI_I2C_QUEUE = (1 << 0),
+	CCI_GPIO_QUEUE = (1 << 1),
+	CCI_ANY_QUEUE = (1 << 0) | (1 << 1)
+};
+
+enum cam_cci_execute_sequence {
+	CCI_EXEC_INVALID_QUEUE = 0,
+	CCI_EXEC_I2C_QUEUE,
+	CCI_EXEC_GPIO_QUEUE,
+	CCI_EXEC_I2C_GPIO_QUEUE,
+	CCI_EXEC_GPIO_I2C_QUEUE,
+	CCI_EXEC_ANY_QUEUE
+};
+
 enum cam_cci_cmd_type {
 	MSM_CCI_INIT,
 	MSM_CCI_RELEASE,
@@ -104,9 +120,10 @@ enum cam_cci_cmd_type {
 	MSM_CCI_I2C_WRITE_SYNC_BLOCK,
 	MSM_CCI_GET_CONTEXT_ID,
 	MSM_CCI_RELEASE_CONTEXT_ID,
+	MSM_CCI_EVENT_CMD_WRITE,
 };
 
-enum cci_cci_sync_timer {
+enum cam_cci_sync_timer {
 	CCI_SET_CID_SYNC_TIMER_0,
 	CCI_SET_CID_SYNC_TIMER_1,
 	CCI_SET_CID_SYNC_TIMER_2,
@@ -136,7 +153,16 @@ struct cam_cci_wait_sync_cfg {
 struct cam_cci_gpio_cfg {
 	uint16_t gpio_queue;
 	uint16_t i2c_queue;
-	struct cam_sensor_trigger_per_frame_data *reg_setting;
+};
+
+struct cam_cci_queue_info {
+	enum cam_cci_cmd_state        current_cmd_queue;
+	enum cam_cci_execute_sequence execute_queue;
+};
+
+struct cam_cci_initialize_queue_status {
+	bool is_i2c_queue_initialize;
+	bool is_gpio_queue_initialize;
 };
 
 struct cam_cci_read_cfg {
@@ -189,7 +215,7 @@ struct cam_cci_gpio_info {
 	struct mutex mutex_q[NUM_GPIO_QUEUES];
 	struct completion report_q[NUM_GPIO_QUEUES];
 	spinlock_t lock_q[NUM_GPIO_QUEUES];
-	bool is_initilized;
+	bool is_initialized;
 };
 
 struct cam_cci_clk_params_t {
@@ -211,15 +237,16 @@ enum cam_cci_state_t {
 	CCI_STATE_DISABLED,
 };
 
-struct cci_trigger_data {
+struct cam_cci_slave_context_data {
 	uint32_t csid;
 	uint32_t cid;
+	uint32_t i2c_queue_cmd_size;
+	uint32_t gpio_queue_cmd_size;
 	enum cci_i2c_queue_t i2cqueue;
 	enum cci_gpio_queue_t gpioqueue;
 	enum cci_i2c_master_t master;
 	uint32_t contextId;
 	uint16_t idx;
-	bool is_trigger_mode;
 	struct list_head list;
 };
 
@@ -269,7 +296,8 @@ struct cci_trigger_data {
  *                              selection of csid
  * @gpio_offset:                offset of software register which controls the
  *                              selection of timer
- * @is_contextid_acquire        ContextId is acquire or not
+ * @is_contextid_acquire:       ContextId is acquire or not
+ * @en_cci_event_debug:         debugging trigger camera event issues
  * @trigger_ctx_array:          To save the contextid, csid, cid and other info
  *                              of trigger sensor
  */
@@ -311,6 +339,7 @@ struct cci_device {
 	uint32_t offset;
 	uint32_t gpio_offset;
 	bool is_contextid_acquire[CONTEXT_ID_MAX];
+	bool en_cci_event_debug;
 	struct list_head trigger_ctx_array[CONTEXT_ID_MAX];
 };
 
@@ -367,6 +396,7 @@ struct cam_cci_ctrl {
 	enum cam_cci_cmd_type cmd;
 	union {
 		struct cam_sensor_i2c_reg_setting cci_i2c_write_cfg;
+		struct cam_sensor_cci_event_setting cci_event_write_cfg;
 		struct cam_cci_read_cfg cci_i2c_read_cfg;
 		struct cam_cci_wait_sync_cfg cci_wait_sync_cfg;
 		struct cam_cci_gpio_cfg gpio_cfg;

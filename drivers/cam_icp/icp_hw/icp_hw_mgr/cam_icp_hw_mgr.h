@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2024, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2024-2025 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef CAM_ICP_HW_MGR_H
@@ -348,6 +348,7 @@ struct cam_icp_clk_info {
  * @icp_resumed: Processor is powered on
  * @iommu_hdl: Non secure IOMMU handle
  * @iommu_sec_hdl: Secure IOMMU handle
+ * @synx_core_id : synx core id
  * @hfi_mem: Memory for hfi
  * @cmd_work: Work queue for hfi commands
  * @msg_work: Work queue for hfi messages
@@ -405,6 +406,7 @@ struct cam_icp_hw_mgr {
 	bool icp_resumed;
 	int32_t iommu_hdl;
 	int32_t iommu_sec_hdl;
+	enum cam_sync_fencing_client_cores synx_core_id;
 	struct icp_hfi_mem_info hfi_mem;
 	struct cam_req_mgr_core_worker *cmd_work;
 	struct cam_req_mgr_core_worker *msg_work;

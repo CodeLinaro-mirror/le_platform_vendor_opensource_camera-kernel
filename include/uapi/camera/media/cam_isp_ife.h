@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only WITH Linux-syscall-note */
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, 2025 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __UAPI_CAM_ISP_IFE_H__
@@ -62,6 +62,9 @@
 #define CAM_ISP_IFE_OUT_RES_MONO_STATS_AEC_BE    (CAM_ISP_IFE_OUT_RES_BASE + 49)
 #define CAM_ISP_IFE_OUT_RES_MONO_STATS_AEC_BHIST (CAM_ISP_IFE_OUT_RES_BASE + 50)
 #define CAM_ISP_IFE_LITE_OUT_RES_GAMMA_DS        (CAM_ISP_IFE_OUT_RES_BASE + 51)
+
+/* IFE output virtual port resource type (global unique) */
+#define CAM_ISP_IFE_OUT_VIRTUAL_RES_BASE      0x3100
 
 /* IFE input port resource type (global unique) */
 #define CAM_ISP_IFE_IN_RES_BASE                 0x4000

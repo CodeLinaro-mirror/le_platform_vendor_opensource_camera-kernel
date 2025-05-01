@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2025, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_CPASTOP_HW_H_
@@ -147,7 +147,7 @@ enum cam_camnoc_hw_irq_type {
  * @CAM_CAMNOC_IPE_BPS_WR: Indicates IPE+BPS Write HW connection to camnoc
  * @CAM_CAMNOC_BPS_WR: Indicates BPS HW's write connection to camnoc
  * @CAM_CAMNOC_BPS_RD: Indicates BPS HW's read connection to camnoc
- * @CAM_CAMNOC_JPEG: Indicates JPEG HW connection to camnoc
+ * @CAM_CAMNOC_JPEG: Indicates JPEG or JPEG WR HW connection to camnoc
  * @CAM_CAMNOC_FD: Indicates FD HW connection to camnoc
  * @CAM_CAMNOC_ICP: Indicates ICP HW connection to camnoc
  * @CAM_CAMNOC_TFE: Indicates TFE0 HW connection to camnoc
@@ -155,6 +155,7 @@ enum cam_camnoc_hw_irq_type {
  * @CAM_CAMNOC_TFE_2: Indicates TFE2 HW connection to camnoc
  * @CAM_CAMNOC_OPE: Indicates OPE HW connection to camnoc
  * @CAM_CAMNOC_IFE_LITE_1: Indicates IFE lites connection to camnoc
+ * @CAM_CAMNOC_JPEG_RD : Indicates JPEG RD connection to camnoc
  */
  /* Deprecated, do not use this anymore. port_name serves the purpose instead of this */
 enum cam_camnoc_port_type {
@@ -207,6 +208,7 @@ enum cam_camnoc_port_type {
 	CAM_CAMNOC_IFE01_NRDI_WRITE,
 	CAM_CAMNOC_IFE2_NRDI_WRITE,
 	CAM_CAMNOC_IFE_LITE_1,
+	CAM_CAMNOC_JPEG_RD,
 };
 
 /**

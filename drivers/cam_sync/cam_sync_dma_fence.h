@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only
  *
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, 2025 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #ifndef __CAM_SYNC_DMA_FENCE_H__
 #define __CAM_SYNC_DMA_FENCE_H__
@@ -13,6 +13,7 @@
 
 #include "cam_sync.h"
 #include "cam_debug_util.h"
+#include "cam_compat.h"
 
 #define CAM_DMA_FENCE_MAX_FENCES  128
 #define CAM_DMA_FENCE_NAME_LEN    128
@@ -150,6 +151,21 @@ int cam_dma_fence_register_cb(int32_t *sync_obj,
  * @return Status of operation. Negative in case of error. Zero otherwise.
  */
 int cam_dma_fence_get_put_ref(bool get_or_put, int32_t dma_fence_row_idx);
+
+/**
+ * @brief: get an fd for a existing dma fence
+ *
+ * @name              : Name of the fence
+ * @fence             : Native dma fence
+ * @dma_fence_fd      : dma fence fd bound to the fence
+ * @dma_fence_row_idx : Idx in the dma fence table pertaining to
+ *                      the dma fence on which get/put ref is invoked
+ * @is_hwfence        : Is fd required for HW fence
+ *
+ * @return Status of operation. Negative in case of error. Zero otherwise.
+ */
+int cam_dma_fence_get_fd(const char *name,
+	void *fence, int32_t *dma_fence_fd, int32_t *dma_fence_row_idx, bool is_hwfence);
 
 /**
  * @brief: dma fence driver open

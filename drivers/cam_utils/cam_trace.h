@@ -201,32 +201,36 @@ TRACE_EVENT(cam_icp_fw_dbg,
 
 TRACE_EVENT(cam_buf_done,
 	TP_PROTO(const char *ctx_type, struct cam_context *ctx,
-		struct cam_ctx_request *req),
-	TP_ARGS(ctx_type, ctx, req),
+		struct cam_ctx_request *req, uint64_t global_timestamp),
+	TP_ARGS(ctx_type, ctx, req, global_timestamp),
 	TP_STRUCT__entry(
 		__string(ctx_type, ctx_type)
 		__field(void*, ctx)
 		__field(int32_t, link_hdl)
 		__field(uint64_t, request)
+		__field(uint64_t, global_timestamp)
 	),
 	TP_fast_assign(
 		__assign_str(ctx_type, ctx_type);
 		__entry->ctx = ctx;
 		__entry->link_hdl = ctx->link_hdl;
 		__entry->request = req->request_id;
+		__entry->global_timestamp = global_timestamp;
 	),
 	TP_printk(
-		"%5s: BufDone ctx=%p request=%llu link_hdl=0x%x",
-			__get_str(ctx_type), __entry->ctx, __entry->request, __entry->link_hdl
+		"%5s: BufDone ctx=%p request=%llu link_hdl=0x%x global_timestamp %llu",
+			__get_str(ctx_type), __entry->ctx, __entry->request, __entry->link_hdl,
+			__entry->global_timestamp
 	)
 );
 
 TRACE_EVENT(cam_isp_buf_done,
-	TP_PROTO(const char *ctx_type, struct cam_context *ctx, uint64_t req_id,
+	TP_PROTO(const char *ctx_type, const char *status, struct cam_context *ctx, uint64_t req_id,
 		uint32_t resource_hdl),
-	TP_ARGS(ctx_type, ctx, req_id, resource_hdl),
+	TP_ARGS(ctx_type, status, ctx, req_id, resource_hdl),
 	TP_STRUCT__entry(
 		__string(ctx_type, ctx_type)
+		__string(status, status)
 		__field(void*, ctx)
 		__field(int32_t, link_hdl)
 		__field(uint64_t, req_id)
@@ -235,6 +239,7 @@ TRACE_EVENT(cam_isp_buf_done,
 	),
 	TP_fast_assign(
 		__assign_str(ctx_type, ctx_type);
+		__assign_str(status, status);
 		__entry->ctx = ctx;
 		__entry->link_hdl = ctx->link_hdl;
 		__entry->req_id = req_id;
@@ -242,9 +247,10 @@ TRACE_EVENT(cam_isp_buf_done,
 		__entry->resource_hdl = resource_hdl;
 	),
 	TP_printk(
-		"%5s: BufDone ctx=%p request=%llu link_hdl=0x%x ctx_id=%u res:0x%x failure due to bubble",
+		"%5s: BufDone ctx=%p request=%llu link_hdl=0x%x ctx_id=%u res:0x%x %s",
 			__get_str(ctx_type),  __entry->ctx, __entry->req_id, __entry->link_hdl,
-			__entry->ctx_id, __entry->resource_hdl
+			__entry->ctx_id, __entry->resource_hdl,
+			__get_str(status)
 	)
 );
 

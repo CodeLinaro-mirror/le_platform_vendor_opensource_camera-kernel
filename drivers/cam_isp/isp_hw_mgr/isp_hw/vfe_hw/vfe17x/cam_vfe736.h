@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2023-2024, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2025, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_VFE736_H_
@@ -1040,6 +1040,15 @@ static struct cam_vfe_bus_ver3_hw_info vfe736_bus_hw_info = {
 			.addr_status_3            = 0x0000119C,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_0,
 			.ubwc_regs                = &vfe736_ubwc_regs_client_0,
+			.ipcc_id                  = CAM_VFE_BUS_VER3_IPCC_ID_0,
+			.ipcc_addr                = 0x00000D54,
+			.ipcc_cfg_0               = 0x00000D84,
+			.ipcc_cfg_1               = 0x00000DB4,
+			.fence_addr               = 0x00000DE4,
+			.fence_cfg_0              = 0x00000E14,
+			.fence_cfg_1              = 0x00000E44,
+			.hwfence_cap_mask         = CAM_HW_FENCE_FRAME_BASED |
+							CAM_HW_FENCE_SLICE_BASED,
 		},
 		/* BUS Client 1 FULL C */
 		{
@@ -1071,6 +1080,14 @@ static struct cam_vfe_bus_ver3_hw_info vfe736_bus_hw_info = {
 			.addr_status_3            = 0x0000129C,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_0,
 			.ubwc_regs                = &vfe736_ubwc_regs_client_1,
+			.ipcc_id                  = CAM_VFE_BUS_VER3_IPCC_ID_1,
+			.ipcc_addr                = 0x00000D60,
+			.ipcc_cfg_0               = 0x00000D90,
+			.ipcc_cfg_1               = 0x00000DC0,
+			.fence_addr               = 0x00000DF0,
+			.fence_cfg_0              = 0x00000E20,
+			.fence_cfg_1              = 0x00000E50,
+			.hwfence_cap_mask         = CAM_HW_FENCE_SLICE_BASED,
 		},
 		/* BUS Client 2 DS4 */
 		{
@@ -1099,6 +1116,14 @@ static struct cam_vfe_bus_ver3_hw_info vfe736_bus_hw_info = {
 			.addr_status_3            = 0x0000139C,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_0,
 			.ubwc_regs                = NULL,
+			.ipcc_id                  = CAM_VFE_BUS_VER3_IPCC_ID_2,
+			.ipcc_addr                = 0x00000D64,
+			.ipcc_cfg_0               = 0x00000D94,
+			.ipcc_cfg_1               = 0x00000DC4,
+			.fence_addr               = 0x00000DF4,
+			.fence_cfg_0              = 0x00000E24,
+			.fence_cfg_1              = 0x00000E54,
+			.hwfence_cap_mask         = CAM_HW_FENCE_SLICE_BASED,
 		},
 		/* BUS Client 3 DS16 */
 		{
@@ -1127,6 +1152,14 @@ static struct cam_vfe_bus_ver3_hw_info vfe736_bus_hw_info = {
 			.addr_status_3            = 0x0000149C,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_0,
 			.ubwc_regs                = NULL,
+			.ipcc_id                  = CAM_VFE_BUS_VER3_IPCC_ID_3,
+			.ipcc_addr                = 0x00000D68,
+			.ipcc_cfg_0               = 0x00000D98,
+			.ipcc_cfg_1               = 0x00000DC8,
+			.fence_addr               = 0x00000DF8,
+			.fence_cfg_0              = 0x00000E28,
+			.fence_cfg_1              = 0x00000E58,
+			.hwfence_cap_mask         = CAM_HW_FENCE_SLICE_BASED,
 		},
 		/* BUS Client 4 DISP Y */
 		{
@@ -1158,6 +1191,14 @@ static struct cam_vfe_bus_ver3_hw_info vfe736_bus_hw_info = {
 			.addr_status_3            = 0x0000159C,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_1,
 			.ubwc_regs                = &vfe736_ubwc_regs_client_4,
+			.ipcc_id                  = CAM_VFE_BUS_VER3_IPCC_ID_4,
+			.ipcc_addr                = 0x00000D6C,
+			.ipcc_cfg_0               = 0x00000D9C,
+			.ipcc_cfg_1               = 0x00000DCC,
+			.fence_addr               = 0x00000DFC,
+			.fence_cfg_0              = 0x00000E2C,
+			.fence_cfg_1              = 0x00000E5C,
+			.hwfence_cap_mask         = CAM_HW_FENCE_SLICE_BASED,
 		},
 		/* BUS Client 5 DISP C */
 		{
@@ -1189,6 +1230,14 @@ static struct cam_vfe_bus_ver3_hw_info vfe736_bus_hw_info = {
 			.addr_status_3            = 0x0000169C,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_1,
 			.ubwc_regs                = &vfe736_ubwc_regs_client_5,
+			.ipcc_id                  = CAM_VFE_BUS_VER3_IPCC_ID_5,
+			.ipcc_addr                = 0x00000D70,
+			.ipcc_cfg_0               = 0x00000DA0,
+			.ipcc_cfg_1               = 0x00000DD0,
+			.fence_addr               = 0x00000E00,
+			.fence_cfg_0              = 0x00000E30,
+			.fence_cfg_1              = 0x00000E60,
+			.hwfence_cap_mask         = CAM_HW_FENCE_SLICE_BASED,
 		},
 		/* BUS Client 6 DISP DS4 */
 		{
@@ -1217,6 +1266,14 @@ static struct cam_vfe_bus_ver3_hw_info vfe736_bus_hw_info = {
 			.addr_status_3            = 0x0000179C,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_1,
 			.ubwc_regs                = NULL,
+			.ipcc_id                  = CAM_VFE_BUS_VER3_IPCC_ID_6,
+			.ipcc_addr                = 0x00000D74,
+			.ipcc_cfg_0               = 0x00000DA4,
+			.ipcc_cfg_1               = 0x00000DD4,
+			.fence_addr               = 0x00000E04,
+			.fence_cfg_0              = 0x00000E34,
+			.fence_cfg_1              = 0x00000E64,
+			.hwfence_cap_mask         = CAM_HW_FENCE_SLICE_BASED,
 		},
 		/* BUS Client 7 DISP DS16 */
 		{
@@ -1245,6 +1302,14 @@ static struct cam_vfe_bus_ver3_hw_info vfe736_bus_hw_info = {
 			.addr_status_3            = 0x0000189C,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_1,
 			.ubwc_regs                = NULL,
+			.ipcc_id                  = CAM_VFE_BUS_VER3_IPCC_ID_7,
+			.ipcc_addr                = 0x00000D78,
+			.ipcc_cfg_0               = 0x00000DA8,
+			.ipcc_cfg_1               = 0x00000DD8,
+			.fence_addr               = 0x00000E08,
+			.fence_cfg_0              = 0x00000E38,
+			.fence_cfg_1              = 0x00000E68,
+			.hwfence_cap_mask         = CAM_HW_FENCE_SLICE_BASED,
 		},
 		/* BUS Client 8 FD Y */
 		{
@@ -1276,6 +1341,14 @@ static struct cam_vfe_bus_ver3_hw_info vfe736_bus_hw_info = {
 			.addr_status_3            = 0x0000199C,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_2,
 			.ubwc_regs                = NULL,
+			.ipcc_id                  = CAM_VFE_BUS_VER3_IPCC_ID_8,
+			.ipcc_addr                = 0x00000D7C,
+			.ipcc_cfg_0               = 0x00000DAC,
+			.ipcc_cfg_1               = 0x00000DDC,
+			.fence_addr               = 0x00000E0C,
+			.fence_cfg_0              = 0x00000E3C,
+			.fence_cfg_1              = 0x00000E6C,
+			.hwfence_cap_mask         = CAM_HW_FENCE_SLICE_BASED,
 		},
 		/* BUS Client 9 FD C */
 		{
@@ -1304,6 +1377,14 @@ static struct cam_vfe_bus_ver3_hw_info vfe736_bus_hw_info = {
 			.addr_status_3            = 0x00001A9C,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_2,
 			.ubwc_regs                = NULL,
+			.ipcc_id                  = CAM_VFE_BUS_VER3_IPCC_ID_9,
+			.ipcc_addr                = 0x00000D80,
+			.ipcc_cfg_0               = 0x00000DB0,
+			.ipcc_cfg_1               = 0x00000DE0,
+			.fence_addr               = 0x00000E10,
+			.fence_cfg_0              = 0x00000E40,
+			.fence_cfg_1              = 0x00000E70,
+			.hwfence_cap_mask         = CAM_HW_FENCE_SLICE_BASED,
 		},
 		/* BUS Client 10 PIXEL RAW */
 		{
@@ -1334,6 +1415,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe736_bus_hw_info = {
 			.addr_status_3            = 0x00001B9C,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_3,
 			.ubwc_regs                = NULL,
+			.hwfence_cap_mask         = 0x0,
 		},
 		/* BUS Client 11 STATS BE 0 */
 		{
@@ -1364,6 +1446,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe736_bus_hw_info = {
 			.addr_status_3            = 0x00001C9C,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_4,
 			.ubwc_regs                = NULL,
+			.hwfence_cap_mask         = 0x0,
 		},
 		/* BUS Client 12 STATS BHIST 0 */
 		{
@@ -1394,6 +1477,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe736_bus_hw_info = {
 			.addr_status_3            = 0x00001D9C,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_4,
 			.ubwc_regs                = NULL,
+			.hwfence_cap_mask         = 0x0,
 		},
 		/* BUS Client 13 STATS TINTLESS BG */
 		{
@@ -1424,6 +1508,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe736_bus_hw_info = {
 			.addr_status_3            = 0x00001E9C,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_5,
 			.ubwc_regs                = NULL,
+			.hwfence_cap_mask         = 0x0,
 		},
 		/* BUS Client 14 STATS AWB BG */
 		{
@@ -1454,6 +1539,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe736_bus_hw_info = {
 			.addr_status_3            = 0x00001F9C,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_6,
 			.ubwc_regs                = NULL,
+			.hwfence_cap_mask         = 0x0,
 		},
 		/* BUS Client 15 STATS AWB BFW */
 		{
@@ -1484,6 +1570,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe736_bus_hw_info = {
 			.addr_status_3            = 0x0000209C,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_6,
 			.ubwc_regs                = NULL,
+			.hwfence_cap_mask         = 0x0,
 		},
 		/* BUS Client 16 STATS BAF */
 		{
@@ -1515,6 +1602,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe736_bus_hw_info = {
 			.addr_status_3            = 0x0000219C,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_7,
 			.ubwc_regs                = NULL,
+			.hwfence_cap_mask         = 0x0,
 		},
 		/* BUS Client 17 STATS BHIST */
 		{
@@ -1545,6 +1633,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe736_bus_hw_info = {
 			.addr_status_3            = 0x0000229C,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_8,
 			.ubwc_regs                = NULL,
+			.hwfence_cap_mask         = 0x0,
 		},
 		/* BUS Client 18 STATS RS */
 		{
@@ -1575,6 +1664,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe736_bus_hw_info = {
 			.addr_status_3            = 0x0000239C,
 			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_9,
 			.ubwc_regs                = NULL,
+			.hwfence_cap_mask         = 0x0,
 		},
 		/* BUS Client 19 STATS IHIST */
 		{
@@ -1603,8 +1693,9 @@ static struct cam_vfe_bus_ver3_hw_info vfe736_bus_hw_info = {
 			.addr_status_1            = 0x00002494,
 			.addr_status_2            = 0x00002498,
 			.addr_status_3            = 0x0000249C,
-			.comp_group              = CAM_VFE_BUS_VER3_COMP_GRP_10,
+			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_10,
 			.ubwc_regs                = NULL,
+			.hwfence_cap_mask         = 0x0,
 		},
 		/* BUS Client 20 SPARSE PD */
 		{
@@ -1633,8 +1724,9 @@ static struct cam_vfe_bus_ver3_hw_info vfe736_bus_hw_info = {
 			.addr_status_1            = 0x00002594,
 			.addr_status_2            = 0x00002598,
 			.addr_status_3            = 0x0000259C,
-			.comp_group              = CAM_VFE_BUS_VER3_COMP_GRP_12,
+			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_12,
 			.ubwc_regs                = NULL,
+			.hwfence_cap_mask         = 0x0,
 		},
 		/* BUS Client 21 PDAF V2.0 PD DATA - 2PD */
 		{
@@ -1663,8 +1755,9 @@ static struct cam_vfe_bus_ver3_hw_info vfe736_bus_hw_info = {
 			.addr_status_1            = 0x00002694,
 			.addr_status_2            = 0x00002698,
 			.addr_status_3            = 0x0000269C,
-			.comp_group              = CAM_VFE_BUS_VER3_COMP_GRP_13,
+			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_13,
 			.ubwc_regs                = NULL,
+			.hwfence_cap_mask         = 0x0,
 		},
 		/* BUS Client 22 PDAF V2.0 SAD STATS */
 		{
@@ -1694,8 +1787,17 @@ static struct cam_vfe_bus_ver3_hw_info vfe736_bus_hw_info = {
 			.addr_status_1            = 0x00002794,
 			.addr_status_2            = 0x00002798,
 			.addr_status_3            = 0x0000279C,
-			.comp_group              = CAM_VFE_BUS_VER3_COMP_GRP_13,
+			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_13,
 			.ubwc_regs                = NULL,
+			.ipcc_id                  = CAM_VFE_BUS_VER3_IPCC_ID_10,
+			.ipcc_addr                = 0x00000E74,
+			.ipcc_cfg_0               = 0x00000E9C,
+			.ipcc_cfg_1               = 0x00000EC4,
+			.fence_addr               = 0x00000EEC,
+			.fence_cfg_0              = 0x00000F14,
+			.fence_cfg_1              = 0x00000F3C,
+			.hwfence_cap_mask         = CAM_HW_FENCE_FRAME_BASED |
+							CAM_HW_FENCE_SLICE_BASED,
 		},
 		/* BUS Client 23 LCR */
 		{
@@ -1724,8 +1826,9 @@ static struct cam_vfe_bus_ver3_hw_info vfe736_bus_hw_info = {
 			.addr_status_1            = 0x00002894,
 			.addr_status_2            = 0x00002898,
 			.addr_status_3            = 0x0000289C,
-			.comp_group              = CAM_VFE_BUS_VER3_COMP_GRP_11,
+			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_11,
 			.ubwc_regs                = NULL,
+			.hwfence_cap_mask         = 0x0,
 		},
 		/* BUS Client 24 RDI0 */
 		{
@@ -1755,8 +1858,17 @@ static struct cam_vfe_bus_ver3_hw_info vfe736_bus_hw_info = {
 			.addr_status_1            = 0x00002994,
 			.addr_status_2            = 0x00002998,
 			.addr_status_3            = 0x0000299C,
-			.comp_group              = CAM_VFE_BUS_VER3_COMP_GRP_14,
+			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_14,
 			.ubwc_regs                = NULL,
+			.ipcc_id                  = CAM_VFE_BUS_VER3_IPCC_ID_11,
+			.ipcc_addr                = 0x00000E78,
+			.ipcc_cfg_0               = 0x00000EA0,
+			.ipcc_cfg_1               = 0x00000EC8,
+			.fence_addr               = 0x00000EF0,
+			.fence_cfg_0              = 0x00000F18,
+			.fence_cfg_1              = 0x00000F40,
+			.hwfence_cap_mask         = CAM_HW_FENCE_FRAME_BASED |
+							CAM_HW_FENCE_SLICE_BASED,
 		},
 		/* BUS Client 25 RDI1 */
 		{
@@ -1786,8 +1898,17 @@ static struct cam_vfe_bus_ver3_hw_info vfe736_bus_hw_info = {
 			.addr_status_1            = 0x00002A94,
 			.addr_status_2            = 0x00002A98,
 			.addr_status_3            = 0x00002A9C,
-			.comp_group              = CAM_VFE_BUS_VER3_COMP_GRP_15,
+			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_15,
 			.ubwc_regs                = NULL,
+			.ipcc_id                  = CAM_VFE_BUS_VER3_IPCC_ID_12,
+			.ipcc_addr                = 0x00000E7C,
+			.ipcc_cfg_0               = 0x00000EA4,
+			.ipcc_cfg_1               = 0x00000ECC,
+			.fence_addr               = 0x00000EF4,
+			.fence_cfg_0              = 0x00000F1C,
+			.fence_cfg_1              = 0x00000F44,
+			.hwfence_cap_mask         = CAM_HW_FENCE_FRAME_BASED |
+							CAM_HW_FENCE_SLICE_BASED,
 		},
 		/* BUS Client 26 RDI2 */
 		{
@@ -1817,8 +1938,17 @@ static struct cam_vfe_bus_ver3_hw_info vfe736_bus_hw_info = {
 			.addr_status_1            = 0x00002B94,
 			.addr_status_2            = 0x00002B98,
 			.addr_status_3            = 0x00002B9C,
-			.comp_group              = CAM_VFE_BUS_VER3_COMP_GRP_16,
+			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_16,
 			.ubwc_regs                = NULL,
+			.ipcc_id                  = CAM_VFE_BUS_VER3_IPCC_ID_13,
+			.ipcc_addr                = 0x00000E80,
+			.ipcc_cfg_0               = 0x00000EA8,
+			.ipcc_cfg_1               = 0x00000ED0,
+			.fence_addr               = 0x00000EF8,
+			.fence_cfg_0              = 0x00000F20,
+			.fence_cfg_1              = 0x00000F48,
+			.hwfence_cap_mask         = CAM_HW_FENCE_FRAME_BASED |
+							CAM_HW_FENCE_SLICE_BASED,
 		},
 		/* BUS Client 27 LTM STATS */
 		{
@@ -1847,8 +1977,9 @@ static struct cam_vfe_bus_ver3_hw_info vfe736_bus_hw_info = {
 			.addr_status_1            = 0x00002C94,
 			.addr_status_2            = 0x00002C98,
 			.addr_status_3            = 0x00002C9C,
-			.comp_group              = CAM_VFE_BUS_VER3_COMP_GRP_3,
+			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_3,
 			.ubwc_regs                = NULL,
+			.hwfence_cap_mask         = 0x0,
 		},
 		/* BUS Client 28 DS4 UV */
 		{
@@ -1875,8 +2006,16 @@ static struct cam_vfe_bus_ver3_hw_info vfe736_bus_hw_info = {
 			.addr_status_1            = 0x00002D94,
 			.addr_status_2            = 0x00002D98,
 			.addr_status_3            = 0x00002D9C,
-			.comp_group              = CAM_VFE_BUS_VER3_COMP_GRP_0,
+			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_0,
 			.ubwc_regs                = NULL,
+			.ipcc_id                  = CAM_VFE_BUS_VER3_IPCC_ID_14,
+			.ipcc_addr                = 0x00000E84,
+			.ipcc_cfg_0               = 0x00000EAC,
+			.ipcc_cfg_1               = 0x00000ED4,
+			.fence_addr               = 0x00000EFC,
+			.fence_cfg_0              = 0x00000F24,
+			.fence_cfg_1              = 0x00000F4C,
+			.hwfence_cap_mask         = CAM_HW_FENCE_SLICE_BASED,
 		},
 		/* BUS Client 29 DS16 UV */
 		{
@@ -1903,8 +2042,16 @@ static struct cam_vfe_bus_ver3_hw_info vfe736_bus_hw_info = {
 			.addr_status_1            = 0x00002E94,
 			.addr_status_2            = 0x00002E98,
 			.addr_status_3            = 0x00002E9C,
-			.comp_group              = CAM_VFE_BUS_VER3_COMP_GRP_0,
+			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_0,
 			.ubwc_regs                = NULL,
+			.ipcc_id                  = CAM_VFE_BUS_VER3_IPCC_ID_15,
+			.ipcc_addr                = 0x00000E88,
+			.ipcc_cfg_0               = 0x00000EB0,
+			.ipcc_cfg_1               = 0x00000ED8,
+			.fence_addr               = 0x00000F00,
+			.fence_cfg_0              = 0x00000F28,
+			.fence_cfg_1              = 0x00000F50,
+			.hwfence_cap_mask         = CAM_HW_FENCE_SLICE_BASED,
 		},
 		/* BUS Client 30 DISP DS4 UV */
 		{
@@ -1931,8 +2078,16 @@ static struct cam_vfe_bus_ver3_hw_info vfe736_bus_hw_info = {
 			.addr_status_1            = 0x00002F94,
 			.addr_status_2            = 0x00002F98,
 			.addr_status_3            = 0x00002F9C,
-			.comp_group              = CAM_VFE_BUS_VER3_COMP_GRP_1,
+			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_1,
 			.ubwc_regs                = NULL,
+			.ipcc_id                  = CAM_VFE_BUS_VER3_IPCC_ID_16,
+			.ipcc_addr                = 0x00000E8C,
+			.ipcc_cfg_0               = 0x00000EB4,
+			.ipcc_cfg_1               = 0x00000EDC,
+			.fence_addr               = 0x00000F04,
+			.fence_cfg_0              = 0x00000F2C,
+			.fence_cfg_1              = 0x00000F54,
+			.hwfence_cap_mask         = CAM_HW_FENCE_SLICE_BASED,
 		},
 		/* BUS Client 31 DISP DS16 UV */
 		{
@@ -1959,8 +2114,16 @@ static struct cam_vfe_bus_ver3_hw_info vfe736_bus_hw_info = {
 			.addr_status_1            = 0x00003094,
 			.addr_status_2            = 0x00003098,
 			.addr_status_3            = 0x0000309C,
-			.comp_group              = CAM_VFE_BUS_VER3_COMP_GRP_1,
+			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_1,
 			.ubwc_regs                = NULL,
+			.ipcc_id                  = CAM_VFE_BUS_VER3_IPCC_ID_17,
+			.ipcc_addr                = 0x00000E90,
+			.ipcc_cfg_0               = 0x00000EB8,
+			.ipcc_cfg_1               = 0x00000EE0,
+			.fence_addr               = 0x00000F08,
+			.fence_cfg_0              = 0x00000F30,
+			.fence_cfg_1              = 0x00000F58,
+			.hwfence_cap_mask         = CAM_HW_FENCE_SLICE_BASED,
 		},
 		/* BUS Client 32 MONO DS OUT */
 		{
@@ -1990,8 +2153,16 @@ static struct cam_vfe_bus_ver3_hw_info vfe736_bus_hw_info = {
 			.addr_status_1            = 0x00003194,
 			.addr_status_2            = 0x00003198,
 			.addr_status_3            = 0x0000319C,
-			.comp_group              = CAM_VFE_BUS_VER3_COMP_GRP_17,
+			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_17,
 			.ubwc_regs                = NULL,
+			.ipcc_id                  = CAM_VFE_BUS_VER3_IPCC_ID_18,
+			.ipcc_addr                = 0x00000E94,
+			.ipcc_cfg_0               = 0x00000EBC,
+			.ipcc_cfg_1               = 0x00000EE4,
+			.fence_addr               = 0x00000F0C,
+			.fence_cfg_0              = 0x00000F34,
+			.fence_cfg_1              = 0x00000F5C,
+			.hwfence_cap_mask         = CAM_HW_FENCE_SLICE_BASED,
 		},
 		/* BUS Client 33 MONO FULL OUT */
 		{
@@ -2021,8 +2192,16 @@ static struct cam_vfe_bus_ver3_hw_info vfe736_bus_hw_info = {
 			.addr_status_1            = 0x00003294,
 			.addr_status_2            = 0x00003298,
 			.addr_status_3            = 0x0000329C,
-			.comp_group              = CAM_VFE_BUS_VER3_COMP_GRP_17,
+			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_17,
 			.ubwc_regs                = NULL,
+			.ipcc_id                  = CAM_VFE_BUS_VER3_IPCC_ID_19,
+			.ipcc_addr                = 0x00000E98,
+			.ipcc_cfg_0               = 0x00000EC0,
+			.ipcc_cfg_1               = 0x00000EE8,
+			.fence_addr               = 0x00000F10,
+			.fence_cfg_0              = 0x00000F38,
+			.fence_cfg_1              = 0x00000F60,
+			.hwfence_cap_mask         = CAM_HW_FENCE_SLICE_BASED,
 		},
 		/* BUS Client 34 MONO STATS AEC BE*/
 		{
@@ -2052,8 +2231,9 @@ static struct cam_vfe_bus_ver3_hw_info vfe736_bus_hw_info = {
 			.addr_status_1            = 0x00003394,
 			.addr_status_2            = 0x00003398,
 			.addr_status_3            = 0x0000339C,
-			.comp_group              = CAM_VFE_BUS_VER3_COMP_GRP_18,
+			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_18,
 			.ubwc_regs                = NULL,
+			.hwfence_cap_mask         = 0x0,
 		},
 		/* BUS Client 35 MONO STATS AEC BHIST */
 		{
@@ -2083,8 +2263,9 @@ static struct cam_vfe_bus_ver3_hw_info vfe736_bus_hw_info = {
 			.addr_status_1            = 0x00003494,
 			.addr_status_2            = 0x00003498,
 			.addr_status_3            = 0x0000349C,
-			.comp_group              = CAM_VFE_BUS_VER3_COMP_GRP_18,
+			.comp_group               = CAM_VFE_BUS_VER3_COMP_GRP_18,
 			.ubwc_regs                = NULL,
+			.hwfence_cap_mask         = 0x0,
 		},
 	},
 	.num_out = 29,
@@ -2097,6 +2278,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe736_bus_hw_info = {
 			.mid[0]        = 34,
 			.num_wm        = 1,
 			.line_based    = 1,
+			.hwfence_cap   = 1,
 			.bufdone_shift = 2,
 			.wm_idx        = {
 				24,
@@ -2105,6 +2287,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe736_bus_hw_info = {
 				"RDI_0",
 			},
 			.secure_mask = BIT(7),
+			.fence_ipcc_cfg_mode = 0x00000D10,
 		},
 		{
 			.vfe_out_type  = CAM_VFE_BUS_VER3_VFE_OUT_RDI1,
@@ -2114,6 +2297,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe736_bus_hw_info = {
 			.mid[0]        = 35,
 			.num_wm        = 1,
 			.line_based    = 1,
+			.hwfence_cap   = 1,
 			.bufdone_shift = 2,
 			.wm_idx        = {
 				25,
@@ -2122,6 +2306,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe736_bus_hw_info = {
 				"RDI_1",
 			},
 			.secure_mask = BIT(25),
+			.fence_ipcc_cfg_mode = 0x00000D14,
 		},
 		{
 			.vfe_out_type  = CAM_VFE_BUS_VER3_VFE_OUT_RDI2,
@@ -2131,6 +2316,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe736_bus_hw_info = {
 			.mid[0]        = 36,
 			.num_wm        = 1,
 			.line_based    = 1,
+			.hwfence_cap   = 1,
 			.bufdone_shift = 2,
 			.wm_idx        = {
 				26,
@@ -2139,6 +2325,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe736_bus_hw_info = {
 				"RDI_2",
 			},
 			.secure_mask = BIT(26),
+			.fence_ipcc_cfg_mode = 0x00000D18,
 		},
 		{
 			.vfe_out_type  = CAM_VFE_BUS_VER3_VFE_OUT_FULL,
@@ -2150,6 +2337,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe736_bus_hw_info = {
 			.mid[2]        = 34,
 			.mid[3]        = 35,
 			.num_wm        = 2,
+			.hwfence_cap   = 1,
 			.wm_idx        = {
 				0,
 				1,
@@ -2159,6 +2347,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe736_bus_hw_info = {
 				"FULL_C",
 			},
 			.secure_mask = BIT(1),
+			.fence_ipcc_cfg_mode = 0x00000D08,
 		},
 		{
 			.vfe_out_type  = CAM_VFE_BUS_VER3_VFE_OUT_DS4,
@@ -2169,6 +2358,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe736_bus_hw_info = {
 			.mid[1]        = 33,
 			.mid[2]        = 55,
 			.num_wm        = 2,
+			.hwfence_cap   = 1,
 			.wm_idx        = {
 				2,
 				28,
@@ -2178,6 +2368,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe736_bus_hw_info = {
 				"DS_4_UV",
 			},
 			.secure_mask = BIT(1),
+			.fence_ipcc_cfg_mode = 0x00000D08,
 		},
 		{
 			.vfe_out_type  = CAM_VFE_BUS_VER3_VFE_OUT_DS16,
@@ -2188,6 +2379,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe736_bus_hw_info = {
 			.mid[1]        = 35,
 			.mid[2]        = 56,
 			.num_wm        = 2,
+			.hwfence_cap   = 1,
 			.wm_idx        = {
 				3,
 				29,
@@ -2197,6 +2389,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe736_bus_hw_info = {
 				"DS_16_UV",
 			},
 			.secure_mask = BIT(1),
+			.fence_ipcc_cfg_mode = 0x00000D08,
 		},
 		{
 			.vfe_out_type  = CAM_VFE_BUS_VER3_VFE_OUT_RAW_DUMP,
@@ -2223,6 +2416,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe736_bus_hw_info = {
 			.mid[1]        = 41,
 			.mid[2]        = 42,
 			.num_wm        = 2,
+			.hwfence_cap   = 1,
 			.wm_idx        = {
 				8,
 				9,
@@ -2232,6 +2426,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe736_bus_hw_info = {
 				"FD_C",
 			},
 			.secure_mask = BIT(4),
+			.fence_ipcc_cfg_mode = 0x00000D08,
 		},
 		{
 			.vfe_out_type  = CAM_VFE_BUS_VER3_VFE_OUT_SPARSE_PD,
@@ -2349,6 +2544,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe736_bus_hw_info = {
 			.mid[2]        = 38,
 			.mid[3]        = 39,
 			.num_wm        = 2,
+			.hwfence_cap   = 1,
 			.wm_idx        = {
 				4,
 				5,
@@ -2358,6 +2554,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe736_bus_hw_info = {
 				"FULL_DISP_C",
 			},
 			.secure_mask = BIT(18),
+			.fence_ipcc_cfg_mode = 0x00000D08,
 		},
 		{
 			.vfe_out_type  = CAM_VFE_BUS_VER3_VFE_OUT_DS4_DISP,
@@ -2368,6 +2565,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe736_bus_hw_info = {
 			.mid[1]        = 37,
 			.mid[2]        = 57,
 			.num_wm        = 2,
+			.hwfence_cap   = 1,
 			.wm_idx        = {
 				6,
 				30,
@@ -2377,6 +2575,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe736_bus_hw_info = {
 				"DISP_DS_4_UV",
 			},
 			.secure_mask = BIT(18),
+			.fence_ipcc_cfg_mode = 0x00000D08,
 		},
 		{
 			.vfe_out_type  = CAM_VFE_BUS_VER3_VFE_OUT_DS16_DISP,
@@ -2387,6 +2586,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe736_bus_hw_info = {
 			.mid[1]        = 39,
 			.mid[2]        = 58,
 			.num_wm        = 2,
+			.hwfence_cap   = 1,
 			.wm_idx        = {
 				7,
 				31,
@@ -2396,6 +2596,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe736_bus_hw_info = {
 				"DISP_DS_16_UV",
 			},
 			.secure_mask = BIT(18),
+			.fence_ipcc_cfg_mode = 0x00000D08,
 		},
 		{
 			.vfe_out_type  = CAM_VFE_BUS_VER3_VFE_OUT_PREPROCESS_2PD,
@@ -2451,6 +2652,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe736_bus_hw_info = {
 			.source_group  = CAM_VFE_BUS_VER3_SRC_GRP_1,
 			.mid[0]        = 35,
 			.num_wm        = 1,
+			.hwfence_cap   = 1,
 			.bufdone_shift = 2,
 			.wm_idx        = {
 				22,
@@ -2459,6 +2661,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe736_bus_hw_info = {
 				"2PD_STATS",
 			},
 			.secure_mask = 0x0,
+			.fence_ipcc_cfg_mode = 0x00000D0C,
 		},
 		{
 			.vfe_out_type  = CAM_VFE_BUS_VER3_VFE_OUT_STATS_AEC_BE,
@@ -2516,6 +2719,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe736_bus_hw_info = {
 			.mid[0]        = 59,
 			.mid[1]        = 60,
 			.num_wm        = 1,
+			.hwfence_cap   = 1,
 			.wm_idx        = {
 				32,
 			},
@@ -2523,6 +2727,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe736_bus_hw_info = {
 				"MONO_DS_OUT",
 			},
 			.secure_mask = BIT(18),
+			.fence_ipcc_cfg_mode = 0x00000D08,
 		},
 		{
 			.vfe_out_type  =
@@ -2533,6 +2738,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe736_bus_hw_info = {
 			.mid[0]        = 61,
 			.mid[1]        = 62,
 			.num_wm        = 1,
+			.hwfence_cap   = 1,
 			.wm_idx        = {
 				33,
 			},
@@ -2540,6 +2746,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe736_bus_hw_info = {
 				"MONO_FULL_OUT",
 			},
 			.secure_mask = BIT(1),
+			.fence_ipcc_cfg_mode = 0x00000D08,
 		},
 		{
 			.vfe_out_type  =
@@ -2710,11 +2917,24 @@ static struct cam_vfe_bus_ver3_hw_info vfe736_bus_hw_info = {
 		0x00000000,
 	},
 	.num_comp_grp          = 19,
+	.num_ipcc_clients      = 20,
 	.support_consumed_addr = true,
 	.comp_done_shift       = 0,
 	.top_irq_shift         = 0,
 	.max_out_res           = CAM_ISP_IFE_OUT_RES_BASE + 52,
 	.pack_align_shift      = 5,
+	.ipcc_addr_violation_shift  = 27,
+	.ipcc_data_violation_shift  = 26,
+	.constraint_violation_shift = 28,
+	.ccif_violation_shift       = 30,
+	.image_size_violation_shift = 31,
+	.ipcc_client_send_offset      = 0xC,
+	.ipcc_protocol_reg_block_size = 0x40000,
+	.ipcc_client_reg_block_size   = 0x1000,
+	.ipcc_offset_shift = 4,
+	.fence_entry_size_shift = 1,
+	.fence_offset_shift = 9,
+	.ipcc_dest_client_shift = 16,
 	.max_bw_counter_limit  = 0xFF,
 	.support_tunneling = false,
 	.fifo_depth = 2,

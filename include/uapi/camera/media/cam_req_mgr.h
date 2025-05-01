@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only WITH Linux-syscall-note */
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __UAPI_LINUX_CAM_REQ_MGR_H
@@ -305,6 +305,36 @@ struct cam_req_mgr_sync_mode_v2 {
 };
 
 /**
+ * struct cam_req_mgr_sync_shared_buf
+ * @version:           Input param - version
+ * @latest_setting_id: Input param - Latest setting id
+ */
+struct cam_req_mgr_sync_shared_buf {
+	__u32 version;
+	__u32 latest_setting_id;
+};
+
+/**
+ * struct cam_req_mgr_fast_crop_sync
+ * @version:          Input param - version
+ * @session_hdl:      Input param - Identifier for CSL session
+ * @mem_hdl:          Input Param - mem_hdl of shared buffer to get latest crop setting
+ * @offset:           Input Param - offset of buffer
+ * @size:             Input Param - size of buffer
+ * @reserved:         reserved for alignment
+ *
+ * @opcode: CAM_REQ_MGR_FAST_CROP_SYNC
+ */
+struct cam_req_mgr_fast_crop_sync {
+	__u32 version;
+	__s32 session_hdl;
+	__s32 mem_hdl;
+	__u32 offset;
+	__u32 size;
+	__u32 reserved;
+};
+
+/**
  * struct cam_req_mgr_link_control
  * @ops:                 Link operations: activate/deactive
  * @session_hdl:         Input param - Identifier for CSL session
@@ -373,6 +403,7 @@ struct cam_req_mgr_thread_prop_control {
 #define CAM_REQ_MGR_SYNC_MODE_V2                (CAM_COMMON_OPCODE_MAX + 18)
 #define CAM_REQ_MGR_THREAD_PROP_CONTROL         (CAM_COMMON_OPCODE_MAX + 19)
 #define CAM_REQ_MGR_BATCH_REQ                   (CAM_COMMON_OPCODE_MAX + 20)
+#define CAM_REQ_MGR_FAST_CROP_SYNC              (CAM_COMMON_OPCODE_MAX + 21)
 
 /* end of cam_req_mgr opcodes */
 

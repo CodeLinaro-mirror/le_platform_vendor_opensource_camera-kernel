@@ -36,6 +36,7 @@
 #define MAX_SYSTEM_PIPELINE_DELAY 2
 
 #define CAM_PKT_NOP_OPCODE 127
+#define MAX_CMD_BUFFER 10
 
 enum camera_flash_opcode {
 	CAMERA_SENSOR_FLASH_OP_INVALID,
@@ -219,6 +220,7 @@ struct cam_cci_trigger_data {
 	uint32_t csid;
 	uint32_t cid;
 	uint32_t context_id;
+	uint32_t gpio_mask;
 };
 
 struct cam_sensor_i2c_reg_setting {
@@ -238,20 +240,63 @@ struct cam_sensor_i2c_seq_reg {
 	enum camera_sensor_i2c_type addr_type;
 };
 
-/**
- * struct cam_sensor_trigger_per_frame_data
- * @gpio_mask:    Timer number to select GPIO ports
- * @contextid:    Context Id of sensor
- * @timestamp:    Qtimer timestamp
- * @pulse_width:  Pulse width of FSIN pulse
- * @is_nop:       NOP Packet or not
- */
-struct cam_sensor_trigger_per_frame_data {
+struct cam_sensor_frame_event_data {
+	uint16_t vc;
+	uint16_t dt;
+	uint32_t streamId;
+	uint32_t frame_event;
+};
+
+struct cam_sensor_fsin_data {
 	uint32_t gpio_mask;
-	uint32_t contextid;
-	uint64_t timestamp;
-	uint32_t pulse_width;
-	bool     is_nop;
+	uint64_t pre_delay;
+	uint64_t post_delay;
+	uint32_t level;
+	uint32_t config;
+};
+
+enum cam_sensor_cmd_buffer_type {
+	CAM_SENSOR_CMD_TYPE_I2C_SETTING,
+	CAM_SENSOR_CMD_TYPE_QTIMER,
+	CAM_SENSOR_CMD_TYPE_FSIN_TRIGGER,
+	CAM_SENSOR_CMD_TYPE_TIMER,
+	CAM_SENSOR_CMD_TYPE_FRAME_EVENT,
+	CAM_SENSOR_CMD_TYPE_SYNC_CMD,
+	CAM_SENSOR_CMD_TYPE_EVENT,
+	CAM_SENSOR_CMD_TYPE_INVALID,
+};
+
+struct cam_sensor_cmd_sequence {
+	enum cam_sensor_cmd_buffer_type cmd_type;
+	uint32_t cmd_flag;
+	int32_t index;
+	void *payload;
+};
+
+struct cam_sensor_event_arg_sequence {
+	enum cam_sensor_cmd_buffer_type cmd_type;
+	int32_t index;
+	void *payload;
+};
+
+struct cam_sensor_trigger_event_info {
+	uint32_t event;
+	uint32_t event_flag;
+	uint32_t event_arg_count;
+	struct cam_sensor_event_arg_sequence event_arg_sequence[MAX_CMD_BUFFER];
+	uint32_t cmd_count;
+	struct cam_sensor_cmd_sequence cmd_sequence[MAX_CMD_BUFFER];
+};
+
+struct cam_sensor_cci_event_setting {
+	uint32_t event_count;
+	uint32_t context_id;
+	struct cam_sensor_trigger_event_info *trigger_info;
+};
+
+struct cam_sensor_event_list {
+	uint32_t event_count;
+	struct cam_sensor_trigger_event_info event_info[CAMERA_SENSOR_EVENT_MAX];
 };
 
 struct i2c_settings_list {
@@ -266,7 +311,26 @@ struct i2c_settings_array {
 	int32_t is_settings_valid;
 	int64_t request_id;
 	int64_t setting_id;
-	struct cam_sensor_trigger_per_frame_data trigger_data;
+};
+
+struct cam_sensor_per_frame_event_data {
+	enum cam_sensor_cmd_buffer_type cmd_type;
+	union {
+		int64_t  timestamp;
+		uint64_t wait_time_us;
+		uint32_t is_sync_cmd_enable;
+		struct   cam_sensor_frame_event_data frame_event_info;
+		struct   cam_sensor_fsin_data fsin_info;
+		struct   i2c_settings_array i2c_settings;
+	} trigger_sensor_cmd_buf_info;
+};
+
+struct cci_trigger_cam_setting_array {
+	int32_t is_settings_valid;
+	int64_t request_id;
+	int64_t setting_id;
+	struct cam_sensor_per_frame_event_data event_data[MAX_CMD_BUFFER];
+	struct cam_sensor_event_list event_list;
 };
 
 struct i2c_data_settings {
@@ -276,6 +340,7 @@ struct i2c_data_settings {
 	struct i2c_settings_array streamoff_settings;
 	struct i2c_settings_array read_settings;
 	struct i2c_settings_array *per_frame;
+	struct cci_trigger_cam_setting_array *per_frame_event_settings;
 	struct i2c_settings_array *frame_skip;
 };
 

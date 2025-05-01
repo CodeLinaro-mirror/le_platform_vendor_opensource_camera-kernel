@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -1789,6 +1789,13 @@ void cam_mem_put_kref(int32_t buf_handle)
 			goto warn;
 		} else
 			kref_put(&tbl.bufq[idx].krefcount, cam_mem_util_unmap_dummy);
+	}
+
+	krefcount = kref_read(&tbl.bufq[idx].krefcount);
+	if (krefcount == 0) {
+		CAM_ERR(CAM_MEM,
+			"Unbalanced release called buf_handle 0x%x idx %d krefCount %d buf 0x%x",
+			tbl.bufq[idx].buf_handle, idx, krefcount, buf_handle);
 	}
 	spin_unlock(&tbl.bufq[idx].idx_lock);
 	return;

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022, 2025 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/delay.h>
@@ -219,6 +219,7 @@ static int cam_isp_dev_component_bind(struct device *dev,
 	g_isp_dev.ctx = vzalloc(g_isp_dev.max_context *
 		sizeof(struct cam_context));
 	if (!g_isp_dev.ctx) {
+		rc = -ENOMEM;
 		CAM_ERR(CAM_ISP,
 			"Mem Allocation failed for ISP base context");
 		goto unregister;
@@ -227,6 +228,7 @@ static int cam_isp_dev_component_bind(struct device *dev,
 	g_isp_dev.ctx_isp = vzalloc(g_isp_dev.max_context *
 		sizeof(struct cam_isp_context));
 	if (!g_isp_dev.ctx_isp) {
+		rc = -ENOMEM;
 		CAM_ERR(CAM_ISP,
 			"Mem Allocation failed for Isp private context");
 		kfree(g_isp_dev.ctx);
@@ -284,7 +286,8 @@ kfree:
 	g_isp_dev.ctx_isp = NULL;
 
 unregister:
-	rc = cam_subdev_remove(&g_isp_dev.sd);
+	if (cam_subdev_remove(&g_isp_dev.sd))
+		CAM_ERR(CAM_ISP, "ISP subdev remove failure");
 err:
 	return rc;
 }
@@ -301,6 +304,9 @@ static void cam_isp_dev_component_unbind(struct device *dev,
 		(const char **)&compat_str);
 
 	cam_isp_hw_mgr_deinit(compat_str);
+	if (!g_isp_dev.ctx_isp)
+		goto end;
+
 	/* clean up resources */
 	for (i = 0; i < g_isp_dev.max_context; i++) {
 		rc = cam_isp_context_deinit(&g_isp_dev.ctx_isp[i]);
@@ -318,6 +324,7 @@ static void cam_isp_dev_component_unbind(struct device *dev,
 	if (rc)
 		CAM_ERR(CAM_ISP, "Unregister failed rc: %d", rc);
 
+end:
 	memset(&g_isp_dev, 0, sizeof(g_isp_dev));
 }
 

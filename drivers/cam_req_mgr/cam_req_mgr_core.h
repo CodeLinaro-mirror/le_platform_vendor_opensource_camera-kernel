@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #ifndef _CAM_REQ_MGR_CORE_H_
 #define _CAM_REQ_MGR_CORE_H_
@@ -300,6 +300,16 @@ struct cam_req_mgr_slot {
 };
 
 /**
+ * struct cam_req_mgr_fast_crop_settings_slot
+ * @req_id           : Request id
+ * @crop_settings_id : Crop settings id
+ */
+struct cam_req_mgr_fast_crop_settings_slot {
+	uint64_t req_id;
+	uint64_t crop_settings_id;
+};
+
+/**
  * struct cam_req_mgr_req_queue
  * @num_slots   : max num of input queue slots
  * @slot        : request slot holding incoming request id and bubble info.
@@ -467,26 +477,36 @@ struct cam_req_mgr_core_link {
 /**
  * struct cam_req_mgr_core_session
  * - Session Properties
- * @session_hdl        : session identifier
- * @num_links          : num of active links for current session
+ * @session_hdl                   : session identifier
+ * @num_links                     : num of active links for current session
  * - Links of this session
- * @links              : pointer to array of links within session
+ * @links                         : pointer to array of links within session
  * - Session private data
- * @entry              : pvt data - entry in the list of sessions
- * @lock               : pvt data - spin lock to guard session data
+ * @entry                         : pvt data - entry in the list of sessions
+ * @lock                          : pvt data - spin lock to guard session data
  * - Debug data
- * @force_err_recovery : For debugging, we can force bubble recovery
- *                       to be always ON or always OFF using debugfs.
- * @sync_mode          : Sync mode for this session links
+ * @force_err_recovery            : For debugging, we can force bubble recovery
+ *                                  to be always ON or always OFF using debugfs.
+ * @sync_mode                     : Sync mode for this session links
+ * @fast_crop_sync                : Fast crop sync info
+ * @fast_crop_shared_buf_kmdvaddr : Fast crop sync shared buf cpu address
+ * @crop_settings_slot            : Crop settings slot
+ * @crop_settings_num_slots       : Valid crop settings number
+ * @crop_settings_slot_wr_index   : Record write index
  */
 struct cam_req_mgr_core_session {
-	int32_t                       session_hdl;
-	uint32_t                      num_links;
-	struct cam_req_mgr_core_link *links[MAXIMUM_LINKS_PER_SESSION];
-	struct list_head              entry;
-	struct mutex                  lock;
-	int32_t                       force_err_recovery;
-	int32_t                       sync_mode;
+	int32_t                                    session_hdl;
+	uint32_t                                   num_links;
+	struct cam_req_mgr_core_link              *links[MAXIMUM_LINKS_PER_SESSION];
+	struct list_head                           entry;
+	struct mutex                               lock;
+	int32_t                                    force_err_recovery;
+	int32_t                                    sync_mode;
+	struct cam_req_mgr_fast_crop_sync          fast_crop_sync;
+	uintptr_t                                  fast_crop_shared_buf_kmdvaddr;
+	struct cam_req_mgr_fast_crop_settings_slot crop_settings_slot[MAX_REQ_SLOTS];
+	int32_t                                    crop_settings_num_slots;
+	int32_t                                    crop_settings_slot_wr_index;
 };
 
 /**
@@ -735,5 +755,7 @@ void cam_req_mgr_link_reset_open_cnt(int32_t link_hdl);
 int32_t cam_req_mgr_link_get_additional_timeout(int32_t link_hdl);
 
 int cam_req_mgr_batch_request(struct cam_batch_config_dev_cmd *cmd);
+
+int cam_req_mgr_fast_crop_sync_cmd(struct cam_req_mgr_fast_crop_sync *fast_crop_sync_info);
 
 #endif

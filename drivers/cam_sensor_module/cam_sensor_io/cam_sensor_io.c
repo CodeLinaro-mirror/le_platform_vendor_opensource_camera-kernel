@@ -116,18 +116,20 @@ int32_t camera_io_dev_read_seq(struct camera_io_master *io_master_info,
 	return 0;
 }
 
-int32_t camera_io_gpio_write(struct camera_io_master *io_master_info,
-	struct cam_sensor_trigger_per_frame_data *trigger_data)
+int32_t camera_io_dev_event_write(struct camera_io_master *io_master_info,
+	struct cam_sensor_event_list *event_list,
+	uint32_t context_id)
 {
-	if (!trigger_data || !io_master_info) {
+	if (!io_master_info && context_id == CONTEXT_ID_MAX) {
 		CAM_ERR(CAM_SENSOR,
-			"Input parameters not valid ws: %pK ioinfo: %pK",
-			trigger_data, io_master_info);
+			"Input parameters not valid ws:  ioinfo: %pK",
+			io_master_info);
 		return -EINVAL;
 	}
+
 	if (io_master_info->master_type == CCI_MASTER) {
-		return cam_cci_gpio_write_table(io_master_info,
-			trigger_data);
+		return cam_cci_event_write_table(io_master_info,
+			event_list, context_id);
 	} else {
 		CAM_ERR(CAM_SENSOR, "Invalid Comm. Master:%d",
 			io_master_info->master_type);

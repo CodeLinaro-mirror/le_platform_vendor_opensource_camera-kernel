@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <media/cam_defs.h>
@@ -12,6 +12,9 @@
 #include "cam_isp_packet_parser.h"
 #include "cam_debug_util.h"
 #include "cam_isp_hw_mgr_intf.h"
+#include "cam_sync_api.h"
+#include "cam_sync_private.h"
+#include "cam_common_util.h"
 
 int cam_isp_add_change_base(
 	struct cam_hw_prepare_update_args      *prepare,
@@ -744,7 +747,8 @@ static int cam_isp_get_outport_res_id(
 	struct cam_buf_io_cfg              *io_cfg,
 	enum cam_isp_hw_type                hw_type,
 	uint32_t                           *res_type,
-	uint32_t                           *res_id_out)
+	uint32_t                           *res_id_out,
+	bool                               *is_virtual_ife_out_port)
 {
 	int         rc = 0;
 	uint32_t    out_port;
@@ -774,6 +778,9 @@ static int cam_isp_get_outport_res_id(
 				io_cfg->resource_type, prepare->packet->header.request_id);
 			return -EINVAL;
 		}
+	} else if (io_cfg->resource_type >= CAM_ISP_IFE_OUT_VIRTUAL_RES_BASE) {
+		*res_type = io_cfg->resource_type;
+		*is_virtual_ife_out_port = true;
 	} else {
 		*res_id_out = io_cfg->resource_type & 0xFF;
 		*res_type = io_cfg->resource_type;
@@ -1020,6 +1027,59 @@ int cam_isp_ul_parse_io_config(struct cam_isp_ctx_ul_data *ul_data,
 	}
 	return rc;
 }
+int cam_isp_process_hw_fences(struct cam_hw_prepare_update_args *prepare,
+	struct cam_hw_intf    *hw_intf,
+	struct cam_buf_io_cfg *io_cfg)
+{
+	struct cam_isp_prepare_hw_update_data *prepare_hw_data = NULL;
+	int32_t                               *sync_out_arr = NULL;
+	uint32_t i, rc = 0, num_unique_objs;
+
+	sync_out_arr = kzalloc(sizeof(int32_t) * prepare->max_hw_update_entries, GFP_KERNEL);
+	if (!sync_out_arr) {
+		CAM_ERR(CAM_ISP, "Memory allocation failed for sync_out_arr");
+		rc = -ENOMEM;
+		return rc;
+	}
+
+	prepare_hw_data = (struct cam_isp_prepare_hw_update_data  *)
+			prepare->priv;
+
+	for (i = 0; i < prepare->packet->num_io_configs; i++) {
+		if (io_cfg[i].direction == CAM_BUF_OUTPUT)
+			sync_out_arr[i] = io_cfg[i].fence;
+	}
+
+	num_unique_objs = cam_common_util_remove_duplicate_arr(sync_out_arr, i);
+
+	for (i = 0; i < num_unique_objs; i++) {
+		prepare_hw_data->hwfence_info[i].sync_object = sync_out_arr[i];
+		rc = cam_sync_check_and_update_hw_fence_queue_pntrs(&prepare_hw_data->hwfence_info[i]);
+
+		if (rc) {
+			CAM_ERR(CAM_ISP, "Unable to update HW fence queue ptrs");
+			rc = -EINVAL;
+			goto err;
+		}
+
+		if (prepare_hw_data->hwfence_info[i].is_hwfence) {
+			if (hw_intf && hw_intf->hw_ops.process_cmd) {
+				rc = hw_intf->hw_ops.process_cmd(
+					hw_intf->hw_priv,
+					CAM_ISP_HW_CMD_UPDATE_HWFENCE_INFO,
+					&prepare_hw_data->hwfence_info[i],
+					sizeof(struct cam_sync_hwfence_info));
+				if (rc)
+					CAM_ERR(CAM_ISP, "Failed to send HW fence info to IFE: %u",
+						hw_intf->hw_idx);
+			}
+		}
+	}
+
+err:
+	kfree(sync_out_arr);
+	return rc;
+}
 
 int cam_isp_add_io_buffers(
 	int                                      iommu_hdl,
@@ -1037,7 +1097,8 @@ int cam_isp_add_io_buffers(
 	struct cam_isp_frame_header_info        *frame_header_info,
 	struct cam_isp_check_io_cfg_for_scratch *scratch_check_cfg,
 	bool                                     need_cpu_addr,
-	struct cam_isp_foveation_info           *foveation_info)
+	struct cam_isp_foveation_info           *foveation_info,
+	struct cam_hw_intf                      *hw_intf)
 {
 	int                                 rc = 0;
 	dma_addr_t                          io_addr[CAM_PACKET_MAX_PLANES];
@@ -1065,6 +1126,7 @@ int cam_isp_add_io_buffers(
 	bool                                is_buf_secure, found = false;
 	uint32_t                            mode, res_type;
 	size_t                              len = 0;
+	bool                                is_virtual_ife_out_port = false;
 
 	io_cfg = (struct cam_buf_io_cfg *) ((uint8_t *)
 			&prepare->packet->payload +
@@ -1085,6 +1147,13 @@ int cam_isp_add_io_buffers(
 		return -EINVAL;
 	}
 
+	if (prepare->packet->num_io_configs && prepare_hw_data->hwfence_en) {
+		rc = cam_isp_process_hw_fences(prepare, hw_intf, io_cfg);
+		if (rc)
+			CAM_ERR(CAM_ISP, "HW Fences could not be processed, req_id: %llu",
+			prepare->packet->header.request_id);
+	}
+
 	for (i = 0; i < prepare->packet->num_io_configs; i++) {
 		CAM_DBG(CAM_ISP, "======= io config idx %d ============", i);
 		CAM_DBG(CAM_REQ,
@@ -1096,11 +1165,13 @@ int cam_isp_add_io_buffers(
 
 		if (io_cfg[i].direction == CAM_BUF_OUTPUT) {
 			if (io_cfg[i].resource_type < out_base ||
-				io_cfg[i].resource_type >= out_max)
+				((io_cfg[i].resource_type >= out_max) &&
+				(io_cfg[i].resource_type < CAM_ISP_IFE_OUT_VIRTUAL_RES_BASE)))
 				continue;
 
 			rc = cam_isp_get_outport_res_id(priv, prepare,
-				&io_cfg[i], hw_type, &res_type, &res_id_out);
+				&io_cfg[i], hw_type, &res_type, &res_id_out,
+				&is_virtual_ife_out_port);
 			if (rc) {
 				CAM_ERR(CAM_ISP,
 					"failed to get outport res_id\n"
@@ -1147,6 +1218,11 @@ int cam_isp_add_io_buffers(
 						prepare->max_out_map_entries);
 					return -EINVAL;
 				}
+			}
+
+			if (is_virtual_ife_out_port) {
+				out_map_entries->buf_handle[0] = io_cfg[i].mem_handle[0];
+				continue;
 			}
 
 			hw_mgr_res = &res_list_isp_out[res_id_out];

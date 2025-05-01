@@ -67,6 +67,14 @@ config CAM_KTHREAD_WORKER
 	  When this flag is set, we support
 	  kthread for camera kernel worker threads.
 
+config MSM_GLOBAL_SYNX
+	bool "enabling camera synxv1 module"
+	help
+	  This is enabling camera synx v1 module
+	  that allows the usage of synx V1 APIs
+	  and global synchronization across cores.
+	  Synx V1 code only compiles if this is enabled.
+
 config MSM_GLOBAL_SYNX_V2
 	bool "enabling camera synxv2 module"
 	help
@@ -75,3 +83,10 @@ config MSM_GLOBAL_SYNX_V2
 	  and global synchronization across cores.
 	  Synx V2 code only compiles if this is enabled.
 
+config CAM_ENABLE_SOCCP
+	bool "enabling soccp module"
+	help
+	  This is enabling SOCCP module.
+	  Enabling this feature allows the usage of
+	  HW fences. SOCCP HW related code only
+	  compiles if this flag is enabled.

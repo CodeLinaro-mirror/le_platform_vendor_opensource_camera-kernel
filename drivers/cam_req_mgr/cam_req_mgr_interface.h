@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_REQ_MGR_INTERFACE_H
@@ -47,6 +47,7 @@ struct cam_req_mgr_no_crm_notify_device;
  * @cam_req_mgr_no_crm_notify_sub_dev: notify the sub devices in the link, if device_type is
  *                          CAM_REQ_MGR_DEVICE then notify to all devices, if specific device id
  *                          passed notify only that device id
+ * @cam_req_mgr_fast_crop_sync_utility : Maintain fast crop settings
  */
 typedef int (*cam_req_mgr_notify_trigger)(struct cam_req_mgr_trigger_notify *,
 	struct cam_req_mgr_core_worker *);
@@ -60,6 +61,8 @@ typedef int (*cam_req_mgr_no_crm_notify_resume)(struct cam_req_mgr_no_crm_resume
 	uint64_t *);
 typedef int (*cam_req_mgr_no_crm_notify_dev)(u32 device_type,
 	struct cam_req_mgr_no_crm_notify_device *);
+typedef int (*cam_req_mgr_fast_crop_sync_utility)(int32_t session_hdl,
+	uint64_t req_id, uint64_t *);
 
 /**
  * @brief: cam req mgr to camera device drivers
@@ -105,26 +108,28 @@ typedef int (*cam_req_mgr_no_crm_retrieve)(int32_t dev_hdl, struct ul_cam_packet
 /**
  * @brief          : cam_req_mgr_crm_cb - func table
  *
- * @notify_trigger    : payload for trigger indication event
- * @notify_err        : payload for different error occurred at device
- * @add_req           : payload to inform which device and what request is received
- * @notify_timer      : payload for timer start event
- * @notify_stop       : payload to inform stop event
- * @no_crm_trigger    : payload for trigger indication event in no-crm useacases
- * @no_crm_pause      : payload for pause event in no-crm useacases
- * @no_crm_resume     : payload for resume event in no-crm useacases
- * @no_crm_notify_dev : payload for notify the sub devices in no crm usecases.
+ * @notify_trigger         : payload for trigger indication event
+ * @notify_err             : payload for different error occurred at device
+ * @add_req                : payload to inform which device and what request is received
+ * @notify_timer           : payload for timer start event
+ * @notify_stop            : payload to inform stop event
+ * @no_crm_trigger         : payload for trigger indication event in no-crm useacases
+ * @no_crm_pause           : payload for pause event in no-crm useacases
+ * @no_crm_resume          : payload for resume event in no-crm useacases
+ * @no_crm_notify_dev      : payload for notify the sub devices in no crm usecases.
+ * @fast_crop_sync_utility : payload for maintain fast crop settings
  */
 struct cam_req_mgr_crm_cb {
-	cam_req_mgr_notify_trigger        notify_trigger;
-	cam_req_mgr_notify_err            notify_err;
-	cam_req_mgr_add_req               add_req;
-	cam_req_mgr_notify_timer          notify_timer;
-	cam_req_mgr_notify_stop           notify_stop;
-	cam_req_mgr_no_crm_trigger        no_crm_trigger;
-	cam_req_mgr_no_crm_notify_pause   no_crm_pause;
-	cam_req_mgr_no_crm_notify_resume  no_crm_resume;
-	cam_req_mgr_no_crm_notify_dev     no_crm_notify_dev;
+	cam_req_mgr_notify_trigger         notify_trigger;
+	cam_req_mgr_notify_err             notify_err;
+	cam_req_mgr_add_req                add_req;
+	cam_req_mgr_notify_timer           notify_timer;
+	cam_req_mgr_notify_stop            notify_stop;
+	cam_req_mgr_no_crm_trigger         no_crm_trigger;
+	cam_req_mgr_no_crm_notify_pause    no_crm_pause;
+	cam_req_mgr_no_crm_notify_resume   no_crm_resume;
+	cam_req_mgr_no_crm_notify_dev      no_crm_notify_dev;
+	cam_req_mgr_fast_crop_sync_utility fast_crop_sync_utility;
 };
 
 /**

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_VFE_HW_INTF_H_
@@ -95,21 +95,25 @@ enum cam_vfe_reset_type {
 /*
  * struct cam_vfe_hw_get_hw_cap:
  *
- * @Brief:       Argument type for fetching the hw information for Query caps
- * @major:       Major revision number
- * @minor:       Minor revision number
- * @incr:        Increment revision number
- * @is_lite:     Flag to indicate Whether a full vfe or a Lite vfe
- * @secure_cdm   Flag to indicate whether its secure cdm or not
- * @is_virt:     Flag to indicate Whether a HW is virtual or not
+ * @Brief:          Argument type for fetching the hw information for Query caps
+ * @major:          Major revision number
+ * @minor:          Minor revision number
+ * @incr:           Increment revision number
+ * @group_id:       Group id of IFE LITE
+ * @is_lite:        Flag to indicate Whether a full vfe or a Lite vfe
+ * @secure_cdm      Flag to indicate whether its secure cdm or not
+ * @is_virt:        Flag to indicate Whether a HW is virtual or not
+ * @is_grp_support: Flag to indicate Whether a HW is grouped based on power domain
  */
 struct cam_vfe_hw_get_hw_cap {
 	uint32_t major;
 	uint32_t minor;
 	uint32_t incr;
+	uint32_t group_id;
 	bool     is_lite;
 	bool     secure_cdm;
 	bool     is_virtual;
+	bool     is_grp_support;
 };
 
 /*
@@ -298,6 +302,20 @@ struct cam_vfe_clock_update_args {
 };
 
 /*
+ * struct cam_vfe_bus_hwfence_mode_cfg_args:
+ *
+ * @res_type              Resource to configure hw fencing for
+ * @fencing_mode          Frame or slice
+ * @src_grp               Source group
+ *
+ */
+struct cam_vfe_bus_hwfence_mode_cfg_args {
+	uint32_t          res_type;
+	uint32_t          fencing_mode;
+	uint32_t          src_grp;
+};
+
+/*
  * struct cam_vfe_core_config_args:
  *
  * @node_res:                Resource to get the time stamp
@@ -379,6 +397,7 @@ struct cam_vfe_top_irq_evt_payload {
  * @irq_reg_val:             IRQ and Error register values, read when IRQ was
  *                           handled
  * @error_type:              Identify different errors
+ * @global_timestamp         global timestamp for buf done event
  * @ts:                      Timestamp
  */
 struct cam_vfe_bus_irq_evt_payload {
@@ -390,6 +409,7 @@ struct cam_vfe_bus_irq_evt_payload {
 	uint32_t                    image_size_violation_status;
 	uint32_t                    evt_id;
 	uint32_t                    irq_reg_val[CAM_IFE_BUS_IRQ_REGISTERS_MAX];
+	uint64_t                    global_timestamp;
 	struct cam_isp_timestamp    ts;
 };
 
@@ -453,6 +473,24 @@ struct cam_vfe_generic_ubwc_config {
 struct cam_vfe_hw_stop_args {
 	struct cam_isp_resource_node            *node_res;
 	bool                                     is_internal_stop;
+};
+
+/* struct cam_vfe_bus_ipcc_config:
+ *
+ * @ipcc_reg_iova:     HW Fence queue IOVA
+ * @len:               length of mapped region
+ * @group_id:          source group ID
+ * @client_id:         IPCC client ID (core ID + signal ID)
+ * @ipcc_signal_id:    signal ID unique per IPCC client
+ * @session_cookie:    Fence session cookie
+ */
+struct cam_vfe_bus_ipcc_config {
+	dma_addr_t ipcc_reg_iova;
+	size_t len;
+	uint32_t group_id;
+	uint32_t client_id;
+	uint32_t ipcc_signal_id;
+	int32_t  session_cookie;
 };
 
 /*

@@ -210,6 +210,7 @@ struct cam_soc_gpio_data {
  * @cam_cx_ipeak_enable     cx-ipeak enable/disable flag
  * @cam_cx_ipeak_bit        cx-ipeak mask for driver
  * @soc_private:            Soc private data
+ * @global_timer_mem_base   mem base for global timestamp
  */
 struct cam_hw_soc_info {
 	struct platform_device         *pdev;
@@ -275,6 +276,7 @@ struct cam_hw_soc_info {
 	int32_t                         cam_cx_ipeak_bit;
 
 	void                           *soc_private;
+	void __iomem                   *global_timer_mem_base;
 };
 
 /**

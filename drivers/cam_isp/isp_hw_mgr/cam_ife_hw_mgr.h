@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_IFE_HW_MGR_H_
@@ -58,7 +58,8 @@ enum cam_ife_ctx_master_type {
  * @disable_ife_mmu_prefetch:  Disable MMU prefetch for IFE bus WR
  * @disable_line_based_mode:   Disable line based mode for per port
  *                             feature with duplicate sensors
- *
+ *@csid_rx_capture_vc_dt_rst:  Dynamic change vc/dt for rx capture
+ *                             control and reset strobes
  */
 struct cam_ife_hw_mgr_debug {
 	struct dentry  *dentry;
@@ -69,6 +70,7 @@ struct cam_ife_hw_mgr_debug {
 	uint32_t       sfe_debug;
 	uint32_t       sfe_sensor_diag_cfg;
 	uint32_t       sfe_cache_debug[CAM_SFE_HW_NUM_MAX];
+	uint32_t       csid_rx_capture_vc_dt_rst;
 	bool           enable_req_dump;
 	bool           per_req_reg_dump;
 	bool           disable_ubwc_comp;
@@ -204,6 +206,8 @@ struct cam_ife_hw_mgr_sfe_info {
  * @is_trigger_type           Context type trigger
  * @is_ul_path                Ultra lite path context
  * @skip_reg_dump_buf_put:    Set if put_cpu_buf for reg dump buf is already called
+ * @hwfence_en:               set if HW fence is enabled
+ * @fast_crop_en              Fast crop enable flag
  *
  */
 struct cam_ife_hw_mgr_ctx_flags {
@@ -234,6 +238,8 @@ struct cam_ife_hw_mgr_ctx_flags {
 	bool   is_trigger_type;
 	bool   is_ul_path;
 	bool   skip_reg_dump_buf_put;
+	bool   hwfence_en;
+	bool   fast_crop_en;
 };
 
 /**
@@ -375,87 +381,92 @@ struct cam_isp_res_scratch_buf_info {
  * @ul_io_packet:           IO packet for UL path
  * @primary_port_scratch_buf_info: Primary port scratch buf info
  * @num_primary_port_scratch_bufs: Number of primary port scratch bufs
+ * @hwfence_info:           HW fence info for the given sync object
+ * @fast_crop_shared_buf_info:     Fast crop shared buffer info
+ * @fast_crop_shared_buf_kmdvaddr: Fast crop shared buffer kmd address
  */
 struct cam_ife_hw_mgr_ctx {
-	struct list_head                     list;
-	struct cam_isp_hw_mgr_ctx            common;
+	struct list_head                            list;
+	struct cam_isp_hw_mgr_ctx                   common;
 
-	uint32_t                             ctx_index;
-	uint32_t                             left_hw_idx;
-	uint32_t                             right_hw_idx;
-	struct cam_ife_hw_mgr               *hw_mgr;
-
-	struct cam_isp_hw_mgr_res            res_list_ife_in;
-	struct list_head                     res_list_ife_csid;
-	struct list_head                     res_list_ife_vcsid;
-	struct list_head                     res_list_ife_src;
-	struct list_head                     res_list_vife_src;
-	struct list_head                     res_list_sfe_src;
-	struct list_head                     res_list_ife_in_rd;
-	struct cam_isp_hw_mgr_res           *res_list_ife_out;
-	struct cam_isp_hw_mgr_res            res_list_sfe_out[
-					   	CAM_SFE_HW_OUT_RES_MAX];
-	struct list_head                     free_res_list;
-	struct cam_isp_hw_mgr_res            res_pool[CAM_IFE_HW_RES_POOL_MAX];
-	uint32_t                             num_acq_vfe_out;
-	uint32_t                             num_acq_sfe_out;
-	uint32_t                             irq_status0_mask[CAM_IFE_HW_NUM_MAX];
-	uint32_t                             irq_status1_mask[CAM_IFE_HW_NUM_MAX];
-	struct cam_isp_ctx_base_info         base[CAM_IFE_HW_NUM_MAX +
-					   	CAM_SFE_HW_NUM_MAX];
-	uint32_t                             num_base;
-	uint32_t                             cdm_handle;
-	struct cam_cdm_utils_ops            *cdm_ops;
-	struct cam_cdm_bl_request           *cdm_cmd;
-	enum cam_cdm_id                      cdm_id;
-	uint32_t                             sof_cnt[CAM_IFE_HW_NUM_MAX];
-	uint32_t                             epoch_cnt[CAM_IFE_HW_NUM_MAX];
-	uint32_t                             eof_cnt[CAM_IFE_HW_NUM_MAX];
-	atomic_t                             overflow_pending;
-	atomic_t                             cdm_done;
-	uint64_t                             last_cdm_done_req;
-	struct completion                    config_done_complete;
-	uint32_t                             hw_version;
-	struct cam_cmd_buf_desc              reg_dump_buf_desc[
-					   	CAM_REG_DUMP_MAX_BUF_ENTRIES];
-	struct cam_cmd_buf_desc_addr_len     reg_dump_cmd_buf_addr_len[
-						CAM_REG_DUMP_MAX_BUF_ENTRIES];
-	uint32_t                             num_reg_dump_buf;
-	uint64_t                             applied_req_id;
-	enum cam_ife_ctx_master_type         ctx_type;
-	uint32_t                             ctx_config;
-	struct timespec64                    ts;
-	void                                *buf_done_controller;
-	struct cam_ife_hw_mgr_sfe_info       sfe_info;
-	struct cam_ife_hw_mgr_ctx_flags      flags;
-	struct cam_ife_hw_mgr_ctx_pf_info    pf_info;
-	struct cam_ife_cdm_user_data         cdm_userdata;
-	uint32_t                             bw_config_version;
-	atomic_t                             recovery_id;
-	uint32_t                             current_mup;
-	uint32_t                             curr_num_exp;
-	uint32_t                             num_in_ports;
-	struct cam_isp_in_port_generic_info *in_ports;
-	uint32_t                             acquire_type;
-	struct cam_ife_hybrid_sensor_data   *sensor_info;
-	uint32_t                             sensor_id;
-	uint32_t                             num_processed;
-	struct cam_ife_virtual_rdi_mapping   mapping_table;
-	bool                                 is_slave_down;
-	uint32_t                             primary_rdi_out_res;
-	struct cam_hw_update_entry           crop_update_entry;
-	uint64_t                             latest_crop_update_req;
-	uint32_t                             settingbuf_res_id;
-	uint32_t                             settingbuf_offset;
-	uint32_t                             setting_size;
-	bool                                 settingid_check;
-	struct cam_isp_scratch_buf_mem       scratch_buf_info;
-	uint32_t                             num_primary_ports;
-	struct cam_isp_primary_port_info    *primary_port_info[CAM_IFE_HW_PRIMARY_PORT_MAX];
-	bool                                 primary_port_cfg_done;
-	struct cam_packet                   *ul_io_packet;
-	struct cam_isp_res_scratch_buf_info *primary_port_scratch_buf_info;
-	uint32_t                             num_primary_port_scratch_bufs;
+	uint32_t                                    ctx_index;
+	uint32_t                                    left_hw_idx;
+	uint32_t                                    right_hw_idx;
+	struct cam_ife_hw_mgr                      *hw_mgr;
+	struct cam_isp_hw_mgr_res                   res_list_ife_in;
+	struct list_head                            res_list_ife_csid;
+	struct list_head                            res_list_ife_vcsid;
+	struct list_head                            res_list_ife_src;
+	struct list_head                            res_list_vife_src;
+	struct list_head                            res_list_sfe_src;
+	struct list_head                            res_list_ife_in_rd;
+	struct cam_isp_hw_mgr_res                  *res_list_ife_out;
+	struct cam_isp_hw_mgr_res                   res_list_sfe_out[
+							CAM_SFE_HW_OUT_RES_MAX];
+	struct list_head                            free_res_list;
+	struct cam_isp_hw_mgr_res                   res_pool[CAM_IFE_HW_RES_POOL_MAX];
+	uint32_t                                    num_acq_vfe_out;
+	uint32_t                                    num_acq_sfe_out;
+	uint32_t                                    irq_status0_mask[CAM_IFE_HW_NUM_MAX];
+	uint32_t                                    irq_status1_mask[CAM_IFE_HW_NUM_MAX];
+	struct cam_isp_ctx_base_info                base[CAM_IFE_HW_NUM_MAX +
+							CAM_SFE_HW_NUM_MAX];
+	uint32_t                                    num_base;
+	uint32_t                                    cdm_handle;
+	struct cam_cdm_utils_ops                   *cdm_ops;
+	struct cam_cdm_bl_request                  *cdm_cmd;
+	enum cam_cdm_id                             cdm_id;
+	uint32_t                                    sof_cnt[CAM_IFE_HW_NUM_MAX];
+	uint32_t                                    epoch_cnt[CAM_IFE_HW_NUM_MAX];
+	uint32_t                                    eof_cnt[CAM_IFE_HW_NUM_MAX];
+	atomic_t                                    overflow_pending;
+	atomic_t                                    cdm_done;
+	uint64_t                                    last_cdm_done_req;
+	struct completion                           config_done_complete;
+	uint32_t                                    hw_version;
+	struct cam_cmd_buf_desc                     reg_dump_buf_desc[
+							CAM_REG_DUMP_MAX_BUF_ENTRIES];
+	struct cam_cmd_buf_desc_addr_len            reg_dump_cmd_buf_addr_len[
+							CAM_REG_DUMP_MAX_BUF_ENTRIES];
+	uint32_t                                    num_reg_dump_buf;
+	uint64_t                                    applied_req_id;
+	enum cam_ife_ctx_master_type                ctx_type;
+	uint32_t                                    ctx_config;
+	struct timespec64                           ts;
+	void                                       *buf_done_controller;
+	struct cam_ife_hw_mgr_sfe_info              sfe_info;
+	struct cam_ife_hw_mgr_ctx_flags             flags;
+	struct cam_ife_hw_mgr_ctx_pf_info           pf_info;
+	struct cam_ife_cdm_user_data                cdm_userdata;
+	uint32_t                                    bw_config_version;
+	atomic_t                                    recovery_id;
+	uint32_t                                    current_mup;
+	uint32_t                                    curr_num_exp;
+	uint32_t                                    num_in_ports;
+	struct cam_isp_in_port_generic_info        *in_ports;
+	uint32_t                                    acquire_type;
+	struct cam_ife_hybrid_sensor_data          *sensor_info;
+	uint32_t                                    sensor_id;
+	uint32_t                                    num_processed;
+	struct cam_ife_virtual_rdi_mapping          mapping_table;
+	bool                                        is_slave_down;
+	uint32_t                                    primary_rdi_out_res;
+	struct cam_hw_update_entry                  crop_update_entry;
+	uint64_t                                    latest_crop_update_req;
+	uint32_t                                    settingbuf_res_id;
+	uint32_t                                    settingbuf_offset;
+	uint32_t                                    setting_size;
+	bool                                        settingid_check;
+	struct cam_isp_scratch_buf_mem              scratch_buf_info;
+	uint32_t                                    num_primary_ports;
+	struct cam_isp_primary_port_info           *primary_port_info[CAM_IFE_HW_PRIMARY_PORT_MAX];
+	bool                                        primary_port_cfg_done;
+	struct cam_packet                          *ul_io_packet;
+	struct cam_isp_res_scratch_buf_info        *primary_port_scratch_buf_info;
+	uint32_t                                    num_primary_port_scratch_bufs;
+	struct cam_sync_hwfence_info               *hwfence_info;
+	struct cam_isp_fast_crop_shared_buffer_info fast_crop_shared_buf_info;
+	uintptr_t                                   fast_crop_shared_buf_kmdvaddr;
 };
 
 /**
@@ -463,14 +474,18 @@ struct cam_ife_hw_mgr_ctx {
  *
  * @max_vfe_out_res_type  :  max ife out res type value from hw
  * @max_sfe_out_res_type  :  max sfe out res type value from hw
+ * @num_src_groups        :  Number of source groups supported in HW
  * @support_consumed_addr :  indicate whether hw supports last consumed address
  * @fifo_depth            :  Max fifo depth supported
+ * @ipcc_en               :  Flag to indicate ipcc is enabled
  */
 struct cam_isp_bus_hw_caps {
 	uint32_t     max_vfe_out_res_type;
 	uint32_t     max_sfe_out_res_type;
+	uint32_t     num_src_groups;
 	bool         support_consumed_addr;
 	uint32_t     fifo_depth;
+	bool         ipcc_en;
 };
 
 /*
@@ -484,6 +499,25 @@ struct cam_isp_bus_hw_caps {
 struct cam_isp_sys_cache_info {
 	enum cam_sys_cache_config_types type;
 	int32_t                         scid;
+};
+
+/*
+ * struct cam_ife_hw_mgr_grp_info:
+ *
+ * @Brief:                Sensor usage info for acquire
+ *
+ * @max_num_grp:          Max number of group supported
+ * @kmd_grp_mask:         Array of mask of grouped IFE LITE
+ * @curr_grp_mask:        Array of current mask of acquired IFE LITE
+ * @umd_grp_id:           Array of active groups
+ * @is_grp_support:       Flag to indiciate if hw support  grouping based on power domain
+ */
+struct cam_ife_hw_mgr_grp_info {
+	uint32_t          max_num_grp;
+	uint32_t          kmd_grp_mask[CAM_ISP_HW_MAX_GROUP_IDX];
+	uint32_t          curr_grp_mask[CAM_ISP_HW_MAX_GROUP_IDX];
+	uint32_t          umd_grp_id[CAM_ISP_HW_MAX_GROUP_IDX];
+	bool              is_grp_support;
 };
 
 /**
@@ -502,6 +536,7 @@ struct cam_isp_sys_cache_info {
  * @ctx_pool:              context storage
  * @csid_hw_caps           csid hw capability stored per core
  * @ife_dev_caps           ife device capability per core
+ * @ife_lite_grp_info      Ife group information
  * @worker                 worker for IFE hw manager
  * @debug_cfg              debug configuration
  * @isp_bus_caps           Capability of underlying SFE/IFE bus HW
@@ -532,6 +567,7 @@ struct cam_ife_hw_mgr {
 	struct cam_ife_csid_hw_caps      csid_hw_caps[
 						CAM_IFE_CSID_HW_NUM_MAX];
 	struct cam_vfe_hw_get_hw_cap     ife_dev_caps[CAM_IFE_HW_NUM_MAX];
+	struct cam_ife_hw_mgr_grp_info   ife_lite_grp_info;
 	struct cam_req_mgr_core_worker   *worker;
 	struct cam_ife_hw_mgr_debug      debug_cfg;
 	struct cam_isp_bus_hw_caps       isp_bus_caps;

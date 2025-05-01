@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2025 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_VFE_SOC_H_
@@ -11,7 +12,25 @@
 
 #define CAM_VFE_DSP_CLK_NAME "ife_dsp_clk"
 
-#define UBWC_STATIC_CONFIG_MAX 2
+#define UBWC_STATIC_CONFIG_MAX  2
+#define IPCC_INFO_CONFIG_MAX    3
+
+/*
+ * struct cam_vfe_soc_ipcc_info:
+ *
+ * @Brief:                   IPCC SOC data specific to IFE/TFE HW
+ *
+ * @ipcc_protocol_id:        IPCC protocol id (compute_l0/fence...)
+ * @ipcc_client_id:          IPCC client ID
+ * @ipcc_dest_client_id:     IPCC client ID of the destination core
+ * @ipcc_en:                 IPCC info provided
+ */
+struct cam_vfe_soc_ipcc_info {
+	uint32_t    ipcc_protocol_id;
+	uint32_t    ipcc_client_id;
+	uint32_t    ipcc_dest_client_id;
+	bool        ipcc_en;
+};
 
 /*
  * struct cam_vfe_soc_private:
@@ -25,10 +44,13 @@
  * @rt_wrapper_base:         Base address of the RT-Wrapper if the hw is in rt-wrapper
  * @dsp_clk_index:           DSP clk index in optional clocks
  * @ubwc_static_ctrl:        UBWC static control configuration
- * @is_ife_lite:             Flag to indicate full vs lite IFE
  * @ife_clk_src:             IFE source clock
  * @num_pid:                 Number of pids of ife
  * @pid:                     IFE pid values list
+ * @group_id:                IFE lite hw group id based on power domain
+ * @is_grp_support:          Flag to indicate if ife lite hw grouping supported
+ * @ipcc_info:               Associated IPCC info if provided
+ * @is_ife_lite:             Flag to indicate full vs lite IFE
  */
 struct cam_vfe_soc_private {
 	uint32_t    cpas_handle;
@@ -36,10 +58,13 @@ struct cam_vfe_soc_private {
 	uint32_t    rt_wrapper_base;
 	int32_t     dsp_clk_index;
 	uint32_t    ubwc_static_ctrl[UBWC_STATIC_CONFIG_MAX];
-	bool        is_ife_lite;
 	uint64_t    ife_clk_src;
 	uint32_t    num_pid;
 	uint32_t    pid[CAM_ISP_HW_MAX_PID_VAL];
+	uint32_t    group_id;
+	bool        is_grp_support;
+	struct cam_vfe_soc_ipcc_info ipcc_info;
+	bool        is_ife_lite;
 };
 
 /*

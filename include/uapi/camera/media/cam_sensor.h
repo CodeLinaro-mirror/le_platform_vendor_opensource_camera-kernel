@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only WITH Linux-syscall-note */
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __UAPI_CAM_SENSOR_H__
@@ -16,6 +16,7 @@
 #define MAX_OIS_NAME_SIZE 32
 #define CAM_CSIPHY_SECURE_MODE_ENABLED 1
 #define CAM_SENSOR_NAME_MAX_SIZE 32
+#define CAM_SENSOR_CCI_CMD_EXEC_PARALLEL (1 << 0)
 
 #define SKEW_CAL_MASK             BIT(1)
 #define PREAMBLE_PATTEN_CAL_MASK  BIT(2)
@@ -30,6 +31,48 @@
 
 /* Sensor Qtimer Blob Type */
 #define CAM_SENSOR_GENERIC_BLOB_QTIMER_INFO        1
+
+/* Sensor FSIN Blob Type */
+#define CAM_SENSOR_GENERIC_BLOB_FSIN_INFO          2
+
+/* Sensor Frame Event Blob Type */
+#define CAM_SENSOR_GENERIC_BLOB_FRAME_EVENT_INFO   3
+
+/* Sensor Timer Blob Type */
+#define CAM_SENSOR_GENERIC_BLOB_TIMER_INFO         4
+
+/* Sensor Event Blob Type */
+#define CAM_SENSOR_GENERIC_BLOB_EVENT_INFO         5
+
+/* Sensor Sync Event Blob Type */
+#define CAM_SENSOR_GENERIC_BLOB_SYNC_CMD_INFO      6
+
+/* Sensor GPIO Output Configuration */
+#define CAM_SENSOR_GPIO_CONFIG_OUTPUT              0
+
+/* Sensor GPIO Input Configuration */
+#define CAM_SENSOR_GPIO_CONFIG_INPUT               1
+
+/* Sensor GPIO Invalid Configuration */
+#define CAM_SENSOR_GPIO_CONFIG_INVALID             2
+
+/* Sensor GPIO High Level Trigger */
+#define CAM_SENSOR_GPIO_LEVEL_HIGH                 0
+
+/* Sensor GPIO Low Level Trigger */
+#define CAM_SENSOR_GPIO_LEVEL_LOW                  1
+
+/* Sensor GPIO Invalid Level */
+#define CAM_SENSOR_GPIO_LEVEL_INVALID              2
+
+/* Sensor SOF Frame Event */
+#define CAM_SENSOR_SOF_FRAME_EVENT                 0
+
+/* Sensor EOF Frame Event */
+#define CAM_SENSOR_EOF_FRAME_EVENT                 1
+
+/* Sensor Max Event */
+#define CAMERA_SENSOR_EVENT_MAX                    5
 
 enum camera_sensor_cmd_type {
 	CAMERA_SENSOR_CMD_TYPE_INVALID,
@@ -110,6 +153,9 @@ enum cam_sensor_packet_opcodes {
 	CAM_SENSOR_PACKET_OPCODE_SENSOR_READ,
 	CAM_SENSOR_PACKET_OPCODE_SENSOR_FRAME_SKIP_UPDATE,
 	CAM_SENSOR_PACKET_OPCODE_SENSOR_PROBE_V2,
+	CAM_SENSOR_PACKET_OPCODE_SENSOR_FSIN_CONFIG,
+	CAM_SENSOR_PACKET_OPCODE_SENSOR_POWER_ON,
+	CAM_SENSOR_PACKET_OPCODE_SENSOR_POWER_OFF,
 	CAM_SENSOR_PACKET_OPCODE_SENSOR_RESCONFIG = 126,
 	CAM_SENSOR_PACKET_OPCODE_SENSOR_NOP = 127
 };
@@ -484,6 +530,20 @@ struct cam_cmd_probe_v2 {
 	__u32    logical_camera_id;
 	char     sensor_name[CAM_SENSOR_NAME_MAX_SIZE];
 	__u32    reserved[4];
+} __attribute__((packed));
+
+/**
+ * struct cam_trigger_sensor_pipeline_delay - Contains trigger sensor pipeline delay
+ *
+ * @version           :   version
+ * @pipeline_delay    :   Pipeline delay
+ * @reserved          :   reserved
+ *
+ */
+struct cam_trigger_sensor_pipeline_delay {
+	__u16    version;
+	__u16    pipeline_delay;
+	__u32    reserved;
 } __attribute__((packed));
 
 /**
@@ -1031,32 +1091,151 @@ struct cam_sensor_res_info {
 /**
  * struct cam_sensor_qtimer_info - Contains sensor qtimer info
  *
- * qtimer and vc/dt is the key property, it specifies the
+ * qtimer is the key property, it specifies the
  * combinations of other properties enclosed in this
  * structure.
  *
- * @version           : Version to indicate the change
- * @vc                : Virtaul channel
- * @dt                : Data type
- * @qtimer            : qtimer timestamp
- * @streamid          : Stream Id
- * @width             : width
- * @height            : height
- * @pulseWidth        : pulseWidth
+ * @version           : version of cmd buffer
  * @reserved          : reserved
+ * @qtimer            : qtimer timestamp
  */
 struct cam_sensor_qtimer_info {
 	__u32 version;
-	__u16 vc;
-	__u16 dt;
-	__u64 qtimer;
-	__u32 streamid;
-	__u32 width;
-	__u32 height;
-	__u32 pulseWidth;
 	__u32 reserved;
+	__s64 qtimer;
 } __attribute__((packed));
 
+/**
+ * struct cam_sensor_frame_event_info - Contains sensor frameEvent info
+ *
+ * line_no and wait_time_us is the key property, it specifies the
+ * combinations of other properties enclosed in this
+ * structure.
+ *
+ * @version       : version of cmd buffer
+ * @vc            : vc data
+ * @dt            : dt data
+ * @stream_id     : stream id
+ * @frame_event   : frame event
+ * @width         : width
+ * @height        : height
+ * @reserved      : reserved
+ */
+struct cam_sensor_frame_event_info {
+	__u32 version;
+	__u16 vc;
+	__u16 dt;
+	__u32 stream_id;
+	__u32 frame_event;
+	__u32 width;
+	__u32 height;
+	__u64 reserved;
+} __attribute__((packed));
+
+/**
+ * struct cam_sensor_fsin_info - Contains sensor fsin info
+ *
+ * fsin gpio config is key property, it specifies the
+ * combinations of other properties enclosed in this
+ * structure.
+ *
+ * @version             : version of cmd buffer
+ * @gpio_mask           : cci-timer
+ * @level               : gpio level
+ * @config              : gpio config
+ * @pre_delay           : pre delay
+ * @post_delay          : post_delay
+ * @reserved            : reserved
+ */
+struct cam_sensor_fsin_info {
+	__u32 version;
+	__u32 gpio_mask;
+	__u32 level;
+	__u32 config;
+	__u64 pre_delay;
+	__u64 post_delay;
+	__u64 reserved;
+} __attribute__((packed));
+
+/**
+ * struct cam_sensor_timer_info - Contains sensor timer info
+ *
+ * timer info is key property, it specifies the
+ * combinations of other properties enclosed in this
+ * structure.
+ *
+ * @version               : version of cmd buffer
+ * @reserved              : reserved
+ * @wait_time_us          : wait time in us
+ */
+struct cam_sensor_timer_info {
+	__u32 version;
+	__u32 reserved;
+	__u64 wait_time_us;
+} __attribute__((packed));
+
+/**
+ * struct cam_sensor_sync_cmd_info - Contains sync info
+ *
+ * is_sync_event_enable info is key property, it specifies the
+ * combinations of other properties enclosed in this
+ * structure.
+ *
+ * @version               : version of cmd buffer
+ * @is_sync_cmd_enable    : is sync  cmd enable
+ * @reserved              : reserved
+ */
+struct cam_sensor_sync_cmd_info {
+	__u32  version;
+	__u32  is_sync_cmd_enable;
+	__u64  reserved;
+} __attribute__((packed));
+
+/**
+ * struct cam_sensor_events- Contains events info
+ *
+ * sequence of events
+ *
+ * @version               : version
+ * @event_name		  : event name
+ * @event_flag            : parallel execution of cmd
+ * @event_arg_count       : event argument
+ * @event_arg_sequence    : event argument sequence
+ * @cmd_count		  : number of commands
+ * @cmd_flag              : parallel execution of cmd
+ * @cmd_sequence	  : sequence of commands
+ * @reserved              : reserved
+ */
+struct cam_sensor_events {
+	__u32 version;
+	__u32 event_name;
+	__u32 event_flag;
+	__u32 event_arg_count;
+	__u32 event_arg_sequence[CAMERA_SENSOR_EVENT_MAX];
+	__u32 cmd_count;
+	__u32 cmd_flag[CAMERA_SENSOR_EVENT_MAX];
+	__u32 cmd_sequence[CAMERA_SENSOR_EVENT_MAX];
+	__u64 reserved;
+} __attribute__((packed));
+
+/**
+ * struct cam_sensor_event_info - Contains sensor event info
+ *
+ * event is the key property, it specifies the
+ * combinations of other properties enclosed in this
+ * structure.
+ *
+ * @version              : version of cmd buffer
+ * @event_count          : number of events
+ * @event_offset         : events offset
+ * @reserved             : reserved
+ */
+struct cam_sensor_event_info {
+	__u32 version;
+	__u32 event_count;
+	__u32 event_offset;
+	__u32 reserved;
+} __attribute__((packed));
 
 #define VIDIOC_MSM_CCI_CFG \
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 23, struct cam_cci_ctrl)

@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022,2025 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_IFE_CSID_LITE_650_H_
@@ -437,6 +437,8 @@ static struct cam_ife_csid_csi2_rx_reg_info
 		.vc_mask                              = 0x7C00000,
 		.dt_mask                              = 0x3f0000,
 		.wc_mask                              = 0xffff,
+		.vc_shift                             = 22,
+		.dt_shift                             = 16,
 		.calc_crc_mask                        = 0xffff,
 		.expected_crc_mask                    = 0xffff,
 		.ecc_correction_shift_en              = 0,

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_ISP_HW_MGR_INTF_H_
@@ -49,6 +49,7 @@
 #define CAM_IFE_CTX_INDEPENDENT_CRM_EN BIT(6)
 #define CAM_IFE_CTX_SLAVE_METADTA_EN   BIT(7)
 #define CAM_IFE_CTX_UL_PATH            BIT(8)
+#define CAM_IFE_CTX_FAST_CROP_EN       BIT(9)
 
 /*
  * Maximum configuration entry size  - This is based on the
@@ -64,6 +65,9 @@
 
 /* Maximum number of primary ports */
 #define CAM_IFE_HW_PRIMARY_PORT_MAX 16
+
+/* Maximum number of valid crop settings */
+#define CAM_IFE_VALID_CROP_SETTINGS_MAX 8
 
 /* ctx get virtual rdi mapping callback function type */
 typedef int (*cam_hw_get_virtual_rdi_mapping_cb_func)(void *context,
@@ -324,6 +328,8 @@ struct cam_isp_bw_clk_config_info {
  * @setting_id:                Per request setting ID received from UMD
  * @settingbuffer_kmdvaddr:    Setting buffer cpu address
  * @virtual_frame_en:          Indicates if virtual frame is enabled
+ * @hwfence_en:                Indiactes if HW fence is enabled
+ * @hwfence_info:              HW fence info for the given sync object
  *
  */
 struct cam_isp_prepare_hw_update_data {
@@ -352,6 +358,8 @@ struct cam_isp_prepare_hw_update_data {
 	bool                                  is_ul_setup;
 	bool                                  is_ul_update;
 	bool                                  virtual_frame_en;
+	bool                                  hwfence_en;
+	struct cam_sync_hwfence_info         *hwfence_info;
 };
 
 
@@ -404,7 +412,7 @@ struct cam_isp_hw_epoch_event_data {
  * @resource_handle:       Resource handle array
  * @last_consumed_addr:    Last consumed addr
  * @timestamp:             Timestamp for the buf done event
- *
+ * @global_timestamp:      Global timestamp for the buf done event
  */
 struct cam_isp_hw_done_event_data {
 	uint32_t             num_handles;
@@ -413,6 +421,7 @@ struct cam_isp_hw_done_event_data {
 	uint32_t             last_consumed_addr[
 				CAM_NUM_OUT_PER_COMP_IRQ_MAX];
 	uint64_t       timestamp;
+	uint64_t             global_timestamp;
 };
 
 /**

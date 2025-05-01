@@ -280,7 +280,7 @@ static void cam_cci_init_cci_params(struct cci_device *new_cci_dev)
 		}
 	}
 	new_cci_dev->cci_gpio_info.status = 0;
-	new_cci_dev->cci_gpio_info.is_initilized = false;
+	new_cci_dev->cci_gpio_info.is_initialized = false;
 	mutex_init(&new_cci_dev->cci_gpio_info.mutex);
 
 	for (j = 0; j < NUM_GPIO_QUEUES; j++) {
@@ -484,7 +484,7 @@ int cam_cci_soc_release(struct cci_device *cci_dev,
 		CAM_DBG(CAM_CCI,
 			"CCI%d_I2C_M%d All submodules are released", cci_dev->soc_info.index, master);
 	}
-	cci_dev->cci_gpio_info.is_initilized = false;
+	cci_dev->cci_gpio_info.is_initialized = false;
 
 	if (--cci_dev->ref_count) {
 		CAM_DBG(CAM_CCI, "CCI%d_M%d Submodule release: Ref_count: %d",

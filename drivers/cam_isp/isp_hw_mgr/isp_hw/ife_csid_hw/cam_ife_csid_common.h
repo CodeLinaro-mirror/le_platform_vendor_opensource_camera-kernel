@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_IFE_CSID_COMMON_H_
@@ -239,6 +239,8 @@ struct cam_ife_csid_csi2_rx_reg_info {
 	uint32_t vc_mask;
 	uint32_t wc_mask;
 	uint32_t dt_mask;
+	uint32_t vc_shift;
+	uint32_t dt_shift;
 	uint32_t calc_crc_mask;
 	uint32_t expected_crc_mask;
 	uint32_t lane_num_shift;

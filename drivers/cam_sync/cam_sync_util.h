@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __CAM_SYNC_UTIL_H__
@@ -12,42 +12,6 @@
 #include "cam_debug_util.h"
 
 extern struct sync_device *sync_dev;
-
-/**
- * struct cam_sync_check_for_dma_release -
- *                          Checks if the dma fence being released
- *                          was created with the sync obj
- *
- * @dma_fence_row_idx     : Get DMA fence row idx that is associated with
- *                          the sync obj
- * @dma_fence_fd          : Check if DMA fence fd is associated with
- *                          sync obj
- * @sync_created_with_dma : Set if the dma fence fd was created
- *                          with sync obj
- */
-struct cam_sync_check_for_dma_release {
-	int32_t dma_fence_row_idx;
-	int32_t dma_fence_fd;
-	bool sync_created_with_dma;
-};
-
-/**
- * struct cam_sync_check_for_synx_release -
- *                          Checks if the synx obj being released
- *                          was created with the sync obj
- *
- * @synx_obj               : Check if synx obj is associated with
- *                           sync obj
- * @synx_obj_row_idx       : Get synx obj row idx that is associated with
- *                           the sync obj
- * @sync_created_with_synx : Set if the dma fence fd was created
- *                           with sync obj
- */
-struct cam_sync_check_for_synx_release {
-	int32_t synx_obj;
-	int32_t synx_obj_row_idx;
-	bool sync_created_with_synx;
-};
 
 /**
  * @brief: Function to initialize an empty row in the sync table. This should be
@@ -69,14 +33,10 @@ int cam_sync_init_row(struct sync_table_row *table,
  *
  * @param table                           : Pointer to the sync objects table
  * @param idx                             : Index of row to initialize
- * @optional param check_for_dma_release  : checks for dma fence release
- * @optional param check_for_synx_release : checks for synx obj release
  *
  * @return Status of operation. Negative in case of error. Zero otherwise.
  */
-int cam_sync_deinit_object(struct sync_table_row *table, uint32_t idx,
-	struct cam_sync_check_for_dma_release *check_for_dma_release,
-	struct cam_sync_check_for_synx_release *check_for_synx_release);
+int cam_sync_deinit_object(struct sync_table_row *table, uint32_t idx);
 
 /**
  * @brief: Function to re-initialize a row in the sync table
@@ -203,5 +163,11 @@ int cam_sync_util_send_exit_poll_event(void *fh);
  * @return Whether the sync uid is for an old object, current obj or a new one
  */
 enum sync_is_uid_valid cam_sync_check_uid_valid(uint32_t sync_var);
+
+int cam_sync_get_ext_fence_payload(
+	struct sync_ext_fence_info **ext_fence_payload);
+
+int cam_sync_put_ext_fence_payload(
+	struct sync_ext_fence_info **ext_fence_payload);
 
 #endif /* __CAM_SYNC_UTIL_H__ */

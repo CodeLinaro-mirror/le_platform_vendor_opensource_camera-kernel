@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_HW_MGR_INTF_H_
@@ -311,6 +311,7 @@ enum cam_hw_config_reapply_type {
  *                             request
  * @wait_for_request_apply:    wait till cdm done irq received after request applied
  * @applied_crop_req_id:       Applied crop request for current request
+ * @crop_settings_id:          Crop settings id for current request
  *
  */
 struct cam_hw_config_args {
@@ -326,6 +327,7 @@ struct cam_hw_config_args {
 	bool                            cdm_reset_before_apply;
 	bool                            wait_for_request_apply;
 	uint64_t                        applied_crop_req_id;
+	uint64_t                        crop_settings_id;
 };
 
 /**

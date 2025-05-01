@@ -455,14 +455,24 @@ static int cam_flash_ops(struct cam_flash_ctrl *flash_ctrl,
 
 int cam_flash_off(struct cam_flash_ctrl *flash_ctrl)
 {
+	int i = 0;
+
 	if (!flash_ctrl) {
 		CAM_ERR(CAM_FLASH, "Flash control Null");
 		return -EINVAL;
 	}
 	CAM_DBG(CAM_FLASH, "Flash OFF Triggered");
+
+	for (i = 0; i < flash_ctrl->flash_num_sources; i++)
+		if (flash_ctrl->flash_trigger[i])
+			cam_res_mgr_led_trigger_event(
+				flash_ctrl->flash_trigger[i],
+				LED_OFF);
+
 	if (flash_ctrl->switch_trigger)
 		cam_res_mgr_led_trigger_event(flash_ctrl->switch_trigger,
 			(enum led_brightness)LED_SWITCH_OFF);
+
 	return 0;
 }
 

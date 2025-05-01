@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, 2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022, 2024-2025 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_CDM_H_
@@ -514,6 +514,7 @@ struct cam_cdm_bl_fifo {
 	uint8_t last_bl_tag_done;
 	atomic_t work_record;
 	bool bl_tag_reuse;
+	uint8_t last_bl_tag_submit;
 };
 
 /**

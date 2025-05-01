@@ -24,6 +24,7 @@
 /* Specific event ids to get notified in user space */
 #define CAM_SYNC_V4L_EVENT_ID_CB_TRIG            0
 #define CAM_SYNC_V4L_EVENT_ID_EXIT               1
+#define CAM_SYNC_V4L_EVENT_ID_SOCCP_SSR_ERROR    2
 
 /* Size of opaque payload sent to kernel for safekeeping until signal time */
 #define CAM_SYNC_USER_PAYLOAD_SIZE               2
@@ -74,6 +75,7 @@
 #define CAM_SYNC_COMMON_REG_PAYLOAD_EVENT (CAM_SYNC_COMMON_EVENT_START + 5)
 #define CAM_SYNC_COMMON_SYNC_SIGNAL_EVENT (CAM_SYNC_COMMON_EVENT_START + 6)
 #define CAM_SYNC_COMMON_RELEASE_EVENT     (CAM_SYNC_COMMON_EVENT_START + 7)
+#define CAM_SYNC_COMMON_SOCCP_SSR_EVENT   (CAM_SYNC_COMMON_EVENT_START + 8)
 #define CAM_SYNC_COMMON_EVENT_END         (CAM_SYNC_COMMON_EVENT_START + 50)
 
 /* ISP Sync event reason types */
@@ -193,7 +195,7 @@
 #define CAM_GENERIC_FENCE_CONFIG_FLAG_PARAM_INDEX BIT(0)
 
 /* Flag fields for cam_generic_fence_config */
-#define CAM_GENERIC_FENCE_FLAG_IS_GLOBAL_SYNX_OBJ BIT(0)
+#define CAM_GENERIC_FENCE_FLAG_IS_GLOBAL_SYNX_OBJ  0x1
 
 /* Additional param index for cam_generic_fence_cmd_args */
 #define CAM_GENERIC_FENCE_CMD_FLAG_PARAM_INDEX     0x1

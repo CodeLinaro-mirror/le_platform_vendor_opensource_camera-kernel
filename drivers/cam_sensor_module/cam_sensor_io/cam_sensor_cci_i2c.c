@@ -94,27 +94,26 @@ int32_t cam_camera_cci_i2c_read_seq(struct cam_sensor_cci_client *cci_client,
 	return rc;
 }
 
-
-static int32_t cam_cci_gpio_write_table_cmd(
+static int32_t cam_cci_event_write_table_cmd(
 	struct camera_io_master *client,
-	struct cam_sensor_trigger_per_frame_data *trigger_data,
+	struct cam_sensor_event_list *event_list,
+	uint32_t context_id,
 	enum cam_cci_cmd_type cmd)
 {
 	int32_t rc = -EINVAL;
 	struct cam_cci_ctrl cci_ctrl;
-	struct cam_sensor_trigger_per_frame_data reg_setting;
 
-	cci_ctrl.cfg.gpio_cfg.reg_setting = &reg_setting;
-
-	if (!client || !trigger_data)
+	if (!client || !event_list)
 		return rc;
+
 	cci_ctrl.cmd = cmd;
 	cci_ctrl.cci_info = client->cci_client;
-	cci_ctrl.cfg.gpio_cfg.reg_setting->timestamp = trigger_data->timestamp;
-	cci_ctrl.cfg.gpio_cfg.reg_setting->gpio_mask = trigger_data->gpio_mask;
-	cci_ctrl.cfg.gpio_cfg.reg_setting->contextid = trigger_data->contextid;
-	cci_ctrl.cfg.gpio_cfg.reg_setting->pulse_width = trigger_data->pulse_width;
-	cci_ctrl.cfg.gpio_cfg.reg_setting->is_nop = trigger_data->is_nop;
+
+	CAM_DBG(CAM_SENSOR, "event_count %d", event_list->event_count);
+	cci_ctrl.cfg.cci_event_write_cfg.event_count = event_list->event_count;
+	cci_ctrl.cfg.cci_event_write_cfg.context_id = context_id;
+	cci_ctrl.cfg.cci_event_write_cfg.trigger_info = event_list->event_info;
+
 	rc = v4l2_subdev_call(client->cci_client->cci_subdev,
 		core, ioctl, VIDIOC_MSM_CCI_CFG, &cci_ctrl);
 	if (rc < 0) {
@@ -165,12 +164,14 @@ static int32_t cam_cci_i2c_write_table_cmd(
 	return rc;
 }
 
-int32_t cam_cci_gpio_write_table(
+int32_t cam_cci_event_write_table(
 	struct camera_io_master *client,
-	struct cam_sensor_trigger_per_frame_data *trigger_data)
+	struct cam_sensor_event_list *event_list,
+	uint32_t context_id)
 {
-	return cam_cci_gpio_write_table_cmd(client, trigger_data,
-		MSM_CCI_GPIO_WRITE);
+	return cam_cci_event_write_table_cmd(client,
+		event_list, context_id,
+		MSM_CCI_EVENT_CMD_WRITE);
 }
 
 int32_t cam_cci_i2c_write_table(
@@ -264,6 +265,7 @@ int32_t cam_sensor_cci_get_contextid(struct cam_sensor_cci_client *cci_client,
 	cci_ctrl.cci_info = cci_client;
 	cci_ctrl.cfg.trigger_data.cid = trigger_data->cid;
 	cci_ctrl.cfg.trigger_data.csid = trigger_data->csid;
+	cci_ctrl.cfg.trigger_data.gpio_mask = trigger_data->gpio_mask;
 	rc = v4l2_subdev_call(cci_client->cci_subdev,
 		core, ioctl, VIDIOC_MSM_CCI_CFG, &cci_ctrl);
 	if (rc < 0) {

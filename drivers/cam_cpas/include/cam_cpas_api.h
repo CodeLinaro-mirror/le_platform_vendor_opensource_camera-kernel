@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_CPAS_API_H_
@@ -28,6 +28,9 @@
 #define CAM_CPAS_QOS_DEFAULT_SETTINGS_MASK 0x1
 #define CAM_CPAS_QOS_CUSTOM_SETTINGS_MASK  0x2
 
+#define MPM_READ_CNTCV_LO 0x0
+#define MPM_READ_CNTCV_HI 0x4
+
 /**
  * Secure camera QoS update id - Enum for identify QOS settings update type
  */
@@ -47,6 +50,7 @@ enum cam_cpas_reg_base {
 	CAM_CPAS_REG_CAMNOC,
 	CAM_CPAS_REG_CAMSS,
 	CAM_CPAS_REG_RPMH,
+	CAM_CPAS_REG_GLOBAL_TIMER,
 	CAM_CPAS_REG_MAX
 };
 
@@ -476,6 +480,16 @@ struct cam_cpas_gdsc_params {
 };
 
 /**
+ * struct cam_cpas_global_timer_info: global timer info
+ *
+ * @mem_base     : mem base for global timer reg
+ *
+ */
+struct cam_cpas_global_timer_info {
+	void __iomem *mem_base;
+};
+
+/**
  * enum cam_vote_type - Enum for voting type
  *
  * @CAM_VOTE_ABSOLUTE : Absolute vote
@@ -789,6 +803,17 @@ int cam_cpas_notify_event(const char *identifier_string,
  *
  */
 int cam_cpas_get_scid(enum cam_sys_cache_config_types  type);
+
+
+/**
+ * cam_cpas_get_global_timer_info()
+ *
+ * @brief: API to get global timer mem base
+ *
+ * @return mem_info, 0 for valid.
+ *
+ */
+int cam_cpas_get_global_timer_info(struct cam_cpas_global_timer_info *mem_info);
 
 /**
  * cam_cpas_activate_llcc()

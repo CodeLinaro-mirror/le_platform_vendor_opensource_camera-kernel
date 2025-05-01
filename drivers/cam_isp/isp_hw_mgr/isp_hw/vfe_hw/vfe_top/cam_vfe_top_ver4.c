@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -274,7 +274,7 @@ static int cam_vfe_top_ver4_enable_irq(
 		goto enable_err;
 
 	if (!vfe_res->is_per_port_acquire && !rsrc_data->frame_irq_handle &&
-		!vfe_res->is_per_port_start) {
+		!vfe_res->is_per_port_start && irq_args->enable_irq) {
 		rsrc_data->frame_irq_handle = cam_irq_controller_subscribe_irq(
 			rsrc_data->vfe_irq_controller,
 			CAM_IRQ_PRIORITY_1,
@@ -803,6 +803,10 @@ int cam_vfe_top_ver4_get_hw_caps(void *device_priv, void *args, uint32_t arg_siz
 	soc_priv = (struct cam_vfe_soc_private *)vfe_top_prv->top_common.soc_info->soc_private;
 
 	vfe_cap_info->is_lite    = soc_priv->is_ife_lite;
+	if (vfe_cap_info->is_lite) {
+		vfe_cap_info->group_id = soc_priv->group_id;
+		vfe_cap_info->is_grp_support = soc_priv->is_grp_support;
+	}
 	vfe_cap_info->incr       = (vfe_top_prv->top_common.hw_version) & 0x00ffff;
 	vfe_cap_info->minor      = ((vfe_top_prv->top_common.hw_version) >> 16) & 0x0fff;
 	vfe_cap_info->major      = (vfe_top_prv->top_common.hw_version) >> 28;

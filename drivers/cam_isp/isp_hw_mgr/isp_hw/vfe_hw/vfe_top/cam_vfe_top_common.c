@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019, 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022, 2025 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "cam_vfe_top_common.h"
@@ -712,9 +712,9 @@ int cam_vfe_top_apply_clk_bw_update(struct cam_vfe_top_priv_common *top_common,
 	}
 
 end:
-	mutex_unlock(&top_common->lock);
 	top_common->clk_state = CAM_CLK_BW_STATE_INIT;
 	top_common->bw_state = CAM_CLK_BW_STATE_INIT;
+	mutex_unlock(&top_common->lock);
 	return rc;
 }
 
@@ -744,9 +744,9 @@ int cam_vfe_top_apply_clock_start_stop(struct cam_vfe_top_priv_common *top_commo
 	}
 
 end:
-	mutex_unlock(&top_common->lock);
 	top_common->clk_state = CAM_CLK_BW_STATE_INIT;
 	top_common->skip_data_rst_on_stop = false;
+	mutex_unlock(&top_common->lock);
 	return rc;
 }
 
@@ -778,8 +778,8 @@ int cam_vfe_top_apply_bw_start_stop(struct cam_vfe_top_priv_common *top_common)
 	}
 
 end:
-	mutex_unlock(&top_common->lock);
 	top_common->bw_state = CAM_CLK_BW_STATE_INIT;
+	mutex_unlock(&top_common->lock);
 	return rc;
 }
 

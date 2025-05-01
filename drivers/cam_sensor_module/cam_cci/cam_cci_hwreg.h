@@ -19,6 +19,7 @@
 #define CCI_QUEUE_START_ADDR                                        0x00000008
 #define CCI_SET_CID_SYNC_TIMER_ADDR                                 0x00000010
 #define CCI_SET_CSID_OFFSET                                          0X1010101
+#define CCI_CPAS_MUX_EN_RESET                                       0x03020100
 #define CCI_SET_CID_SYNC_TIMER_OFFSET                               0x00000004
 #define CCI_I2C_M0_SCL_CTL_ADDR                                     0x00000100
 #define CCI_I2C_M0_SDA_CTL_0_ADDR                                   0x00000104

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_ISP_CONTEXT_H_
@@ -502,6 +502,7 @@ struct cam_isp_context_prev_req_info {
  * @prev_req_info:             Previous buf done request info
  * @addr_info:                 Last consumed address info
  * @skip_addr_check:           Skip last consumed addr check incase of frame drop
+ * @fast_crop_en:              Fast crop enable flag
  */
 struct cam_isp_context {
 	struct cam_context              *base;
@@ -597,6 +598,7 @@ struct cam_isp_context {
 	struct cam_isp_context_prev_req_info   *prev_req_info;
 	struct cam_isp_last_consumed_addr_info *addr_info;
 	bool                                    skip_addr_check;
+	bool                                    fast_crop_en;
 };
 
 /**

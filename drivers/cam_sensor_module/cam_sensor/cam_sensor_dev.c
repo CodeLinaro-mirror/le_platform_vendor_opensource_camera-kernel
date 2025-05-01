@@ -320,6 +320,12 @@ static int cam_sensor_i2c_component_bind(struct device *dev,
 		rc = -ENOMEM;
 		goto unreg_subdev;
 	}
+	s_ctrl->i2c_data.per_frame_event_settings =
+		kzalloc(sizeof(struct cci_trigger_cam_setting_array) * MAX_PER_FRAME_ARRAY, GFP_KERNEL);
+	if (s_ctrl->i2c_data.per_frame_event_settings == NULL) {
+		rc = -ENOMEM;
+		goto unreg_subdev;
+	}
 
 	s_ctrl->i2c_data.frame_skip =
 		kzalloc(sizeof(struct i2c_settings_array) *
@@ -362,6 +368,7 @@ static int cam_sensor_i2c_component_bind(struct device *dev,
 	return rc;
 free_perframe:
 	kfree(s_ctrl->i2c_data.per_frame);
+	kfree(s_ctrl->i2c_data.per_frame_event_settings);
 unreg_subdev:
 	cam_unregister_subdev(&(s_ctrl->v4l2_dev_str));
 free_s_ctrl:
@@ -397,6 +404,7 @@ static void cam_sensor_i2c_component_unbind(struct device *dev,
 	soc_info = &s_ctrl->soc_info;
 
 	kfree(s_ctrl->i2c_data.per_frame);
+	kfree(s_ctrl->i2c_data.per_frame_event_settings);
 	kfree(s_ctrl->i2c_data.frame_skip);
 	v4l2_set_subdevdata(&(s_ctrl->v4l2_dev_str.sd), NULL);
 	cam_sensor_debug_unregister(s_ctrl);
@@ -487,6 +495,12 @@ static int cam_sensor_component_bind(struct device *dev,
 		rc = -ENOMEM;
 		goto unreg_subdev;
 	}
+	s_ctrl->i2c_data.per_frame_event_settings =
+		kzalloc(sizeof(struct cci_trigger_cam_setting_array) * MAX_PER_FRAME_ARRAY, GFP_KERNEL);
+	if (s_ctrl->i2c_data.per_frame_event_settings == NULL) {
+		rc = -ENOMEM;
+		goto unreg_subdev;
+	}
 
 	s_ctrl->i2c_data.frame_skip =
 		kzalloc(sizeof(struct i2c_settings_array) *
@@ -532,6 +546,7 @@ static int cam_sensor_component_bind(struct device *dev,
 
 free_perframe:
 	kfree(s_ctrl->i2c_data.per_frame);
+	kfree(s_ctrl->i2c_data.per_frame_event_settings);
 unreg_subdev:
 	cam_unregister_subdev(&(s_ctrl->v4l2_dev_str));
 free_s_ctrl:
@@ -563,6 +578,7 @@ static void cam_sensor_component_unbind(struct device *dev,
 		devm_clk_put(soc_info->dev, soc_info->clk[i]);
 
 	kfree(s_ctrl->i2c_data.per_frame);
+	kfree(s_ctrl->i2c_data.per_frame_event_settings);
 	kfree(s_ctrl->i2c_data.frame_skip);
 	platform_set_drvdata(pdev, NULL);
 	v4l2_set_subdevdata(&(s_ctrl->v4l2_dev_str.sd), NULL);

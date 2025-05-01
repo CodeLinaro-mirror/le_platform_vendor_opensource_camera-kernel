@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2025, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/device.h>
@@ -2961,6 +2961,28 @@ static int cam_cpas_hw_process_cmd(void *hw_priv,
 		}
 		type = *((enum cam_sys_cache_config_types *) cmd_args);
 		rc = cam_cpas_get_slice_id(hw_priv, type);
+	}
+		break;
+	case CAM_CPAS_HW_CMD_GET_GLOBAL_TIMER_MEM_BASE: {
+		struct cam_cpas_global_timer_info *mem_info;
+		struct cam_hw_info *cpas_hw =  (struct cam_hw_info *)hw_priv;
+		struct cam_cpas *cpas_core = (struct cam_cpas *) cpas_hw->core_info;
+		int global_timer_intex = cpas_core->regbase_index[CAM_CPAS_REG_GLOBAL_TIMER];
+
+		if (sizeof(struct cam_cpas_global_timer_info) != arg_size) {
+			CAM_ERR(CAM_CPAS, "cmd_type %d, size mismatch %d", cmd_type, arg_size);
+			break;
+		}
+		if (global_timer_intex != -1) {
+			mem_info = (struct cam_cpas_global_timer_info *)cmd_args;
+			mem_info->mem_base = cpas_hw->soc_info.reg_map[global_timer_intex].mem_base;
+			if (mem_info->mem_base == NULL) {
+				CAM_WARN(CAM_CPAS,"No vaild mem base for global timer");
+				rc = -EINVAL;
+				break;
+			}
+		}
+		rc = 0;
 	}
 		break;
 	case CAM_CPAS_HW_CMD_ACTIVATE_LLC: {

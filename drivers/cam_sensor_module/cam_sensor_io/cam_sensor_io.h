@@ -92,12 +92,14 @@ int32_t camera_io_release(struct camera_io_master *io_master_info);
 
 /**
  * @io_master_info: I2C/SPI master information
- * @trigger_data:   write settings information
+ * @event_list: event information
+ * @context_id: context id
  *
  * This API abstracts write functionality based on master type
  */
-int32_t camera_io_gpio_write(struct camera_io_master *io_master_info,
-	struct cam_sensor_trigger_per_frame_data *trigger_data);
+int32_t camera_io_dev_event_write(struct camera_io_master *io_master_info,
+	struct cam_sensor_event_list *event_list,
+	uint32_t context_id);
 
 /**
  * @io_master_info: I2C/SPI master information

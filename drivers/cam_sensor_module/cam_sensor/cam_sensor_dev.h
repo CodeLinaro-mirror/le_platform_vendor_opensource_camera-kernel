@@ -113,6 +113,7 @@ struct cam_sensor_dev_res_info {
  * @bob_pwm_switch: Boolean flag to switch into PWM mode for BoB regulator
  * @last_flush_req: Last request to flush
  * @pipeline_delay: Sensor pipeline delay
+ * @trigger_sensor_pipeline_delay: Trigger Sensor pipeline delay
  * @sensor_name: Sensor name
  * @aon_camera_id: AON Camera ID associated with this sensor
  * @hw_no_ops: To determine whether HW operations need to be disabled
@@ -127,7 +128,6 @@ struct cam_sensor_dev_res_info {
  * @frame_state: frame settings applied or not
  * @cci_contextId:  sensor ID to be synchronized to the I2C command
  * @is_trigger_mode: sensor is running in trigger mode or not
- * @is_multistream_usecase: multistream supported in sensor
  */
 struct cam_sensor_ctrl_t {
 	char                           device_name[
@@ -156,6 +156,7 @@ struct cam_sensor_ctrl_t {
 	bool                           bob_pwm_switch;
 	uint32_t                       last_flush_req;
 	uint16_t                       pipeline_delay;
+	uint16_t                       trigger_sensor_pipeline_delay;
 	char                           sensor_name[
 		CAM_SENSOR_NAME_MAX_SIZE];
 	uint8_t                        aon_camera_id;
@@ -176,12 +177,12 @@ struct cam_sensor_ctrl_t {
 	enum cam_sensor_frame_state    frame_state;
 	uint32_t                       cci_contextId;
 	bool                           is_trigger_mode;
-	bool                           is_multistream_usecase;
 };
 
 struct sensor_userdata {
 	struct cam_sensor_ctrl_t *sensor_ctrl;
 	uint64_t reqid;
+	struct cam_sensor_per_frame_event_data *event_data;
 	void *userdata;
 };
 

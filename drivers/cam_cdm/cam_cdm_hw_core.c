@@ -1129,6 +1129,8 @@ int cam_hw_cdm_submit_bl(struct cam_hw_info *cdm_hw,
 		if (!rc) {
 			CAM_DBG(CAM_CDM, "Commit success for GenIRQ_BL, Tag: %d",
 				core->bl_fifo[fifo_idx].bl_tag);
+			core->bl_fifo[fifo_idx].last_bl_tag_submit =
+				core->bl_fifo[fifo_idx].bl_tag;
 			if (core->bl_fifo[fifo_idx].bl_tag ==
 				core->bl_fifo[fifo_idx].last_bl_tag_done) {
 				CAM_DBG(CAM_CDM, "Reuse bl tag for GenIRQ_BL, Tag: %d",
@@ -1203,6 +1205,7 @@ static void cam_hw_cdm_reset_cleanup(
 		}
 		core->bl_fifo[i].bl_tag = 0;
 		core->bl_fifo[i].last_bl_tag_done = -1;
+		core->bl_fifo[i].last_bl_tag_submit = -1;
 		atomic_set(&core->bl_fifo[i].work_record, 0);
 	}
 }
@@ -1217,6 +1220,8 @@ static int cam_hw_cdm_work(void *priv, void *data)
 	struct cam_cdm_bl_cb_request_entry *node = NULL;
 	struct list_head notify_request_list;
 	unsigned long flag;
+	bool need_notify = false;
+	uint8_t last_bl_tag_submit;
 
 	INIT_LIST_HEAD(&notify_request_list);
 	payload = (struct cam_cdm_work_payload *) data;
@@ -1257,6 +1262,7 @@ static int cam_hw_cdm_work(void *priv, void *data)
 		mutex_lock(&cdm_hw->hw_mutex);
 		mutex_lock(&core->bl_fifo[fifo_idx].fifo_lock);
 
+		last_bl_tag_submit = core->bl_fifo[fifo_idx].last_bl_tag_submit;
 		if (atomic_read(&core->bl_fifo[fifo_idx].work_record))
 			atomic_dec(&core->bl_fifo[fifo_idx].work_record);
 
@@ -1283,9 +1289,19 @@ static int cam_hw_cdm_work(void *priv, void *data)
 				entry) {
 				if (node->bl_tag != payload->irq_data) {
 					CAM_INFO(CAM_CDM,
-					"Skip GenIRQ, tag 0x%x fifo %d",
-					payload->irq_data, payload->fifo_idx);
-					goto end;
+						"Skip GenIRQ, tag 0x%x bl_tag 0x%x last tag submit 0x%x fifo %d",
+						payload->irq_data, node->bl_tag,
+						last_bl_tag_submit, payload->fifo_idx);
+					if ((node->bl_tag < payload->irq_data) ||
+						((node->bl_tag > payload->irq_data) &&
+						(payload->irq_data <= last_bl_tag_submit))) {
+						CAM_WARN(CAM_CDM, "May irq duplicate need to notify client");
+						need_notify = true;
+					}
+					if (!need_notify) {
+						need_notify = false;
+						goto end;
+					}
 				}
 				core->bl_fifo[fifo_idx].bl_tag_reuse = false;
 				if (node->request_type ==
@@ -1476,6 +1492,8 @@ irqreturn_t cam_hw_cdm_irq(int irq_num, void *data)
 	int i;
 	unsigned long flags = 0;
 	struct crm_worker_task            *task = NULL;
+	bool need_notify = false;
+	uint8_t last_bl_tag_submit;
 
 	CAM_DBG(CAM_CDM, "Got irq hw_version 0x%x from %s%u",
 		cdm_core->hw_version, soc_info->label_name,
@@ -1544,6 +1562,7 @@ irqreturn_t cam_hw_cdm_irq(int irq_num, void *data)
 				unsigned long flag;
 
 				spin_lock_irqsave(&cdm_core->bl_fifo[i].fifo_hw_lock, flag);
+				last_bl_tag_submit = cdm_core->bl_fifo[i].last_bl_tag_submit;
 				if (list_empty(&cdm_core->bl_fifo[i].bl_request_list)) {
 					CAM_DBG(CAM_CDM, "Fifo list empty, idx %d tag %d arb %d",
 						i, irq_data, cdm_core->arbitration);
@@ -1562,9 +1581,20 @@ irqreturn_t cam_hw_cdm_irq(int irq_num, void *data)
 							skip_workq_execution = true;
 							if (node->bl_tag != irq_data) {
 								CAM_INFO(CAM_CDM,
-									"Skip GenIRQ, tag 0x%x fifo %d",
-									irq_data, i);
-								goto end;
+									"Skip GenIRQ, tag 0x%x bl_tag 0x%x last tag submit 0x%x fifo %d",
+									irq_data, node->bl_tag,
+									last_bl_tag_submit, i);
+								if ((node->bl_tag < irq_data) ||
+									((node->bl_tag > irq_data)
+									&& (irq_data <=
+									last_bl_tag_submit))) {
+									CAM_WARN(CAM_CDM, "May irq duplicate need to notify client");
+									need_notify = true;
+								}
+								if (!need_notify) {
+									need_notify = false;
+									goto end;
+								}
 							}
 							cdm_core->bl_fifo[i].bl_tag_reuse = false;
 							if (node->request_type ==
@@ -2148,6 +2178,7 @@ int cam_hw_cdm_init(void *hw_priv,
 	}
 	for (i = 0; i < cdm_core->offsets->reg_data->num_bl_fifo; i++) {
 		cdm_core->bl_fifo[i].last_bl_tag_done = -1;
+		cdm_core->bl_fifo[i].last_bl_tag_submit = -1;
 		cdm_core->bl_fifo[i].bl_tag_reuse = false;
 		atomic_set(&cdm_core->bl_fifo[i].work_record, 0);
 	}

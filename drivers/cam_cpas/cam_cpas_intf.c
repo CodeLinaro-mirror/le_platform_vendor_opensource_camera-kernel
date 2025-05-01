@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/of.h>
@@ -649,6 +649,27 @@ int cam_cpas_register_client(
 	return rc;
 }
 EXPORT_SYMBOL(cam_cpas_register_client);
+
+int cam_cpas_get_global_timer_info(struct cam_cpas_global_timer_info *mem_info)
+{
+	int rc;
+
+	if (!CAM_CPAS_INTF_INITIALIZED()) {
+		CAM_ERR(CAM_CPAS, "cpas intf not initialized");
+		return -ENODEV;
+	}
+	if (g_cpas_intf->hw_intf->hw_ops.process_cmd) {
+		rc = g_cpas_intf->hw_intf->hw_ops.process_cmd(
+			g_cpas_intf->hw_intf->hw_priv,
+			CAM_CPAS_HW_CMD_GET_GLOBAL_TIMER_MEM_BASE, mem_info,
+			sizeof(struct cam_cpas_global_timer_info));
+	} else {
+		CAM_ERR(CAM_CPAS, "Invalid process_cmd ops");
+		rc = -EINVAL;
+	}
+	return rc;
+}
+EXPORT_SYMBOL(cam_cpas_get_global_timer_info);
 
 int cam_cpas_get_scid(
 	enum cam_sys_cache_config_types type)

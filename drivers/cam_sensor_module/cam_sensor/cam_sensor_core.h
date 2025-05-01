@@ -42,6 +42,15 @@ int cam_sensor_apply_settings(struct cam_sensor_ctrl_t *s_ctrl, uint64_t req_id,
 	enum cam_sensor_packet_opcodes opcode);
 
 /**
+ * @s_ctrl: Sensor ctrl structure
+ * @req_id: Request id
+ *
+ * This API applies the req_id settings to trigger sensor
+ */
+int cam_sensor_apply_event_settings(struct cam_sensor_ctrl_t *s_ctrl,
+	uint64_t req_id);
+
+/**
  * @apply: Req mgr structure for applying request
  *
  * This API applies the request that is mentioned

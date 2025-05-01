@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2025 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -37,7 +37,7 @@ static bool cam_vfe_cpas_cb(uint32_t client_handle, void *userdata,
 
 static int cam_vfe_get_dt_properties(struct cam_hw_soc_info *soc_info)
 {
-	int rc = 0, num_ubwc_cfg = 0, i = 0, num_pid = 0;
+	int rc = 0, num_ubwc_cfg = 0, i = 0, num_pid = 0, num_ipcc_props;
 	struct device_node *of_node = NULL;
 	struct platform_device *pdev = NULL;
 	struct cam_vfe_soc_private *vfe_soc_private;
@@ -61,54 +61,75 @@ static int cam_vfe_get_dt_properties(struct cam_hw_soc_info *soc_info)
 	}
 
 	vfe_soc_private->is_ife_lite = false;
-	if (strnstr(soc_info->compatible, "lite",
-		strlen(soc_info->compatible)) != NULL) {
+	if (strnstr(soc_info->compatible, "lite", strlen(soc_info->compatible)) != NULL)
 		vfe_soc_private->is_ife_lite = true;
-		goto pid;
-	}
 
-	if (!of_property_read_bool(of_node, "ubwc-static-cfg")) {
-		CAM_DBG(CAM_ISP, "ubwc-static-cfg not supported");
-		goto pid;
-	}
-
-	num_ubwc_cfg = of_property_count_u32_elems(of_node,
-		"ubwc-static-cfg");
-
-	if (num_ubwc_cfg < 0 || num_ubwc_cfg > UBWC_STATIC_CONFIG_MAX) {
-		CAM_ERR(CAM_ISP, "wrong num_ubwc_cfg: %d",
-			num_ubwc_cfg);
-		rc = num_ubwc_cfg;
-		goto pid;
-	}
-
-	for (i = 0; i < num_ubwc_cfg; i++) {
-		rc = of_property_read_u32_index(of_node,
-			"ubwc-static-cfg", i,
-			&vfe_soc_private->ubwc_static_ctrl[i]);
-		if (rc < 0) {
-			CAM_ERR(CAM_ISP,
-				"unable to read ubwc static config");
-		}
-	}
-pid:
-	/* set some default values */
+	/* Check for pid info */
 	vfe_soc_private->num_pid = 0;
+	num_pid = of_property_count_u32_elems(pdev->dev.of_node, "cam_hw_pid");
+
+	if ((num_pid) > 0  && (num_pid <= CAM_ISP_HW_MAX_PID_VAL)) {
+		for (i = 0; i < num_pid; i++)
+			of_property_read_u32_index(pdev->dev.of_node, "cam_hw_pid", i,
+				&vfe_soc_private->pid[i]);
+
+		vfe_soc_private->num_pid = num_pid;
+		CAM_DBG(CAM_ISP, "VFE:%d pid count %d", soc_info->index, num_pid);
+	}
+
+	/* Check for ipcc info */
+	num_ipcc_props = of_property_count_u32_elems(pdev->dev.of_node, "ipcc_info");
+	vfe_soc_private->ipcc_info.ipcc_en = false;
+
+	vfe_soc_private->is_grp_support = false;
+	if (vfe_soc_private->is_ife_lite) {
+		vfe_soc_private->group_id = (CAM_ISP_HW_MAX_GROUP_IDX - 1);
+		rc = of_property_read_u32(of_node, "group-id",
+			&vfe_soc_private->group_id);
+		if (rc) {
+			CAM_DBG(CAM_ISP, "Error reading group_id for core_idx: %u rc %d",
+				soc_info->index, rc);
+
+			rc = 0;
+		} else
+			vfe_soc_private->is_grp_support = true;
+	}
 
 	num_pid = of_property_count_u32_elems(pdev->dev.of_node, "cam_hw_pid");
 	CAM_DBG(CAM_CPAS, "vfe:%d pid count %d", soc_info->index, num_pid);
+	if (num_ipcc_props == IPCC_INFO_CONFIG_MAX) {
+		of_property_read_u32_index(pdev->dev.of_node, "ipcc_info", 0,
+			&vfe_soc_private->ipcc_info.ipcc_client_id);
 
-	if (num_pid <= 0  || num_pid > CAM_ISP_HW_MAX_PID_VAL)
+		of_property_read_u32_index(pdev->dev.of_node, "ipcc_info", 1,
+			&vfe_soc_private->ipcc_info.ipcc_protocol_id);
+
+		of_property_read_u32_index(pdev->dev.of_node, "ipcc_info", 2,
+			&vfe_soc_private->ipcc_info.ipcc_dest_client_id);
+
+		vfe_soc_private->ipcc_info.ipcc_en = true;
+		CAM_DBG(CAM_ISP, "VFE: %d ipcc client_id: %u protocol: %u dest_id: %u",
+			soc_info->index, vfe_soc_private->ipcc_info.ipcc_client_id,
+			vfe_soc_private->ipcc_info.ipcc_protocol_id,
+			vfe_soc_private->ipcc_info.ipcc_dest_client_id);
+	}
+
+	/* Continue only for full cores */
+	if (vfe_soc_private->is_ife_lite)
 		goto end;
 
-	for (i = 0; i < num_pid; i++)
-		of_property_read_u32_index(pdev->dev.of_node, "cam_hw_pid", i,
-		&vfe_soc_private->pid[i]);
-
-	vfe_soc_private->num_pid = num_pid;
+	/* Check for ubwc config */
+	num_ubwc_cfg = of_property_count_u32_elems(of_node, "ubwc-static-cfg");
+	if ((num_ubwc_cfg > 0) && (num_ubwc_cfg <= UBWC_STATIC_CONFIG_MAX)) {
+		for (i = 0; i < num_ubwc_cfg; i++) {
+			rc = of_property_read_u32_index(of_node,
+				"ubwc-static-cfg", i, &vfe_soc_private->ubwc_static_ctrl[i]);
+			if (rc < 0)
+				CAM_ERR(CAM_ISP, "unable to read ubwc static config");
+		}
+	}
 
 end:
-
 	return rc;
 }
 
@@ -117,12 +138,19 @@ static int cam_vfe_request_platform_resource(
 	irq_handler_t vfe_irq_handler, void *irq_data)
 {
 	int rc = 0;
+	struct cam_cpas_global_timer_info g_timer = {0};
 
 	rc = cam_soc_util_request_platform_resource(soc_info, vfe_irq_handler,
 		irq_data);
 	if (rc)
 		CAM_ERR(CAM_ISP,
 			"Error! Request platform resource failed rc=%d", rc);
+
+	rc = cam_cpas_get_global_timer_info(&g_timer);
+	if (rc != 0)
+		CAM_ERR(CAM_ISP, "Failed to get global timer info");
+	else
+		soc_info->global_timer_mem_base = g_timer.mem_base;
 
 	return rc;
 }

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_CSID_HW_INTF_H_
@@ -160,10 +160,13 @@ struct cam_isp_in_port_generic_info {
 	uint32_t                        acquire_type;
 	uint32_t                        sensor_id;
 	uint32_t                        sensor_mode;
+	uint32_t                        group_id;
 	bool                            independent_crm_mode;
 	bool                            slave_metadata_en;
 	bool                            per_port_en;
 	bool                            ul_path_mode;
+	bool                            is_lite_grouping;
+	bool                            fast_crop_en;
 	struct cam_isp_out_port_generic_info    *data;
 };
 

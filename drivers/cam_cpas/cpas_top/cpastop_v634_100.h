@@ -213,7 +213,7 @@ static struct cam_camnoc_specific
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
 			.offset = 0x9430, /* IFE_0_NIU_PRIORITYLUT_LOW */
-			.value = 0x65555544,
+			.value = 0x66665433,
 		},
 		.priority_lut_high = {
 			.enable = true,
@@ -227,21 +227,21 @@ static struct cam_camnoc_specific
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
 			.offset = 0x9438, /* IFE_0_NIU_URGENCY_LOW */
-			.value = 0x1E40,
+			.value = 0x0001E30,
 		},
 		.danger_lut = {
 			.enable = true,
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
 			.offset = 0x9440, /* IFE_0_NIU_DANGERLUT_LOW */
-			.value = 0xff00,
+			.value = 0xFFFFFF00,
 		},
 		.safe_lut = {
 			.enable = true,
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
 			.offset = 0x9448, /* IFE_0_NIU_SAFELUT_LOW */
-			.value = 0xff0f,
+			.value = 0x0000FFFF,
 		},
 		.ubwc_ctl = {
 			/*
@@ -273,21 +273,21 @@ static struct cam_camnoc_specific
 			.value = 0x0,
 		},
 		.maxwr_low = {
-			.enable = true,
+			.enable = false,
 			.access_type = CAM_REG_TYPE_READ,
 			.masked_value = 0,
 			.offset = 0x9420, /* IFE_0_NIU_MAXWR_LOW */
 			.value = 0x0,
 		},
 		.dynattr_mainctl = {
-			.enable = true,
+			.enable = false,
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
 			.offset = 0x7108, /* IFE_0_DYNATTR_MAINCTL_LOW */
 			.value = 0x0,
 		},
 		.dynattr_tr_type_lut = {
-			.enable = true,
+			.enable = false,
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
 			.offset = 0x7138, /* IFE_0_DYNATTR_TRTYPELUT_LOW */
@@ -303,7 +303,7 @@ static struct cam_camnoc_specific
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
 			.offset = 0x9830, /* IFE_LITE_0_NIU_PRIORITYLUT_LOW */
-			.value = 0x65555544,
+			.value = 0x66665433,
 		},
 		.priority_lut_high = {
 			.enable = true,
@@ -317,21 +317,21 @@ static struct cam_camnoc_specific
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
 			.offset = 0x9838, /* IFE_LITE_0_NIU_URGENCY_LOW */
-			.value = 0x1E40,
+			.value = 0x0001E30,
 		},
 		.danger_lut = {
 			.enable = true,
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
 			.offset = 0x9840, /* IFE_LITE_0_NIU_DANGERLUT_LOW */
-			.value = 0xff00,
+			.value = 0xFFFFFF00,
 		},
 		.safe_lut = {
 			.enable = true,
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
 			.offset = 0x9848, /* IFE_LITE_0_NIU_SAFELUT_LOW */
-			.value = 0xff0f,
+			.value = 0x0000FFFF,
 		},
 		.ubwc_ctl = {
 			/*
@@ -363,21 +363,21 @@ static struct cam_camnoc_specific
 			.value = 0x0,
 		},
 		.maxwr_low = {
-			.enable = true,
+			.enable = false,
 			.access_type = CAM_REG_TYPE_READ,
 			.masked_value = 0,
 			.offset = 0x9820, /* IFE_LITE_0_NIU_MAXWR_LOW */
 			.value = 0x0,
 		},
 		.dynattr_mainctl = {
-			.enable = true,
+			.enable = false,
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
 			.offset = 0x7208, /* IFE_LITE_0_DYNATTR_MAINCTL_LOW */
 			.value = 0x0,
 		},
 		.dynattr_tr_type_lut = {
-			.enable = true,
+			.enable = false,
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
 			.offset = 0x7238, /* IFE_LITE_0_DYNATTR_TRTYPELUT_LOW */
@@ -407,7 +407,7 @@ static struct cam_camnoc_specific
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
 			.offset = 0x9E38, /* IPE_WR_NIU_URGENCY_LOW */
-			.value = 0x30,
+			.value = 0x1003,
 		},
 		.danger_lut = {
 			.enable = false,
@@ -460,25 +460,25 @@ static struct cam_camnoc_specific
 		.port_name = "IPE_RD_0",
 		.enable = true,
 		.priority_lut_low = {
-			.enable = false,
+			.enable = true,
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
 			.offset = 0xB830, /* IPE_RD_0_NIU_PRIORITYLUT_LOW */
-			.value = 0x0,
+			.value = 0x33333333,
 		},
 		.priority_lut_high = {
-			.enable = false,
+			.enable = true,
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
 			.offset = 0xB834, /* IPE_RD_0_NIU_PRIORITYLUT_HIGH */
-			.value = 0x0,
+			.value = 0x33333333,
 		},
 		.urgency = {
 			.enable = true,
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
 			.offset = 0xB838, /* IPE_RD_0_NIU_URGENCY_LOW */
-			.value = 0x3,
+			.value = 0x1003,
 		},
 		.danger_lut = {
 			.enable = false,
@@ -528,25 +528,25 @@ static struct cam_camnoc_specific
 		.port_name = "IPE_RD_1",
 		.enable = true,
 		.priority_lut_low = {
-			.enable = false,
+			.enable = true,
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
 			.offset = 0x9C30, /* IPE_RD_1_NIU_PRIORITYLUT_LOW */
-			.value = 0x0,
+			.value = 0x33333333,
 		},
 		.priority_lut_high = {
-			.enable = false,
+			.enable = true,
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
 			.offset = 0x9C34, /* IPE_RD_1_NIU_PRIORITYLUT_HIGH */
-			.value = 0x0,
+			.value = 0x33333333,
 		},
 		.urgency = {
 			.enable = true,
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
 			.offset = 0x9C38, /* IPE_RD_1_NIU_URGENCY_LOW */
-			.value = 0x3,
+			.value = 0x1003,
 		},
 		.danger_lut = {
 			.enable = false,
@@ -590,7 +590,111 @@ static struct cam_camnoc_specific
 			.offset = 0xA724, /* IPE_RD_1_QOSGEN_SHAPING_HIGH */
 			.value = 0x0,
 		},
-	}
+	},
+	{
+		.port_type = CAM_CAMNOC_BPS_RD,
+		.port_name = "BPS_RD",
+		.enable = true,
+		.priority_lut_low = {
+			.enable = true,
+			.access_type = CAM_REG_TYPE_READ_WRITE,
+			.masked_value = 0,
+			.offset = 0x9030, /* BPS_RD_NIU_PRIORITYLUT_LOW */
+			.value = 0x33333333,
+		},
+		.priority_lut_high = {
+			.enable = true,
+			.access_type = CAM_REG_TYPE_READ_WRITE,
+			.masked_value = 0,
+			.offset = 0x9034, /* BPS_RD_NIU_PRIORITYLUT_HIGH */
+			.value = 0x33333333,
+		},
+		.urgency = {
+			.enable = true,
+			.access_type = CAM_REG_TYPE_READ_WRITE,
+			.masked_value = 0,
+			.offset = 0x9038, /* BPS_RD_NIU_URGENCY_LOW */
+			.value = 0x1003,
+		},
+	},
+	{
+		.port_type = CAM_CAMNOC_CDM,
+		.port_name = "CDM",
+		.enable = true,
+		.priority_lut_low = {
+			.enable = true,
+			.access_type = CAM_REG_TYPE_READ_WRITE,
+			.masked_value = 0,
+			.offset = 0x9230, /* CDM_NIU_PRIORITYLUT_LOW */
+			.value = 0x33333333,
+		},
+		.priority_lut_high = {
+			.enable = true,
+			.access_type = CAM_REG_TYPE_READ_WRITE,
+			.masked_value = 0,
+			.offset = 0x9234, /* CDM_NIU_PRIORITYLUT_HIGH */
+			.value = 0x33333333,
+		},
+		.urgency = {
+			.enable = true,
+			.access_type = CAM_REG_TYPE_READ_WRITE,
+			.masked_value = 0,
+			.offset = 0x9238, /* CDM_NIU_URGENCY_LOW */
+			.value = 0x1003,
+		},
+	},
+	{
+		.port_type = CAM_CAMNOC_JPEG,
+		.port_name = "JPEG_WR",
+		.enable = true,
+		.priority_lut_low = {
+			.enable = true,
+			.access_type = CAM_REG_TYPE_READ_WRITE,
+			.masked_value = 0,
+			.offset = 0xA230, /* JPEG_WR_NIU_PRIORITYLUT_LOW */
+			.value = 0x22222222,
+		},
+		.priority_lut_high = {
+			.enable = true,
+			.access_type = CAM_REG_TYPE_READ_WRITE,
+			.masked_value = 0,
+			.offset = 0xA234, /* JPEG_NIU_PRIORITYLUT_HIGH */
+			.value = 0x22222222,
+		},
+		.urgency = {
+			.enable = true,
+			.access_type = CAM_REG_TYPE_READ_WRITE,
+			.masked_value = 0,
+			.offset = 0xA238, /* JPEG_NIU_URGENCY_LOW */
+			.value = 0x1020,
+		},
+	},
+	{
+		.port_type = CAM_CAMNOC_JPEG_RD,
+		.port_name = "JPEG_RD",
+		.enable = true,
+		.priority_lut_low = {
+			.enable = true,
+			.access_type = CAM_REG_TYPE_READ_WRITE,
+			.masked_value = 0,
+			.offset = 0xA030, /* JPEG_RD_NIU_PRIORITYLUT_LOW */
+			.value = 0x22222222,
+		},
+		.priority_lut_high = {
+			.enable = true,
+			.access_type = CAM_REG_TYPE_READ_WRITE,
+			.masked_value = 0,
+			.offset = 0xA034, /* JPEG_RD_NIU_PRIORITYLUT_HIGH */
+			.value = 0x22222222,
+		},
+		.urgency = {
+			.enable = true,
+			.access_type = CAM_REG_TYPE_READ_WRITE,
+			.masked_value = 0,
+			.offset = 0xA038, /* JPEG_RD_NIU_URGENCY_LOW */
+			.value = 0x1002,
+		},
+	},
 };
 
 static struct cam_camnoc_err_logger_info cam634_cpas100_err_logger_offsets = {
