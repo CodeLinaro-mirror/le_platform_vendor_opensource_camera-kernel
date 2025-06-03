@@ -140,7 +140,7 @@ int cam_csiphy_notify_secure_mode(struct csiphy_device *csiphy_dev,
 			return -EINVAL;
 		}
 
-		rc = get_client_env_object(&client_env);
+		rc = smci_get_client_env_object(&client_env);
 		if (rc) {
 			CAM_ERR(CAM_CSIPHY, "Failed getting mink env object, rc: %d", rc);
 			rc = -EINVAL;
@@ -214,7 +214,7 @@ int cam_isp_notify_secure_unsecure_port(struct port_info *sec_unsec_port_info)
 	int rc = 0;
 	struct smci_object client_env, sc_object;
 
-	rc = get_client_env_object(&client_env);
+	rc = smci_get_client_env_object(&client_env);
 	if (rc) {
 		CAM_ERR(CAM_ISP, "Failed getting mink env object, rc: %d", rc);
 		return rc;
@@ -308,7 +308,7 @@ int cam_isp_notify_secure_unsecure_port(struct port_info *sec_unsec_port_info)
 	int rc = 0;
 	struct smci_object client_env, sc_object;
 
-	rc = get_client_env_object(&client_env);
+	rc = smci_get_client_env_object(&client_env);
 	if (rc) {
 		CAM_ERR(CAM_ISP, "Failed getting mink env object, rc: %d", rc);
 		return rc;
@@ -961,6 +961,21 @@ int cam_sensor_i2c_driver_remove(struct i2c_client *client)
 {
 	cam_sensor_i2c_component_del_wrapper(client);
 
+	return 0;
+}
+#endif
+
+#if IS_REACHABLE(CONFIG_CAM_ENABLE_SOCCP)
+int cam_synx_enable_resources(uint32_t client_idx, uint32_t signal_id, bool enable)
+{
+	enum synx_client_id synx_client_idx;
+
+	synx_client_idx = cam_synx_map_camera_client_id_for_synx(client_idx, signal_id);
+	return synx_enable_resources(synx_client_idx, SYNX_RESOURCE_SOCCP, enable);
+}
+#else
+int cam_synx_enable_resources(uint32_t client_idx, uint32_t signal_id, bool enable)
+{
 	return 0;
 }
 #endif

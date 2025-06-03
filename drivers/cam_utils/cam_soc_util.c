@@ -1331,7 +1331,7 @@ int cam_soc_util_clk_enable_default(struct cam_hw_soc_info *soc_info,
 	}
 
 	if (!soc_info->num_clk) {
-		CAM_ERR(CAM_UTIL, "No clock supported");
+		CAM_ERR(CAM_UTIL, "No clock supported dev name %s", soc_info->dev_name);
 		return rc;
 	}
 

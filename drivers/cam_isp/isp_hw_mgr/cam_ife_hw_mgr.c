@@ -21434,7 +21434,7 @@ int cam_ife_hw_mgr_init(struct cam_hw_mgr_intf *hw_mgr_intf, int *iommu_hdl)
 			if (rc)
 				goto hw_fence_session_cleanup;
 
-			hwfenceinfo.client_id = init_params.client_core + init_params.signal_id;
+			hwfenceinfo.client_id = init_params.client_core;
 			hwfenceinfo.ipcc_reg_iova = iova_queue + init_params.offset;
 			hwfenceinfo.len = init_params.len - init_params.offset;
 			hwfenceinfo.ipcc_signal_id = init_params.signal_id;

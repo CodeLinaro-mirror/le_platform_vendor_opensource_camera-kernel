@@ -307,11 +307,13 @@ struct cam_req_mgr_sync_mode_v2 {
 /**
  * struct cam_req_mgr_sync_shared_buf
  * @version:           Input param - version
+ * @reserved:         reserved for alignment
  * @latest_setting_id: Input param - Latest setting id
  */
 struct cam_req_mgr_sync_shared_buf {
 	__u32 version;
-	__u32 latest_setting_id;
+	__u32 reserved;
+	__u64 latest_setting_id;
 };
 
 /**

@@ -286,7 +286,8 @@ struct cam_vfe_bus_ver3_ipcc_out_info {
 	uint32_t    hwfence_queue_size;
 	int32_t     session_cookie;
 	int32_t     wr_ptr;
-	bool    updated;
+	uint32_t    client_idx;
+	bool        updated;
 };
 
 struct cam_vfe_bus_ver3_vfe_out_data {

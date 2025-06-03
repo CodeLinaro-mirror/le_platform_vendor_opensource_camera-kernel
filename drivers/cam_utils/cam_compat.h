@@ -22,6 +22,7 @@
 #include "cam_csiphy_dev.h"
 #include "cam_cpastop_hw.h"
 #include "cam_smmu_api.h"
+#include "cam_sync_synx.h"
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0)
 #include <linux/ion.h>
@@ -157,5 +158,7 @@ size_t cam_align_dma_buf_size(size_t len);
 
 int cam_mem_buf_dma_buf_get_memparcel_hdl(struct dma_buf *dmabuf,
 	uint32_t *smmu_proxy_buf_hdl, struct cam_csf_version *csf_version);
+
+int cam_synx_enable_resources(uint32_t client_idx, uint32_t signal_id, bool enable);
 
 #endif /* _CAM_COMPAT_H_ */

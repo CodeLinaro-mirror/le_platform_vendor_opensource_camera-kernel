@@ -1546,21 +1546,23 @@ struct cam_isp_crop_out_port_data {
  * struct cam_isp_crop_setting_block_info - Information related to crop setting
  *
  * @version          : Struct version
- * @setting_id       : Setting ID
  * @cmd_mem_hdl      : Mem handle of buffer having crop settings, this command buffer
  *                     will only have direct commands.
  * @cmd_offset       : Offset in command buffer.
  * @cmd_size         : Size of commands.
  * @num_valid_ports  : Total number of valid ports.
+ * @reserved         : Reserved for 64 bit alignment
+ * @setting_id       : Setting ID
  * @out_data         : Information of output to be written in output buffers
  */
 struct cam_isp_crop_setting_block_info {
 	__s32     version;
-	__u32     setting_id;
 	__s32     cmd_mem_hdl;
 	__u32     cmd_offset;
 	__u32     cmd_size;
 	__u32     num_valid_ports;
+	__u32     reserved;
+	__u64     setting_id;
 	__DECLARE_FLEX_ARRAY(struct cam_isp_crop_out_port_data, out_data_flex);
 };
 

@@ -1565,6 +1565,16 @@ static int cam_vfe_bus_ver3_start_wm(struct cam_isp_resource_node *wm_res)
 
 		/* program fencing mode */
 		if (rsrc_data->hwfence_cap_mask && rsrc_data->hwfence_mode) {
+			rc = cam_synx_enable_resources(rsrc_data->ipcc_out_info.client_idx,
+				rsrc_data->ipcc_out_info.signal_id, true);
+			if (rc) {
+				CAM_ERR(CAM_SYNC,
+					"VFE:%u Failed to power up SOCCP for client_id: %u, signal_id: %u, rc: %u",
+					rsrc_data->common_data->core_index,
+					rsrc_data->ipcc_out_info.client_idx,
+					rsrc_data->ipcc_out_info.signal_id, rc);
+				return -EINVAL;
+			}
 			valid_hwfence_mode =
 				cam_vfe_bus_ver3_get_valid_hwfence_mode(rsrc_data->hwfence_mode);
 			if (valid_hwfence_mode > 0)
@@ -1659,6 +1669,7 @@ static int cam_vfe_bus_ver3_stop_wm(struct cam_isp_resource_node *wm_res)
 		wm_res->res_priv;
 	struct cam_vfe_bus_ver3_common_data        *common_data =
 		rsrc_data->common_data;
+	int rc = 0;
 
 	/* Disable WM */
 	cam_io_w_mb(0x0, common_data->mem_base + rsrc_data->hw_regs->cfg);
@@ -1666,8 +1677,17 @@ static int cam_vfe_bus_ver3_stop_wm(struct cam_isp_resource_node *wm_res)
 		rsrc_data->common_data->core_index, rsrc_data->index,
 		wm_res->res_name);
 
-	if (rsrc_data->out_rsrc_data->hwfence_cap)
+	if (rsrc_data->out_rsrc_data->hwfence_cap && rsrc_data->hwfence_mode) {
 		rsrc_data->hwfence_mode = 0;
+		rc = cam_synx_enable_resources(rsrc_data->ipcc_out_info.client_idx,
+			rsrc_data->ipcc_out_info.signal_id, false);
+		if (rc)
+			CAM_ERR(CAM_SYNC,
+				"VFE: %u Failed to power down SOCCP for client id: %u, signal_id: %u, rc: %u",
+				rsrc_data->common_data->core_index,
+				rsrc_data->ipcc_out_info.client_idx,
+				rsrc_data->ipcc_out_info.signal_id, rc);
+	}
 
 	wm_res->res_state = CAM_ISP_RESOURCE_STATE_RESERVED;
 	rsrc_data->init_cfg_done = false;
@@ -5672,6 +5692,7 @@ static int cam_vfe_bus_ver3_process_cmd(
 						wm_data->index);
 					continue;
 				}
+				wm_data->ipcc_out_info.client_idx = ipcc_config->client_id;
 				wm_data->ipcc_out_info.signal_id = ipcc_config->ipcc_signal_id;
 				wm_data->ipcc_out_info.queue_addr = ipcc_config->ipcc_reg_iova;
 				wm_data->ipcc_out_info.hwfence_queue_size = ipcc_config->len;

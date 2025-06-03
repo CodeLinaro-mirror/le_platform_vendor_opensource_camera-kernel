@@ -258,8 +258,6 @@ static inline int cam_csiphy_release_from_reset_state(struct csiphy_device *csip
 				usleep_range(csiphy_reset_release_reg->delay,
 					csiphy_reset_release_reg->delay + 5);
 			}
-
-			break;
 		}
 	}
 
