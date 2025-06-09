@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2025 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __CAM_TPG_DEV_H__
@@ -31,6 +32,8 @@
 #include "tpg_hw/tpg_hw.h"
 
 #define CAMX_TPG_DEV_NAME "cam-tpg-driver"
+
+#define CAM_TPG_PIPELINE_DELAY 1
 
 struct cam_tpg_device;
 struct tpg_hw;
@@ -87,14 +90,20 @@ enum cam_tpg_state {
  * @session_hdl: Session Handle
  * @link_hdl: Link Handle
  * @ops: KMD operations
+ * @no_crm_ops: no crm kmd operations
  * @crm_cb: Callback API pointers
+ * @frame_skip_cb: frame skip callback
+ * @enable_crm: flag to indicated crm enabled or not
  */
 struct tpg_crm_intf_params {
 	int32_t device_hdl;
 	int32_t session_hdl;
 	int32_t link_hdl;
 	struct cam_req_mgr_kmd_ops ops;
+	struct cam_req_mgr_no_crm_kmd_ops no_crm_ops;
 	struct cam_req_mgr_crm_cb *crm_cb;
+	cam_req_mgr_no_crm_frame_skip_notify frame_skip_cb;
+	uint32_t enable_crm;
 };
 
 /**
@@ -111,6 +120,7 @@ struct tpg_crm_intf_params {
  * @state   : state machine states
  * @slot_id : slot index of this tpg
  * @phy_id  : phy index mapped to this tpg
+ * @anchor_pd : pipeline delay of anchor driver
  */
 struct cam_tpg_device {
 	char device_name[CAM_CTX_DEV_NAME_MAX_LENGTH];
@@ -124,6 +134,7 @@ struct cam_tpg_device {
 	int state;
 	int slot_id;
 	int phy_id;
+	int anchor_pd;
 };
 
 

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2019, 2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2023-2024, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2025, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _HFI_DEFS_H_
@@ -256,6 +256,7 @@
 #define HFI_MEM_REGION_ID_SYNX_HW_MUTEX           1
 #define HFI_MEM_REGION_ID_GLOBAL_ATOMIC_HW_MUTEX  2
 #define HFI_MEM_REGION_ID_GLOBAL_CNTR             3
+#define HFI_MEM_REGION_ID_SOC_HW_VERSION          5
 
 /* Type of the new regions */
 #define HFI_MEM_REGION_TYPE_CACHED       0

@@ -83,7 +83,7 @@ static void cam_icp_mgr_process_dbg_buf(unsigned int debug_lvl);
  * for synx hw_mutex, ipc hw_mutex, synx global mem
  * and global cntr for qtimer
  */
-#define ICP_NUM_MEM_REGIONS_FOR_SYNX 4
+#define ICP_NUM_MEM_REGIONS_FOR_SYNX 5
 
 static int cam_icp_dump_io_cfg(struct cam_icp_hw_ctx_data *ctx_data,
 	int32_t buf_handle, uint32_t size)
@@ -2991,6 +2991,8 @@ static void cam_icp_free_hfi_mem(void)
 			CAM_SMMU_SUBREGION_IPC_HWMUTEX);
 		cam_smmu_unmap_phy_mem_region(icp_hw_mgr.iommu_hdl, CAM_SMMU_REGION_DEVICE,
 			CAM_SMMU_SUBREGION_GLOBAL_CNTR);
+		cam_smmu_unmap_phy_mem_region(icp_hw_mgr.iommu_hdl, CAM_SMMU_REGION_DEVICE,
+			CAM_SMMU_SUBREGION_SOC_HW_VERSION);
 	}
 }
 
@@ -3198,6 +3200,30 @@ static int cam_icp_allocate_device_global_cnt_mem(void)
 	return rc;
 }
 
+static int cam_icp_allocate_device_soc_version_mem(void)
+{
+	int rc;
+	size_t len;
+	dma_addr_t iova;
+
+	rc = cam_smmu_map_phy_mem_region(icp_hw_mgr.iommu_hdl,
+		CAM_SMMU_REGION_DEVICE, CAM_SMMU_SUBREGION_SOC_HW_VERSION,
+		&iova, &len);
+	if (rc) {
+		CAM_ERR(CAM_ICP,
+			"Failed in allocating soc hw version mem rc %d", rc);
+		return rc;
+	}
+
+	icp_hw_mgr.hfi_mem.soc_hw_version.len = len;
+	icp_hw_mgr.hfi_mem.soc_hw_version.iova = iova;
+	icp_hw_mgr.hfi_mem.soc_hw_version.smmu_hdl = icp_hw_mgr.iommu_hdl;
+
+	CAM_DBG(CAM_ICP, "iova: %llx, len: %zu", iova, len);
+
+	return rc;
+}
+
 static int cam_icp_allocate_device_ipc_hwmutex_mem(void)
 {
 	int rc;
@@ -3250,8 +3276,17 @@ static int cam_icp_allocate_mem_for_fence_signaling(void)
 	if (rc)
 		goto unmap_ipc_mutex;
 
+	rc = cam_icp_allocate_device_soc_version_mem();
+	if (rc)
+		goto unmap_global_cnt;
+
 	return 0;
 
+
+unmap_global_cnt:
+	cam_smmu_unmap_phy_mem_region(icp_hw_mgr.iommu_hdl,
+		CAM_SMMU_REGION_DEVICE,
+		CAM_SMMU_SUBREGION_GLOBAL_CNTR);
 unmap_ipc_mutex:
 	cam_smmu_unmap_phy_mem_region(icp_hw_mgr.iommu_hdl,
 		CAM_SMMU_REGION_DEVICE,
@@ -4568,13 +4603,27 @@ static int cam_icp_mgr_send_memory_region_info(
 			hw_mgr->hfi_mem.global_cntr.len;
 
 		region_info->num_valid_regions++;
+
+		/* Update soc hw version mem */
+		region_info->region_info[region_info->num_valid_regions].region_id =
+			HFI_MEM_REGION_ID_SOC_HW_VERSION;
+		region_info->region_info[region_info->num_valid_regions].region_type =
+			HFI_MEM_REGION_TYPE_DEVICE;
+		region_info->region_info[region_info->num_valid_regions].start_addr =
+			hw_mgr->hfi_mem.soc_hw_version.iova;
+		region_info->region_info[region_info->num_valid_regions].size =
+			hw_mgr->hfi_mem.soc_hw_version.len;
+
+		region_info->num_valid_regions++;
+
 		CAM_DBG(CAM_ICP,
-			"Synx mem regions global_sync[0x%x:0x%x] synx_hw_mutex[0x%x:0x%x] ipc_hw_mutex[0x%x:0x%x] global_cntr[0x%x:0x%x]",
+			"Synx mem regions global_sync[0x%x:0x%x] synx_hw_mutex[0x%x:0x%x] ipc_hw_mutex[0x%x:0x%x] global_cntr[0x%x:0x%x] soc_hw_version[0x%x:0x%x]",
 			hw_mgr->hfi_mem.fw_uncached_global_sync.iova,
 			hw_mgr->hfi_mem.fw_uncached_global_sync.len,
 			hw_mgr->hfi_mem.synx_hwmutex.iova, hw_mgr->hfi_mem.synx_hwmutex.len,
 			hw_mgr->hfi_mem.ipc_hwmutex.iova, hw_mgr->hfi_mem.ipc_hwmutex.len,
-			hw_mgr->hfi_mem.global_cntr.iova, hw_mgr->hfi_mem.global_cntr.len);
+			hw_mgr->hfi_mem.global_cntr.iova, hw_mgr->hfi_mem.global_cntr.len,
+			hw_mgr->hfi_mem.soc_hw_version.iova, hw_mgr->hfi_mem.soc_hw_version.len);
 	}
 
 	CAM_DBG(CAM_ICP,

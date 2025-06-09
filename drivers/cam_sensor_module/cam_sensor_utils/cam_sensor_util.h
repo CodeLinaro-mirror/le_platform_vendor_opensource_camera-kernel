@@ -72,19 +72,14 @@ int cam_sensor_core_power_up(struct cam_sensor_power_ctrl_t *ctrl,
 int cam_sensor_util_power_down(struct cam_sensor_power_ctrl_t *ctrl,
 		struct cam_hw_soc_info *soc_info);
 
+int32_t cam_sensor_regulator_toggle(struct cam_hw_soc_info *soc_info,
+		struct cam_sensor_power_ctrl_t* rgltr_power_info);
+
 int msm_camera_fill_vreg_params(struct cam_hw_soc_info *soc_info,
 	struct cam_sensor_power_setting *power_setting,
 	uint16_t power_setting_size);
 
 int32_t cam_sensor_update_power_settings(void *cmd_buf,
-	uint32_t cmd_length, struct cam_sensor_power_ctrl_t *power_info,
-	size_t cmd_buf_len);
-
-int32_t cam_sensor_update_power_up_settings(void *cmd_buf,
-	uint32_t cmd_length, struct cam_sensor_power_ctrl_t *power_info,
-	size_t cmd_buf_len);
-
-int32_t cam_sensor_update_power_down_settings(void *cmd_buf,
 	uint32_t cmd_length, struct cam_sensor_power_ctrl_t *power_info,
 	size_t cmd_buf_len);
 

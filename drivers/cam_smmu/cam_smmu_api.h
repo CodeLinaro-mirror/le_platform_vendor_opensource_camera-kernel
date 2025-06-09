@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2014-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2025 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_SMMU_API_H_
@@ -53,6 +53,7 @@ enum cam_smmu_subregion_id {
 	CAM_SMMU_SUBREGION_IPC_HWMUTEX,
 	CAM_SMMU_SUBREGION_GLOBAL_SYNC_MEM,
 	CAM_SMMU_SUBREGION_GLOBAL_CNTR,
+	CAM_SMMU_SUBREGION_SOC_HW_VERSION,
 	CAM_SMMU_SUBREGION_MAX,
 };
 

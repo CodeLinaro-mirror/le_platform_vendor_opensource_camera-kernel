@@ -1861,7 +1861,10 @@ static int cam_smmu_retrieve_region_info(
 				CAM_ERR(CAM_SMMU,
 					"Failed to find subregion: %d in region: %d cb: %s",
 					subregion, region_id, cb_info->name[0]);
-				rc = PTR_ERR(subregion);
+				if (!subregion)
+					rc = -EINVAL;
+				else
+					rc = PTR_ERR(subregion);
 				goto end;
 			}
 
@@ -4620,6 +4623,20 @@ static int cam_smmu_get_subregions_memory_info(
 			}
 			break;
 		case CAM_SMMU_SUBREGION_GLOBAL_CNTR:
+			if (subregion_mask & BIT(subregion_id))
+				goto repeated_subregion;
+
+			subregions->subregion_id = subregion_id;
+			subregions->subregion_info.iova_len = subregion_len;
+			subregions->subregion_info.iova_start = subregion_start;
+			rc = of_property_read_u32(sub_node,
+				"phy-addr", (uint32_t *)&subregions->subregion_info.phy_addr);
+			if (rc < 0) {
+				CAM_ERR(CAM_SMMU, "Failed to read phy addr");
+				goto err;
+			}
+			break;
+		case CAM_SMMU_SUBREGION_SOC_HW_VERSION:
 			if (subregion_mask & BIT(subregion_id))
 				goto repeated_subregion;
 

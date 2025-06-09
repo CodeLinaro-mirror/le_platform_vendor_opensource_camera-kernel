@@ -3091,6 +3091,7 @@ static int __cam_isp_ctx_apply_req_offline(
 	cfg.priv  = &req_isp->hw_update_data;
 	cfg.init_packet = 0;
 	cfg.applied_crop_req_id = 0;
+	cfg.crop_settings_id = INVALID_CROP_SETTINGS_ID;
 	req_isp->applied_crop_req_id = 0;
 
 	/*
@@ -5187,7 +5188,7 @@ static int cam_isp_ctx_reapply_iq_config(struct cam_context *ctx, struct cam_ctx
 	struct cam_hw_config_args cfg = {0};
 	struct cam_isp_ctx_req *req_isp;
 	int rc;
-	uint64_t crop_settings_id = 0;
+	uint64_t crop_settings_id = INVALID_CROP_SETTINGS_ID;
 
 	req_isp = (struct cam_isp_ctx_req *) req->req_priv;
 
@@ -5198,6 +5199,7 @@ static int cam_isp_ctx_reapply_iq_config(struct cam_context *ctx, struct cam_ctx
 	cfg.priv  = &req_isp->hw_update_data;
 	cfg.init_packet = 0;
 	cfg.applied_crop_req_id = 0;
+	cfg.crop_settings_id = INVALID_CROP_SETTINGS_ID;
 	req_isp->applied_crop_req_id = 0;
 
 	if (reapply_type == CAM_CONFIG_REAPPLY_NONE) {
@@ -5540,7 +5542,7 @@ static int __cam_isp_ctx_apply_req_in_activated_state(
 	struct cam_isp_context          *ctx_isp = NULL;
 	struct cam_hw_config_args        cfg = {0};
 	unsigned long                    flags;
-	uint64_t crop_settings_id = 0;
+	uint64_t crop_settings_id = INVALID_CROP_SETTINGS_ID;
 
 	ctx_isp = (struct cam_isp_context *) ctx->ctx_priv;
 
@@ -5664,6 +5666,7 @@ static int __cam_isp_ctx_apply_req_in_activated_state(
 	cfg.reapply_type = req_isp->reapply_type;
 	cfg.cdm_reset_before_apply = req_isp->cdm_reset_before_apply;
 	cfg.wait_for_request_apply = apply->wait_for_request_apply;
+	cfg.crop_settings_id = INVALID_CROP_SETTINGS_ID;
 	req_isp->boot_timestamp = 0;
 	req_isp->sof_timestamp_val = 0;
 	cfg.applied_crop_req_id = 0;
@@ -10345,6 +10348,7 @@ static int __cam_isp_ctx_start_dev_in_ready(struct cam_context *ctx,
 	start_isp.hw_config.hw_update_entries = req_isp->cfg;
 	start_isp.hw_config.num_hw_update_entries = req_isp->num_cfg;
 	start_isp.hw_config.priv  = &req_isp->hw_update_data;
+	start_isp.hw_config.crop_settings_id = INVALID_CROP_SETTINGS_ID;
 
 	req_isp->applied_crop_req_id = 0;
 
@@ -10834,6 +10838,7 @@ static int __cam_isp_ctx_reset_and_recover(
 	start_isp.hw_config.num_hw_update_entries = req_isp->num_cfg;
 	start_isp.hw_config.priv  = &req_isp->hw_update_data;
 	start_isp.hw_config.applied_crop_req_id = 0;
+	start_isp.hw_config.crop_settings_id = INVALID_CROP_SETTINGS_ID;
 
 	req_isp->applied_crop_req_id = 0;
 

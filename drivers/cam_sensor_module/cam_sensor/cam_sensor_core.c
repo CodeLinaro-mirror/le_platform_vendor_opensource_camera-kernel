@@ -821,15 +821,19 @@ static int32_t cam_sensor_cmd_buffer(struct cam_sensor_ctrl_t *s_ctrl,
 	return rc;
 }
 
-int32_t cam_handle_cmd_buffers_for_power_off(void *ptr,
-	uint32_t cmd_length,
+int32_t cam_handle_cmd_buffers_for_rgltr_toggle(void *ptr,
 	struct cam_sensor_ctrl_t *s_ctrl,
+	uint32_t cmd_length,
 	size_t remain_len)
 {
-	int32_t rc = 0;
+	int rc = 0;
+	struct cam_sensor_power_ctrl_t temp_rgltr_power_info;
+	struct cam_sensor_power_ctrl_t* rgltr_power_info = &temp_rgltr_power_info;
+	struct cam_hw_soc_info *soc_info =
+		&s_ctrl->soc_info;
 
-	rc = cam_sensor_update_power_down_settings(ptr,
-		cmd_length, &s_ctrl->sensordata->power_info,
+	rc = cam_sensor_update_power_settings(ptr,
+		cmd_length, rgltr_power_info,
 		remain_len);
 	if (rc < 0) {
 		CAM_ERR(CAM_SENSOR,
@@ -837,200 +841,15 @@ int32_t cam_handle_cmd_buffers_for_power_off(void *ptr,
 		return rc;
 	}
 
-	/* Parse and fill vreg params for powerdown settings*/
-	rc = msm_camera_fill_vreg_params(
-		&s_ctrl->soc_info,
-		s_ctrl->sensordata->power_info.power_down_setting,
-		s_ctrl->sensordata->power_info.power_down_setting_size);
-	if (rc < 0) {
-		CAM_ERR(CAM_SENSOR,
-			"Fail in filling vreg params for %s PDOWN rc %d",
-			s_ctrl->sensor_name, rc);
-			rc = -EINVAL;
-	}
-
-	/* Power down sensor */
-
-	if (!(s_ctrl->hw_no_probe_pw_ops)) {
-		rc = cam_sensor_power_down(s_ctrl);
-		if (rc < 0) {
-			CAM_ERR(CAM_SENSOR, "Fail in %s sensor Power Down",
-				s_ctrl->sensor_name);
-			rc = -EINVAL;
-		}
-	}
-	return rc;
-}
-
-int32_t cam_handle_cmd_buffers_for_power_off_seq(uint32_t num_cmd_buf,
-	struct cam_sensor_ctrl_t *s_ctrl,
-	struct cam_cmd_buf_desc *cmd_desc)
-{
-	int rc = 0, i;
-	uintptr_t cmd_buf1 = 0;
-	size_t len_of_buff = 0;
-	size_t remain_len_left = 0;
-	void *ptr;
-	uint32_t *cmd_buf;
-
-	for (i = 0; i < num_cmd_buf; i++) {
-		rc = cam_packet_util_validate_cmd_desc(&cmd_desc[i]);
-		if (rc)
-			return rc;
-
-		if (!(cmd_desc[i].length))
-			continue;
-		rc = cam_mem_get_cpu_buf(cmd_desc[i].mem_handle,
-			&cmd_buf1, &len_of_buff);
-		if (rc < 0) {
-			CAM_ERR(CAM_SENSOR,
-				"Failed to parse the command Buffer Header");
-			rc = -EINVAL;
-		}
-		if (cmd_desc[i].offset >= len_of_buff) {
-			CAM_ERR(CAM_SENSOR,
-				"offset past length of buffer");
-			cam_mem_put_cpu_buf(cmd_desc[i].mem_handle);
-			rc = -EINVAL;
-		}
-		remain_len_left = len_of_buff - cmd_desc[i].offset;
-		if (cmd_desc[i].length > remain_len_left) {
-			CAM_ERR(CAM_SENSOR,
-				"Not enough buffer provided for cmd");
-			cam_mem_put_cpu_buf(cmd_desc[i].mem_handle);
-			rc = -EINVAL;
-		}
-		cmd_buf = (uint32_t *)cmd_buf1;
-		cmd_buf += cmd_desc[i].offset/4;
-		ptr = (void *) cmd_buf;
-
-		rc = cam_handle_cmd_buffers_for_power_off(ptr, cmd_desc[i].length,
-			s_ctrl, remain_len_left);
-		if (rc < 0) {
-			CAM_ERR(CAM_SENSOR,
-				"Failed to parse the command Buffer Header");
-			cam_mem_put_cpu_buf(cmd_desc[i].mem_handle);
-			rc = -EINVAL;
-		}
-		cam_mem_put_cpu_buf(cmd_desc[i].mem_handle);
-	}
+	rc = cam_sensor_regulator_toggle(soc_info, rgltr_power_info);
 
 	return rc;
 }
 
-int32_t cam_handle_cmd_buffers_for_power_on(void *cmd_buf,
-	struct cam_sensor_ctrl_t *s_ctrl,
-	int32_t cmd_buf_num,
-	uint32_t cmd_buf_length, size_t remain_len,
-	struct cam_cmd_buf_desc *cmd_desc)
-{
-	int32_t rc = 0;
-	int32_t pkt_opcode = 0;
-	struct cam_buf_io_cfg *io_cfg = NULL;
-	struct i2c_data_settings *i2c_data = NULL;
-	struct i2c_settings_array *i2c_reg_settings = NULL;
-
-	i2c_data = &(s_ctrl->i2c_data);
-
-	switch (cmd_buf_num) {
-	case 0: {
-		rc = cam_sensor_update_power_up_settings(cmd_buf,
-			cmd_buf_length, &s_ctrl->sensordata->power_info,
-			remain_len);
-		if (rc < 0) {
-			CAM_ERR(CAM_SENSOR,
-				"Failed in updating power settings");
-			return rc;
-		}
-
-		/* Parse and fill vreg params for powerup settings */
-		rc = msm_camera_fill_vreg_params(
-			&s_ctrl->soc_info,
-			s_ctrl->sensordata->power_info.power_setting,
-			s_ctrl->sensordata->power_info.power_setting_size);
-		if (rc < 0) {
-			CAM_ERR(CAM_SENSOR,
-				"Fail in filling vreg params for %s PUP rc %d",
-				s_ctrl->sensor_name, rc);
-			// goto free_power_settings;
-			rc = -EINVAL;
-		}
-
-		rc = cam_sensor_power_up(s_ctrl);
-		if (rc < 0) {
-			CAM_ERR(CAM_SENSOR,
-				"Power up failed for %s sensor_id: 0x%x, slave_addr: 0x%x",
-				s_ctrl->sensor_name,
-				s_ctrl->sensordata->slave_info.sensor_id,
-				s_ctrl->sensordata->slave_info.sensor_slave_addr
-				);
-			// goto free_power_settings;
-			rc = -EINVAL;
-		}
-
-	}
-		break;
-	case 1: {
-		i2c_reg_settings = &i2c_data->init_settings;
-		i2c_reg_settings->request_id = 0;
-		i2c_reg_settings->is_settings_valid = 1;
-
-		rc = cam_sensor_i2c_command_parser(&s_ctrl->io_master_info,
-			i2c_reg_settings, cmd_desc, 1, io_cfg);
-		if (rc < 0) {
-			CAM_ERR(CAM_SENSOR, "Fail parsing I2C Pkt: %d", rc);
-			rc = -EINVAL;
-		}
-		if (s_ctrl->i2c_data.init_settings.is_settings_valid &&
-			(s_ctrl->i2c_data.init_settings.request_id == 0)) {
-
-			pkt_opcode =
-				CAM_SENSOR_PACKET_OPCODE_SENSOR_INITIAL_CONFIG;
-			rc = cam_sensor_apply_settings(s_ctrl, 0,
-				pkt_opcode);
-
-			if ((rc == -EAGAIN) &&
-			(s_ctrl->io_master_info.master_type == CCI_MASTER)) {
-				/* If CCI hardware is resetting we need to wait
-				 * for sometime before reapply
-				 */
-				CAM_WARN(CAM_SENSOR,
-					"%s: Reapplying the Init settings due to cci hw reset",
-					s_ctrl->sensor_name);
-				usleep_range(1000, 1010);
-				rc = cam_sensor_apply_settings(s_ctrl, 0,
-					pkt_opcode);
-			}
-			s_ctrl->i2c_data.init_settings.request_id = -1;
-
-			if (rc < 0) {
-				CAM_ERR(CAM_SENSOR,
-					"%s: cannot apply init settings rc= %d",
-					s_ctrl->sensor_name, rc);
-				delete_request(&s_ctrl->i2c_data.init_settings);
-				rc = -EINVAL;
-			}
-			rc = delete_request(&s_ctrl->i2c_data.init_settings);
-			if (rc < 0) {
-				CAM_ERR(CAM_SENSOR,
-					"%s: Fail in deleting the Init settings",
-					s_ctrl->sensor_name);
-				rc = -EINVAL;
-			}
-		}
-	}
-		break;
-	default:
-		CAM_ERR(CAM_SENSOR, "Invalid command buffer");
-		break;
-	}
-	return rc;
-}
-
-
-int32_t cam_handle_cmd_buffers_for_power_on_seq(uint32_t num_cmd_buf,
-	struct cam_sensor_ctrl_t *s_ctrl,
-	struct cam_cmd_buf_desc *cmd_desc){
+int32_t cam_handle_cmd_buffers_for_rgltr_toggle_seq(struct cam_sensor_ctrl_t *s_ctrl,
+	uint32_t num_cmd_buf,
+	struct cam_cmd_buf_desc *cmd_desc,
+	uint32_t op_code){
 
 	int rc = 0, i;
 	uintptr_t cmd_buf1 = 0;
@@ -1070,8 +889,9 @@ int32_t cam_handle_cmd_buffers_for_power_on_seq(uint32_t num_cmd_buf,
 		cmd_buf += cmd_desc[i].offset/4;
 		ptr = (void *) cmd_buf;
 
-		rc = cam_handle_cmd_buffers_for_power_on(ptr, s_ctrl,
-			i, cmd_desc[i].length, remain_len_left, &cmd_desc[i]);
+		rc = cam_handle_cmd_buffers_for_rgltr_toggle(ptr, s_ctrl,
+			cmd_desc[i].length, remain_len_left);
+
 		if (rc < 0) {
 			CAM_ERR(CAM_SENSOR,
 				"Failed to parse the command Buffer Header");
@@ -1101,6 +921,7 @@ static int32_t cam_sensor_i2c_pkt_parse(struct cam_sensor_ctrl_t *s_ctrl,
 	uint32_t *offset = NULL;
 	struct cam_config_dev_cmd config;
 	struct i2c_data_settings *i2c_data = NULL;
+	int32_t pkt_opcode = 0;
 
 	ioctl_ctrl = (struct cam_control *)arg;
 
@@ -1142,28 +963,6 @@ static int32_t cam_sensor_i2c_pkt_parse(struct cam_sensor_ctrl_t *s_ctrl,
 	offset += csl_packet_u->cmd_buf_offset / 4;
 	cmd_desc = (struct cam_cmd_buf_desc *)(offset);
 
-	if((csl_packet_u->header.op_code & 0xFFFFFF) ==
-		CAM_SENSOR_PACKET_OPCODE_SENSOR_POWER_OFF){
-		CAM_DBG(CAM_SENSOR, "POWER_OFF OpCode: %d", csl_packet_u->header.op_code);
-		rc = cam_handle_cmd_buffers_for_power_off_seq(
-			csl_packet_u->num_cmd_buf, s_ctrl, cmd_desc);
-		if (rc) {
-			CAM_ERR(CAM_SENSOR, "power_off_seq failed");
-			goto put_ref;
-		}
-		goto put_ref;
-	} else if((csl_packet_u->header.op_code & 0xFFFFFF) ==
-		CAM_SENSOR_PACKET_OPCODE_SENSOR_POWER_ON){
-		CAM_DBG(CAM_SENSOR, "POWER_ON OpCode: %d", csl_packet_u->header.op_code);
-		rc = cam_handle_cmd_buffers_for_power_on_seq(
-			csl_packet_u->num_cmd_buf, s_ctrl, cmd_desc);
-		if (rc) {
-			CAM_ERR(CAM_SENSOR, "power_on_seq failed");
-			goto put_ref;
-		}
-		goto put_ref;
-	}
-
 	rc = cam_packet_util_copy_pkt_to_kmd(csl_packet_u, &csl_packet, remain_len);
 	if (rc) {
 		CAM_ERR(CAM_SENSOR, "Copying packet to KMD failed");
@@ -1187,6 +986,96 @@ static int32_t cam_sensor_i2c_pkt_parse(struct cam_sensor_ctrl_t *s_ctrl,
 	i2c_data = &(s_ctrl->i2c_data);
 	CAM_DBG(CAM_SENSOR, "Header OpCode: %d", csl_packet->header.op_code);
 	switch (csl_packet->header.op_code & 0xFFFFFF) {
+	case CAM_SENSOR_PACKET_OPCODE_SENSOR_POWER_OFF: {
+		rc = cam_sensor_power_down(s_ctrl);
+		if (rc < 0) {
+			CAM_ERR(CAM_SENSOR,
+				"Sensor Power Down failed for %s sensor_id: 0x%x, slave_addr:0x%x",
+				s_ctrl->sensor_name,
+				s_ctrl->sensordata->slave_info.sensor_id,
+				s_ctrl->sensordata->slave_info.sensor_slave_addr
+				);
+		}
+		goto end;
+	}
+	case CAM_SENSOR_PACKET_OPCODE_SENSOR_POWER_ON: {
+		if (!(s_ctrl->hw_no_probe_pw_ops)) {
+			rc = cam_sensor_power_up(s_ctrl);
+			if (rc < 0) {
+				CAM_ERR(CAM_SENSOR,
+					"Power up failed for %s sensor_id: 0x%x, slave_addr: 0x%x",
+					s_ctrl->sensor_name,
+					s_ctrl->sensordata->slave_info.sensor_id,
+					s_ctrl->sensordata->slave_info.sensor_slave_addr
+					);
+			}
+		} else {
+			CAM_DBG(CAM_SENSOR, "%s-slot[%d] probe with hw_no_probe_pw_ops[%d]",
+				s_ctrl->sensor_name,
+				s_ctrl->soc_info.index,
+				s_ctrl->hw_no_probe_pw_ops);
+		}
+
+		i2c_reg_settings = &i2c_data->init_settings;
+		i2c_reg_settings->request_id = 0;
+		i2c_reg_settings->is_settings_valid = 1;
+
+		rc = cam_sensor_i2c_command_parser(&s_ctrl->io_master_info,
+			i2c_reg_settings, &cmd_desc[1], 1, io_cfg);
+		if (rc < 0) {
+			CAM_ERR(CAM_SENSOR, "Fail parsing I2C Pkt: %d", rc);
+			goto end;
+		}
+
+		if (s_ctrl->i2c_data.init_settings.is_settings_valid &&
+			(s_ctrl->i2c_data.init_settings.request_id == 0)) {
+
+			pkt_opcode =
+				CAM_SENSOR_PACKET_OPCODE_SENSOR_INITIAL_CONFIG;
+			rc = cam_sensor_apply_settings(s_ctrl, 0,
+				pkt_opcode);
+
+			if ((rc == -EAGAIN) &&
+			(s_ctrl->io_master_info.master_type == CCI_MASTER)) {
+				/* If CCI hardware is resetting we need to wait
+				 * for sometime before reapply
+				 */
+				CAM_WARN(CAM_SENSOR,
+					"%s: Reapplying the Init settings due to cci hw reset",
+					s_ctrl->sensor_name);
+				usleep_range(1000, 1010);
+				rc = cam_sensor_apply_settings(s_ctrl, 0,
+					pkt_opcode);
+			}
+			s_ctrl->i2c_data.init_settings.request_id = -1;
+
+			if (rc < 0) {
+				CAM_ERR(CAM_SENSOR,
+					"%s: cannot apply init settings rc= %d",
+					s_ctrl->sensor_name, rc);
+				delete_request(&s_ctrl->i2c_data.init_settings);
+				rc = -EINVAL;
+			}
+			rc = delete_request(&s_ctrl->i2c_data.init_settings);
+			if (rc < 0) {
+				CAM_ERR(CAM_SENSOR,
+					"%s: Fail in deleting the Init settings",
+					s_ctrl->sensor_name);
+				rc = -EINVAL;
+			}
+		}
+		goto end;
+	}
+	case CAM_SENSOR_PACKET_OPCODE_SENSOR_CUSTOM_RGLTR: {
+		CAM_DBG(CAM_SENSOR, "OpCode: %d", csl_packet->header.op_code);
+		rc = cam_handle_cmd_buffers_for_rgltr_toggle_seq(
+			s_ctrl, csl_packet->num_cmd_buf, cmd_desc, csl_packet->header.op_code);
+		if (rc) {
+			CAM_ERR(CAM_SENSOR, "Regulator toggle Failed");
+			goto end;
+		}
+		goto end;
+	}
 	case CAM_SENSOR_PACKET_OPCODE_SENSOR_INITIAL_CONFIG: {
 		i2c_reg_settings = &i2c_data->init_settings;
 		i2c_reg_settings->request_id = 0;

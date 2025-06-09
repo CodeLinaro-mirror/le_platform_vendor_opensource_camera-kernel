@@ -2,6 +2,7 @@
 
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2025 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __TPG_HW_H__
@@ -75,12 +76,14 @@ struct tpg_vc_slot_info {
  * @max_vc_channels: max number of virtual channels supported by tpg
  * @max_dt_channels_per_vc: max dts supported in each vc
  * @ops:   tpg hw operations
+ * @usr_payload_data: pixel data in user specified mode
  */
 struct tpg_hw_info {
 	uint32_t          version;
 	uint32_t          max_vc_channels;
 	uint32_t          max_dt_channels_per_vc;
 	struct tpg_hw_ops *ops;
+	int               usr_payload_data;
 };
 
 

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2025 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "tpg_hw_v_1_3.h"
@@ -112,6 +113,7 @@ static struct cam_tpg_ver_1_3_reg_offset cam_tpg103_reg = {
 	.tpg_num_dts_shift_val = 8,
 	.tpg_v_blank_cnt_shift = 12,
 	.tpg_dt_encode_format_shift = 20,
+	.tpg_dt_payload_data_shift = 4,
 	.tpg_payload_mode_color = 0x8,
 	.tpg_split_en_shift = 4,
 	.top_mux_reg_offset = 0x1C,
@@ -274,6 +276,8 @@ static int configure_dt(
 
 	val = ((get_tpg_encode_format(stream->pixel_depth) & 0xF) <<
 			tpg_reg->tpg_dt_encode_format_shift) |
+		((hw->hw_info->usr_payload_data & 0xFFFF) <<
+			tpg_reg->tpg_dt_payload_data_shift)  |
 		get_tpg_payload_mode(stream->pattern_type);
 	cam_io_w_mb(val, soc_info->reg_map[0].mem_base +
 			tpg_reg->tpg_vc0_dt_0_cfg_2 +
@@ -503,8 +507,44 @@ int tpg_hw_v_1_3_dump_status(struct tpg_hw *hw, void *data)
 	return 0;
 }
 
+static int tpg_1_3_get_payload_data(void *data, u64 *val)
+{
+	struct tpg_hw *hw = (struct tpg_hw *)data;
+
+	CAM_INFO(CAM_TPG, "get payload data : %d", hw->hw_info->usr_payload_data);
+	*val = hw->hw_info->usr_payload_data;
+	return 0;
+}
+
+static int tpg_1_3_set_payload_data(void *data, u64 val)
+{
+	struct tpg_hw *hw = (struct tpg_hw *)data;
+
+	CAM_INFO(CAM_TPG, "payload prev data : %d, new: %d", hw->hw_info->usr_payload_data, val);
+	hw->hw_info->usr_payload_data = val;
+	return 0;
+}
+
+DEFINE_DEBUGFS_ATTRIBUTE(tpg_1_3_payload_data,
+	&tpg_1_3_get_payload_data,
+	&tpg_1_3_set_payload_data,
+	"%16lld");
+
 int tpg_hw_v_1_3_init(struct tpg_hw *hw, void *data)
 {
+	struct dentry *dbgfileptr_parent = NULL;
+	char dir_name[160];
+		snprintf(dir_name, sizeof(dir_name), "tpg%d",
+		hw->hw_idx);
+		dbgfileptr_parent = debugfs_create_dir(dir_name, NULL);
+	if (!dbgfileptr_parent) {
+		CAM_ERR(CAM_TPG, "Debug fs could not create directory");
+		return -ENOENT;
+	}
+
+	debugfs_create_file("tpg_1_3_payload_data", 0644,
+	dbgfileptr_parent, hw, &tpg_1_3_payload_data);
+
 	CAM_DBG(CAM_TPG, "TPG V1.3 HWL init");
 	tpg_hw_v_1_3_reset(hw, data);
 	return 0;

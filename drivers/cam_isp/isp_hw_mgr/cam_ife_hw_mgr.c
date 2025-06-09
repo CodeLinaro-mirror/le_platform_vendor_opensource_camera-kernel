@@ -10026,7 +10026,7 @@ static int cam_ife_mgr_config_hw(void *hw_mgr_priv,
 	}
 
 	/* When fast crop enable and crop settings id avaliable need to apply */
-	if (ctx->flags.fast_crop_en && cfg->crop_settings_id) {
+	if (ctx->flags.fast_crop_en && (cfg->crop_settings_id < INVALID_CROP_SETTINGS_ID)) {
 		crop_setting =
 			(struct cam_isp_crop_setting_info *)(ctx->fast_crop_shared_buf_kmdvaddr +
 			ctx->fast_crop_shared_buf_info.offset);

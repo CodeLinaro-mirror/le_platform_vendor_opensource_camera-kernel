@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2025 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __TPG_HW_V_1_3_DATA_H__
@@ -22,6 +23,7 @@ struct tpg_hw_info tpg_v_1_3_hw_info = {
 	.max_vc_channels = 4,
 	.max_dt_channels_per_vc = 4,
 	.ops = &tpg_hw_v_1_3_ops,
+	.usr_payload_data = 128,
 };
 
 #endif

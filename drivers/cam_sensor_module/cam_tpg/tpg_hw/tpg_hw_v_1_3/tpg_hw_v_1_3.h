@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2025 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __TPG_HW_V_1_3_H__
@@ -107,6 +108,7 @@ struct cam_tpg_ver_1_3_reg_offset {
 	uint32_t tpg_num_dts_shift_val;
 	uint32_t tpg_v_blank_cnt_shift;
 	uint32_t tpg_dt_encode_format_shift;
+	uint32_t tpg_dt_payload_data_shift;
 	uint32_t tpg_payload_mode_color;
 	uint32_t tpg_split_en_shift;
 	uint32_t top_mux_reg_offset;

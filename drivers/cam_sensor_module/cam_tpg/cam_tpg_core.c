@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023, 2025 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "cam_tpg_core.h"
@@ -9,6 +9,8 @@
 #include <cam_mem_mgr.h>
 #include "tpg_hw/tpg_hw.h"
 #include "cam_common_util.h"
+
+#define WITH_NO_CRM_MASK  0x1
 
 int cam_tpg_shutdown(struct cam_tpg_device *tpg_dev)
 {
@@ -40,8 +42,7 @@ int cam_tpg_publish_dev_info(
 
 	info->dev_id = CAM_REQ_MGR_DEVICE_TPG;
 	strlcpy(info->name, CAM_TPG_NAME, sizeof(info->name));
-	/* Hard code for now */
-	info->p_delay = 1;
+	info->p_delay = CAM_TPG_PIPELINE_DELAY;
 	info->trigger = CAM_TRIGGER_POINT_SOF;
 
 	CAM_INFO(CAM_TPG, "TPG PD delay:%d", info->p_delay);
@@ -81,6 +82,69 @@ static int cam_tpg_notify_frame_skip(
 	struct cam_req_mgr_apply_request *apply)
 {
 	CAM_DBG(CAM_TPG, "Got Skip frame from crm");
+	return 0;
+}
+
+static int cam_tpg_no_crm_handshake(
+	struct cam_req_mgr_no_crm_handshake_data *info)
+{
+	struct cam_tpg_device *tpg_dev = NULL;
+
+	if (!info)
+		return -EINVAL;
+
+	tpg_dev = (struct cam_tpg_device *)
+		cam_get_device_priv(info->dev_hdl);
+
+	if (!tpg_dev) {
+		CAM_ERR(CAM_TPG, "Device data is NULL");
+		return -EINVAL;
+	}
+
+	info->pipeline_delay = CAM_TPG_PIPELINE_DELAY;
+	info->trigger        = CAM_TRIGGER_POINT_SOF;
+	tpg_dev->anchor_pd   = info->anchor_pd;
+	tpg_dev->crm_intf.frame_skip_cb = info->frame_skip_cb;
+
+	return 0;
+}
+
+static int cam_tpg_no_crm_apply_req(
+	struct cam_req_mgr_no_crm_apply_request *apply)
+{
+	int rc = 0;
+	uint64_t req_id = 0;
+	int self_pd     = CAM_TPG_PIPELINE_DELAY;
+	struct cam_tpg_device *tpg_dev = NULL;
+
+	if (!apply) {
+		CAM_ERR(CAM_TPG, "invalid parameters");
+		return -EINVAL;
+	}
+
+	tpg_dev = (struct cam_tpg_device *)
+		cam_get_device_no_crm_priv(apply->dev_hdl);
+
+	if (!tpg_dev) {
+		CAM_ERR(CAM_TPG, "Device data is NULL");
+		return -EINVAL;
+	}
+
+	req_id = apply->anchor_req_id + (self_pd - tpg_dev->anchor_pd);
+
+	CAM_DBG(CAM_TPG, "TPG[%d] anchor_req_id[%llu] req_id[%llu]",
+		tpg_dev->soc_info.index, apply->anchor_req_id, req_id);
+
+	if (tpg_dev->tpg_hw.global_config.mode == TPG_TRIGGER_MODE &&
+		tpg_dev->state == CAM_TPG_STATE_START) {
+		rc = tpg_hw_start(&tpg_dev->tpg_hw);
+		if (rc) {
+			CAM_ERR(CAM_TPG, "TPG[%d] START_DEV failed", tpg_dev->soc_info.index);
+		} else {
+			tpg_dev->state = CAM_TPG_STATE_START;
+			CAM_INFO(CAM_TPG, "TPG[%d] TPG configuerd.", tpg_dev->soc_info.index);
+		}
+	}
 	return 0;
 }
 
@@ -173,6 +237,8 @@ int tpg_crm_intf_init(
 	tpg_dev->crm_intf.ops.flush_req = cam_tpg_flush_req;
 	tpg_dev->crm_intf.ops.process_evt = cam_tpg_process_crm_evt;
 	tpg_dev->crm_intf.ops.dump_req = cam_tpg_dump_req;
+	tpg_dev->crm_intf.no_crm_ops.handshake = cam_tpg_no_crm_handshake;
+	tpg_dev->crm_intf.no_crm_ops.apply_req = cam_tpg_no_crm_apply_req;
 
 	return 0;
 }
@@ -226,10 +292,20 @@ static int __cam_tpg_handle_acquire_dev(
 
 	crm_intf_params.session_hdl = acquire->session_handle;
 	crm_intf_params.ops = &tpg_dev->crm_intf.ops;
+	crm_intf_params.no_crm_ops = NULL;
 	crm_intf_params.v4l2_sub_dev_flag = 0;
 	crm_intf_params.media_entity_flag = 0;
 	crm_intf_params.priv = tpg_dev;
+	crm_intf_params.no_crm_priv = NULL;
 	crm_intf_params.dev_id = CAM_TPG;
+	tpg_dev->crm_intf.enable_crm = 1;
+
+	/* add crm callbacks only in case of with crm is enabled */
+	if (acquire->info_handle & WITH_NO_CRM_MASK) {
+		tpg_dev->crm_intf.enable_crm = 0;
+		crm_intf_params.no_crm_ops = &tpg_dev->crm_intf.no_crm_ops;
+		crm_intf_params.no_crm_priv = tpg_dev;
+	}
 
 	acquire->device_handle =
 		cam_create_device_hdl(&crm_intf_params);
@@ -386,9 +462,12 @@ static int cam_tpg_validate_cmd_descriptor(
 {
 	int rc = 0;
 	uintptr_t generic_ptr;
-	size_t len_of_buff = 0;
-	uint32_t                *cmd_buf = NULL;
-	struct tpg_command_header_t *cmd_header = NULL;
+	size_t            len_of_buff                 = 0;
+	size_t            remain_len                  = 0;
+	ssize_t           cmd_header_size             = 0;
+	uint32_t          *cmd_buf                    = NULL;
+	struct tpg_command_header_t *cmd_header_user  = NULL;
+	struct tpg_command_header_t *cmd_header       = NULL;
 
 	if (!cmd_desc || !cmd_type || !cmd_addr)
 		return -EINVAL;
@@ -401,15 +480,65 @@ static int cam_tpg_validate_cmd_descriptor(
 		return rc;
 	}
 
-	cmd_buf = (uint32_t *)generic_ptr;
-	cmd_buf += cmd_desc->offset / 4;
-	cmd_header = (struct tpg_command_header_t *)cmd_buf;
-
-	if (len_of_buff < sizeof(struct tpg_command_header_t)) {
-		CAM_ERR(CAM_TPG, "Got invalid command descriptor of invalid cmd buffer size");
+	if (cmd_desc->offset >= len_of_buff) {
+		CAM_ERR(CAM_TPG, "Buffer Offset: %d past length of buffer %zu",
+			cmd_desc->offset,
+			len_of_buff);
 		rc = -EINVAL;
 		goto end;
 	}
+	remain_len = len_of_buff - cmd_desc->offset;
+
+	if ((cmd_desc->size > remain_len) ||
+		(cmd_desc->length > cmd_desc->size)) {
+		CAM_ERR(CAM_TPG, "Invalid cmd desc, size: %zu remainlen: %zu length: %zu",
+			cmd_desc->size,
+			remain_len,
+			cmd_desc->length);
+		rc = -EINVAL;
+		goto end;
+	}
+
+	if (remain_len < sizeof(struct tpg_command_header_t)) {
+		CAM_ERR(CAM_TPG, "Invalid buf size, remain len: %zu cmd header size: %zu",
+			remain_len,
+			sizeof(struct tpg_command_header_t));
+		rc = -EINVAL;
+		goto end;
+	}
+
+	cmd_buf = (uint32_t *)generic_ptr;
+	cmd_buf += cmd_desc->offset / sizeof(uint32_t);
+	cmd_header_user = (struct tpg_command_header_t *)cmd_buf;
+
+	cmd_header_size = cmd_header_user->size;
+
+	/* Check for cmd_header_size overflow or underflow condition */
+	if ((cmd_header_size < 0) ||
+		((SIZE_MAX - cmd_header_size) < cmd_desc->offset)) {
+		CAM_ERR(CAM_TPG, "Invalid cmd header size: %zu, offset: %d",
+			cmd_header_size,
+			cmd_desc->offset);
+		rc = -EINVAL;
+		goto end;
+	}
+
+	if ((cmd_desc->offset + (size_t)cmd_header_size) > len_of_buff) {
+		CAM_ERR(CAM_TPG, "Cmd header offset mismatch, offset: %d size: %zu len: %zu",
+			cmd_desc->offset,
+			cmd_header_size,
+			len_of_buff);
+		rc = -EINVAL;
+		goto end;
+	}
+
+	cmd_header = kmemdup(cmd_header_user, cmd_header_size, GFP_KERNEL);
+	if (!cmd_header) {
+		CAM_ERR(CAM_TPG, "Local cmd_header mem allocation failed");
+		rc = -ENOMEM;
+		goto end;
+	}
+	cmd_header->size = cmd_header_size;
 
 	switch (cmd_header->cmd_type) {
 	case TPG_CMD_TYPE_GLOBAL_CONFIG: {
@@ -507,6 +636,7 @@ static int cam_tpg_cmd_buf_parse(
 			rc = -EINVAL;
 			break;
 		}
+		kfree((void *)cmd_addr);
 	}
 end:
 	return rc;
@@ -805,6 +935,9 @@ int cam_tpg_core_cfg(
 					tpg_dev->soc_info.index,
 					rc);
 		}
+		break;
+	}
+	case CAM_FLUSH_REQ: {
 		break;
 	}
 	default:

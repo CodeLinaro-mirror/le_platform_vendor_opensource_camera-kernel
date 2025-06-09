@@ -4382,8 +4382,8 @@ static int cam_req_mgr_cb_fast_crop_sync_utility(int32_t session_hdl,
 	sync_shared_buf = (struct cam_req_mgr_sync_shared_buf *)(shared_buf_kmdvaddr +
 		cam_session->fast_crop_sync.offset);
 
-	/* Get the latest crop settings, valid settings id start from 1*/
-	if (sync_shared_buf->latest_setting_id >= 1) {
+	/* Get the latest crop settings */
+	if (sync_shared_buf->latest_setting_id < INVALID_CROP_SETTINGS_ID) {
 		slot->crop_settings_id = sync_shared_buf->latest_setting_id;
 		*crop_settings_id = slot->crop_settings_id;
 		if (cam_session->crop_settings_num_slots < MAX_REQ_SLOTS)

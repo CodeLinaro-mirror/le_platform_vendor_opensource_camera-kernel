@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #include <linux/init.h>
@@ -434,20 +434,38 @@ static int cam_sync_synx_obj_cb(int32_t sync_obj,
 	struct cam_sync_signal_param param;
 	int32_t rc = 0;
 	bool found = false;
+	uint32_t sync_object, uid_validity;
+	uint16_t sync_uid;
+
+	sync_object = sync_obj & sync_uid_access.fenceIdMask;
+	sync_uid = sync_obj >> sync_uid_access.uidShift;
+
+	spin_lock_bh(&sync_dev->row_spinlocks[sync_object]);
+	row = sync_dev->sync_table + sync_object;
+
+	/* Check if it is a valid fence, i.e., either current fence uid or newer */
+	uid_validity = cam_sync_check_uid_valid(sync_obj);
+	if (uid_validity == SYNC_UID_NEW) {
+		rc = cam_sync_reinit_object(sync_dev->sync_table, sync_obj);
+	} else if (uid_validity == SYNC_UID_OLD) {
+		CAM_ERR(CAM_SYNC, "Invalid fence, sync obj: %d, sync_uid: %u",
+			sync_object, sync_uid);
+		rc = -EINVAL;
+		goto end;
+	}
 
 	if (!signal_sync_obj) {
 		CAM_ERR(CAM_SYNC, "Invalid signal info args");
-		return -EINVAL;
+		rc = -EINVAL;
+		goto end;
 	}
 
 	/* Validate sync object range */
-	if (!(sync_obj > 0 && sync_obj < CAM_SYNC_MAX_OBJS)) {
+	if (cam_sync_check_valid(sync_obj)) {
 		CAM_ERR(CAM_SYNC, "Invalid sync obj: %d", sync_obj);
-		return -EINVAL;
+		rc = -EINVAL;
+		goto end;
 	}
-
-	spin_lock_bh(&sync_dev->row_spinlocks[sync_obj]);
-	row = sync_dev->sync_table + sync_obj;
 
 	/* Validate if sync obj has a synx obj association */
 	if (!test_bit(CAM_GENERIC_FENCE_TYPE_SYNX_OBJ, &row->ext_fence_mask)) {
@@ -473,11 +491,11 @@ static int cam_sync_synx_obj_cb(int32_t sync_obj,
 		goto end;
 	}
 
-	rc = cam_sync_signal_validate_util(sync_obj, signal_sync_obj->status);
+	rc = cam_sync_signal_validate_util(sync_object, signal_sync_obj->status);
 	if (rc) {
 		CAM_ERR(CAM_SYNC,
 			"Error: Failed to validate signal info for sync_obj = %d[%s] with status = %d rc = %d",
-			sync_obj, row->name, signal_sync_obj->status, rc);
+			sync_object, row->name, signal_sync_obj->status, rc);
 		goto end;
 	}
 
@@ -497,7 +515,7 @@ static int cam_sync_synx_obj_cb(int32_t sync_obj,
 
 	INIT_LIST_HEAD(&parents_list);
 	list_splice_init(&row->parents_list, &parents_list);
-	spin_unlock_bh(&sync_dev->row_spinlocks[sync_obj]);
+	spin_unlock_bh(&sync_dev->row_spinlocks[sync_object]);
 
 	if (list_empty(&parents_list))
 		return 0;
@@ -510,7 +528,7 @@ static int cam_sync_synx_obj_cb(int32_t sync_obj,
 	return 0;
 
 end:
-	spin_unlock_bh(&sync_dev->row_spinlocks[sync_obj]);
+	spin_unlock_bh(&sync_dev->row_spinlocks[sync_object]);
 	return rc;
 }
 #endif
@@ -1271,7 +1289,7 @@ static int cam_sync_handle_signal(struct cam_private_ioctl_arg *k_ioctl)
 	int rc = 0;
 	struct cam_sync_signal sync_signal;
 	struct cam_sync_signal_param param;
-	uint32_t uid_validity;
+	uint32_t uid_validity, sync_obj, sync_manager_idx;
 
 	if (k_ioctl->size != sizeof(struct cam_sync_signal))
 		return -EINVAL;
@@ -1284,14 +1302,28 @@ static int cam_sync_handle_signal(struct cam_private_ioctl_arg *k_ioctl)
 		k_ioctl->size))
 		return -EFAULT;
 
+	sync_obj = (uint32_t)sync_signal.sync_obj & sync_uid_access.fenceIdMask;
+	sync_manager_idx = get_sync_manager_idx(sync_signal.sync_obj);
+
+	if (sync_obj >= CAM_SYNC_MAX_OBJS || sync_obj <= 0)
+		return -EINVAL;
+	if (sync_manager_idx != sync_dev->sync_table[sync_obj].sync_manager_idx) {
+		CAM_ERR(CAM_SYNC, "sync manager idx for row %d don't match with sync 0x%x",
+			sync_dev->sync_table[sync_obj].sync_manager_idx, sync_signal.sync_obj);
+		return -EINVAL;
+	}
+
+	spin_lock_bh(&sync_dev->row_spinlocks[sync_obj]);
 	uid_validity = cam_sync_check_uid_valid(sync_signal.sync_obj);
 	if (uid_validity == SYNC_UID_NEW) {
 		rc = cam_sync_reinit_object(sync_dev->sync_table, sync_signal.sync_obj);
 	} else if (uid_validity == SYNC_UID_OLD) {
+		spin_unlock_bh(&sync_dev->row_spinlocks[sync_obj]);
 		CAM_ERR(CAM_SYNC, "Signaling an old fence, sync : %d (0x%x)",
 			sync_signal.sync_obj, sync_signal.sync_obj);
 		return -EINVAL;
 	}
+	spin_unlock_bh(&sync_dev->row_spinlocks[sync_obj]);
 
 	/* need to get ref for UMD signaled fences */
 	rc = cam_sync_get_obj_ref(sync_signal.sync_obj);
@@ -2109,13 +2141,12 @@ static int cam_sync_synx_associate_obj(int32_t sync_obj, uint32_t synx_obj,
 	struct cam_synx_obj_signal signal_synx_obj;
 	struct sync_ext_fence_info *ext_fence_info;
 	int rc = 0;
+	uint32_t sync_object;
 
-	rc = cam_sync_check_valid(sync_obj);
-	if (rc)
-		return rc;
+	sync_object = sync_obj & sync_uid_access.fenceIdMask;
 
-	row = sync_dev->sync_table + sync_obj;
-	spin_lock(&sync_dev->row_spinlocks[sync_obj]);
+	row = sync_dev->sync_table + sync_object;
+	spin_lock(&sync_dev->row_spinlocks[sync_object]);
 	if (unlikely(test_bit(CAM_GENERIC_FENCE_TYPE_SYNX_OBJ, &row->ext_fence_mask))) {
 		CAM_ERR(CAM_SYNC,
 			"sync_obj: %s[%d] has already been associated with a synx_hdl",
@@ -2129,7 +2160,7 @@ static int cam_sync_synx_associate_obj(int32_t sync_obj, uint32_t synx_obj,
 	} else {
 		rc = cam_sync_get_ext_fence_payload(&ext_fence_info);
 		if (rc) {
-			spin_unlock_bh(&sync_dev->row_spinlocks[sync_obj]);
+			spin_unlock_bh(&sync_dev->row_spinlocks[sync_object]);
 			return rc;
 		}
 
@@ -2144,11 +2175,11 @@ static int cam_sync_synx_associate_obj(int32_t sync_obj, uint32_t synx_obj,
 			row->name, sync_obj, ext_fence_info->synx_obj_info.synx_obj);
 	}
 
-	spin_unlock(&sync_dev->row_spinlocks[sync_obj]);
+	spin_unlock(&sync_dev->row_spinlocks[sync_object]);
 	return rc;
 
 signal_synx:
-	spin_unlock(&sync_dev->row_spinlocks[sync_obj]);
+	spin_unlock(&sync_dev->row_spinlocks[sync_object]);
 	return cam_synx_obj_signal_obj(&signal_synx_obj);
 }
 
@@ -2162,6 +2193,8 @@ static int cam_generic_fence_handle_synx_import(
 	struct cam_generic_fence_config *fence_cfg = NULL;
 	bool is_sync_obj_signaled = false;
 	bool is_sync_obj_created = false;
+	uint32_t uid_validity, sync_obj;
+	uint16_t sync_uid;
 
 	rc = cam_generic_fence_alloc_validate_input_info_util(fence_cmd_args, &fence_input_info);
 	if (rc || !fence_input_info) {
@@ -2178,6 +2211,22 @@ static int cam_generic_fence_handle_synx_import(
 		is_sync_obj_signaled = false;
 		is_sync_obj_created = false;
 
+		sync_obj = fence_cfg->sync_obj & sync_uid_access.fenceIdMask;
+		sync_uid = fence_cfg->sync_obj >> sync_uid_access.uidShift;
+
+		spin_lock(&sync_dev->row_spinlocks[sync_obj]);
+		/* Check if it is a valid fence, i.e., either current fence uid or newer */
+		uid_validity = cam_sync_check_uid_valid(fence_cfg->sync_obj);
+		if (uid_validity == SYNC_UID_NEW) {
+			rc = cam_sync_reinit_object(sync_dev->sync_table, fence_cfg->sync_obj);
+		} else if (uid_validity == SYNC_UID_OLD) {
+			CAM_ERR(CAM_SYNC, "Invalid fence, sync obj: %d, sync_uid: %u",
+				sync_obj, sync_uid);
+			spin_unlock(&sync_dev->row_spinlocks[sync_obj]);
+			return -EINVAL;
+		}
+		spin_unlock(&sync_dev->row_spinlocks[sync_obj]);
+
 		/* Check if synx handle is for a valid synx obj */
 		rc = cam_synx_obj_find_obj_in_table(fence_cfg->synx_obj,
 			&synx_obj_row_idx);
@@ -2189,8 +2238,10 @@ static int cam_generic_fence_handle_synx_import(
 		}
 
 
-		if ((fence_cfg->sync_obj > 0) && (fence_cfg->sync_obj < CAM_SYNC_MAX_OBJS)) {
+		if (!cam_sync_check_valid(fence_cfg->sync_obj)) {
 			/* Associate synx object with existing sync object */
+			CAM_DBG(CAM_SYNX, "cam_sync_synx_associate_obj for sync: %u, synx: %u",
+				fence_cfg->sync_obj, fence_cfg->synx_obj);
 			rc = cam_sync_synx_associate_obj(fence_cfg->sync_obj,
 				fence_cfg->synx_obj, synx_obj_row_idx,
 				&is_sync_obj_signaled);
@@ -2207,6 +2258,8 @@ static int cam_generic_fence_handle_synx_import(
 
 		if (rc) {
 			fence_cfg->reason_code = rc;
+			CAM_ERR(CAM_SYNX, "synx associate failed for synx: %u sync: %u",
+				fence_cfg->synx_obj, fence_cfg->sync_obj);
 			goto out_copy;
 		}
 

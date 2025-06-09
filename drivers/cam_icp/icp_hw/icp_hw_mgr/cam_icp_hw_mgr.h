@@ -94,6 +94,7 @@ struct hfi_mini_dump_info;
  * @synx_hwmutex: Memory info for synx hwmutex region mapped as device memory
  * @ipc_hwmutex: Memory info for ipc hwmutex region mapped as device memory
  * @global_cntr: Memory info for global cntr region mapped as device memory
+ * @soc_hw_version: Memory info for soc hw version region mapped as device memory
  * @shmem: Memory info for shared region
  * @io_mem: Memory info for io region
  * @fw_uncached: Memory info for fw uncached nested region
@@ -114,6 +115,7 @@ struct icp_hfi_mem_info {
 	struct cam_mem_mgr_memory_desc synx_hwmutex;
 	struct cam_mem_mgr_memory_desc ipc_hwmutex;
 	struct cam_mem_mgr_memory_desc global_cntr;
+	struct cam_mem_mgr_memory_desc soc_hw_version;
 	struct cam_smmu_region_info shmem;
 	struct cam_smmu_region_info io_mem;
 	struct cam_smmu_region_info fw_uncached;
