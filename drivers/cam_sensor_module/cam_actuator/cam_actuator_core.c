@@ -1,4 +1,5 @@
 /* Copyright (c) 2017-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2025 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -422,6 +423,7 @@ int32_t cam_actuator_i2c_pkt_parse(struct cam_actuator_ctrl_t *a_ctrl,
 	struct common_header      *cmm_hdr = NULL;
 	struct cam_control        *ioctl_ctrl = NULL;
 	struct cam_packet         *csl_packet = NULL;
+	struct cam_packet         *csl_packet_u = NULL;
 	struct cam_config_dev_cmd config;
 	struct i2c_data_settings  *i2c_data = NULL;
 	struct i2c_settings_array *i2c_reg_settings = NULL;
@@ -460,17 +462,15 @@ int32_t cam_actuator_i2c_pkt_parse(struct cam_actuator_ctrl_t *a_ctrl,
 			"Inval cam_packet strut size: %zu, len_of_buff: %zu",
 			 sizeof(struct cam_packet), len_of_buff);
 		rc = -EINVAL;
-		goto rel_pkt_buf;
+		goto put_buf;
 	}
 
 	remain_len -= (size_t)config.offset;
-	csl_packet = (struct cam_packet *)
-			(generic_pkt_ptr + (uint32_t)config.offset);
-
-	if (cam_packet_util_validate_packet(csl_packet,
-		remain_len)) {
-		CAM_ERR(CAM_ACTUATOR, "Invalid packet params");
-		rc = -EINVAL;
+	csl_packet_u = (struct cam_packet *)
+		(generic_pkt_ptr + (uint32_t)config.offset);
+	rc = cam_packet_util_copy_pkt_to_kmd(csl_packet_u, &csl_packet, remain_len);
+	if (rc) {
+		CAM_ERR(CAM_ACTUATOR, "Copying packet to KMD failed");
 		goto rel_pkt_buf;
 	}
 
@@ -498,6 +498,10 @@ int32_t cam_actuator_i2c_pkt_parse(struct cam_actuator_ctrl_t *a_ctrl,
 
 		/* Loop through multiple command buffers */
 		for (i = 0; i < csl_packet->num_cmd_buf; i++) {
+			rc = cam_packet_util_validate_cmd_desc(&cmd_desc[i]);
+			if (rc)
+				goto rel_pkt_buf;
+
 			total_cmd_buf_in_bytes = cmd_desc[i].length;
 			if (!total_cmd_buf_in_bytes)
 				continue;
@@ -692,10 +696,11 @@ rel_cmd_buf:
 		CAM_WARN(CAM_ACTUATOR, "Fail to put cmd buffer: 0x%x",
 			cmd_desc[i].mem_handle);
 rel_pkt_buf:
+        cam_common_mem_free(csl_packet);
+put_buf:
 	if (cam_mem_put_cpu_buf(config.packet_handle))
-		CAM_WARN(CAM_ACTUATOR, "Fail to put cmd buffer: 0x%llx",
+                CAM_WARN(CAM_ACTUATOR, "Fail to put cmd buffer: 0x%llx",
 			config.packet_handle);
-
 	return rc;
 }
 

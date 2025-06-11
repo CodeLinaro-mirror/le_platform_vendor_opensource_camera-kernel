@@ -1,4 +1,5 @@
 /* Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -74,4 +75,22 @@ uint64_t cam_common_util_get_time_diff(struct timespec64 *t1, struct timespec64 
  * @return:               void
  */
 void cam_common_util_get_curr_timestamp(struct timespec64 *time_stamp);
+
+/**
+ * @brief:                 Memory alloc and copy
+ *
+ * @dst:                   Address of destination address of memory
+ * @src:                   Source address of memory
+ * @size:                  Length of memory
+ *
+ * @return                 0 if success in register non-zero if failes
+ */
+int cam_common_mem_kdup(void **dst, void *src, size_t size);
+
+/**
+ * @brief:                 Free the memory
+ *
+ * @memory:                Address of memory
+*/
+void cam_common_mem_free(void *memory);
 #endif /* _CAM_COMMON_UTIL_H_ */

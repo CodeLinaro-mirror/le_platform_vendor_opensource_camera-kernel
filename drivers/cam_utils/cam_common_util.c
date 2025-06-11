@@ -1,4 +1,5 @@
 /* Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2025 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -78,4 +79,36 @@ void cam_common_util_get_curr_timestamp(struct timespec64 *time_stamp)
 	time_stamp->tv_sec    = ts.tv_sec;
 	time_stamp->tv_nsec   = ts.tv_nsec;
 }
+
+int cam_common_mem_kdup(void **dst,
+ 	void *src, size_t size)
+{
+	gfp_t flag = GFP_KERNEL;
+
+	if (!src || !dst || !size) {
+		CAM_ERR(CAM_UTIL, "Invalid params src: %pK dst: %pK size: %zu",
+			src, dst, size);
+		return -EINVAL;
+	}
+
+	if (!in_task())
+		flag = GFP_ATOMIC;
+
+	*dst = kvzalloc(size, flag);
+	if (!*dst) {
+		CAM_ERR(CAM_UTIL, "Failed to allocate memory with size: %zu", size);
+		return -ENOMEM;
+	}
+
+	memcpy(*dst, src, size);
+	CAM_DBG(CAM_UTIL, "Allocate and copy memory with size: %zu", size);
+	return 0;
+}
+EXPORT_SYMBOL(cam_common_mem_kdup);
+
+void cam_common_mem_free(void *memory)
+{
+	kvfree(memory);
+}
+EXPORT_SYMBOL(cam_common_mem_free);
 

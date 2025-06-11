@@ -1,4 +1,5 @@
 /* Copyright (c) 2017-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2025 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -64,6 +65,7 @@ enum cam_context_state {
  * @flushed:               Request is flushed
  * @ctx:                   The context to which this request belongs
  * @pf_data                page fault debug data
+ * @packet                 pointer to packet
  *
  */
 struct cam_ctx_request {
@@ -82,6 +84,7 @@ struct cam_ctx_request {
 	int                            flushed;
 	struct cam_context            *ctx;
 	struct cam_hw_mgr_dump_pf_data pf_data;
+	void                           *packet;
 };
 
 /**

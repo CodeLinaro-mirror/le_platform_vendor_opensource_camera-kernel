@@ -430,18 +430,18 @@ static int cam_pm_sensor_suspend(struct device *pdev)
 	cam_cmd.handle_type = CAM_HANDLE_USER_POINTER;
 	cam_cmd.size        = 0;
 	s_ctrl = dev_get_drvdata(pdev);
+        if (!s_ctrl) {
+		CAM_ERR(CAM_SENSOR, "s_ctrl is NULL");
+		return rc;
+	}
 	rc = cam_sensor_driver_cmd(s_ctrl, &cam_cmd);
 	/* will return success if its already powered down or device is not connected */
-	if (!s_ctrl) {
-		if (rc == -EINVAL || rc == -ENODEV) {
-			s_ctrl->no_lpm_mode_enabled = true;
-			rc = 0;
-		} else {
-			s_ctrl->no_lpm_mode_enabled = false;
-		}
-	} else {
-		// Handle the NULL pointer case
-		CAM_ERR(CAM_SENSOR, "s_ctrl is NULL");
+	if (rc == -EINVAL || rc == -ENODEV) {
+		s_ctrl->no_lpm_mode_enabled = true;
+		rc = 0;
+	}
+	else {
+		s_ctrl->no_lpm_mode_enabled = false;
 	}
 
 	if (rc < 0)
