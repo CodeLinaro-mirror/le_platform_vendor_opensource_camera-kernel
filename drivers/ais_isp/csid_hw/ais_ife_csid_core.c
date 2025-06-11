@@ -960,7 +960,7 @@ static int ais_ife_csid_get_time_stamp(
 	const struct ais_ife_csid_reg_offset       *csid_reg;
 	struct cam_hw_soc_info                     *soc_info;
 	const struct ais_ife_csid_rdi_reg_offset   *rdi_reg;
-	uint32_t  time_32_lsb, time_32_msb, id;
+	uint32_t  time_32_lsb, time_32_msb1,time_32_msb2, id;
 	uint64_t  time_64;
 
 	p_timestamp = (struct ais_ife_rdi_get_timestamp_args *)cmd_args;
@@ -983,20 +983,28 @@ static int ais_ife_csid_get_time_stamp(
 	}
 
 	rdi_reg = csid_reg->rdi_reg[id];
+	time_32_msb1 = cam_io_r_mb(soc_info->reg_map[0].mem_base +
+			rdi_reg->csid_rdi_timestamp_curr1_sof_addr);
 	time_32_lsb = cam_io_r_mb(soc_info->reg_map[0].mem_base +
 			rdi_reg->csid_rdi_timestamp_curr0_sof_addr);
-	time_32_msb = cam_io_r_mb(soc_info->reg_map[0].mem_base +
+	time_32_msb2 = cam_io_r_mb(soc_info->reg_map[0].mem_base +
 			rdi_reg->csid_rdi_timestamp_curr1_sof_addr);
-	time_64 = ((uint64_t)time_32_msb << 32) | (uint64_t)time_32_lsb;
+        if(time_32_msb1 != time_32_msb2){
+	time_32_msb1 = cam_io_r_mb(soc_info->reg_map[0].mem_base +
+			rdi_reg->csid_rdi_timestamp_curr1_sof_addr);
+	time_32_lsb = cam_io_r_mb(soc_info->reg_map[0].mem_base +
+			rdi_reg->csid_rdi_timestamp_curr0_sof_addr);
+        }
+	time_64 = ((uint64_t)time_32_msb1 << 32) | (uint64_t)time_32_lsb;
 	p_timestamp->ts->cur_sof_ts = mul_u64_u32_div(time_64,
 		AIS_IFE_CSID_QTIMER_MUL_FACTOR,
 		AIS_IFE_CSID_QTIMER_DIV_FACTOR);
 
 	time_32_lsb = cam_io_r_mb(soc_info->reg_map[0].mem_base +
 			rdi_reg->csid_rdi_timestamp_prev0_sof_addr);
-	time_32_msb = cam_io_r_mb(soc_info->reg_map[0].mem_base +
+	time_32_msb1 = cam_io_r_mb(soc_info->reg_map[0].mem_base +
 			rdi_reg->csid_rdi_timestamp_prev1_sof_addr);
-	time_64 = ((uint64_t)time_32_msb << 32) | (uint64_t)time_32_lsb;
+	time_64 = ((uint64_t)time_32_msb1 << 32) | (uint64_t)time_32_lsb;
 	p_timestamp->ts->prev_sof_ts = mul_u64_u32_div(time_64,
 		AIS_IFE_CSID_QTIMER_MUL_FACTOR,
 		AIS_IFE_CSID_QTIMER_DIV_FACTOR);
