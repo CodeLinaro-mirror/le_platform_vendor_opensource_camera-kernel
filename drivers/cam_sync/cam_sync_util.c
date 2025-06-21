@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2018, 2020-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #include "cam_sync_util.h"
@@ -105,6 +105,7 @@ int cam_sync_init_row(struct sync_table_row *table,
 	row->uid = 0;
 	row->sync_manager_idx = sync_manager_idx;
 	row->hw_fence_client_idx = -1;
+	row->signaling_en = true;
 	atomic_set(&row->ref_cnt, 0);
 	INIT_LIST_HEAD(&row->callback_list);
 	INIT_LIST_HEAD(&row->user_payload_list);
@@ -656,37 +657,41 @@ void cam_sync_util_dispatch_signaled_cb(struct cam_sync_signal_param *param,
 			break;
 		}
 		spin_unlock_bh(&sync_dev->cam_sync_eventq_lock[sync_manager_idx]);
-		cam_sync_util_send_v4l2_event(
-			CAM_SYNC_V4L_EVENT_ID_CB_TRIG,
-			param->sync_obj,
-			param->status,
-			param->request_id,
-			0,
-			payload_info->payload_data,
-			CAM_SYNC_PAYLOAD_WORDS * sizeof(__u64),
-			param->event_cause, time_stamp, param->fh);
+		if (signalable_row->signaling_en) {
+			cam_sync_util_send_v4l2_event(
+				CAM_SYNC_V4L_EVENT_ID_CB_TRIG,
+				param->sync_obj,
+				param->status,
+				param->request_id,
+				0,
+				payload_info->payload_data,
+				CAM_SYNC_PAYLOAD_WORDS * sizeof(__u64),
+				param->event_cause, time_stamp, param->fh);
 
-		list_del_init(&payload_info->list);
-		/*
-		 * We can free the list node here because
-		 * sending V4L event will make a deep copy
-		 * anyway
-		 */
-		 kfree(payload_info);
+			list_del_init(&payload_info->list);
+			/*
+			 * We can free the list node here because
+			 * sending V4L event will make a deep copy
+			 * anyway
+			 */
+			kfree(payload_info);
+		}
 	}
 
 	/* Send the event without payload in version 5*/
 	if ((sync_dev->version == CAM_SYNC_V4L_EVENT_V5) &&
 		(signalable_row->type == CAM_SYNC_TYPE_UMD)) {
-		cam_sync_util_send_v4l2_event(
-			CAM_SYNC_V4L_EVENT_ID_CB_TRIG,
-			param->sync_obj,
-			param->status,
-			param->request_id,
-			param->applied_crop_req_id,
-			NULL,
-			0,
-			param->event_cause, time_stamp, param->fh);
+		if (signalable_row->signaling_en) {
+			cam_sync_util_send_v4l2_event(
+				CAM_SYNC_V4L_EVENT_ID_CB_TRIG,
+				param->sync_obj,
+				param->status,
+				param->request_id,
+				param->applied_crop_req_id,
+				NULL,
+				0,
+				param->event_cause, time_stamp, param->fh);
+		}
 	}
 
 	/*

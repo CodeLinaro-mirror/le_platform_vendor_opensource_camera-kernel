@@ -2701,6 +2701,7 @@ static int cam_generic_fence_create_hw_fence(
 	list_add_tail(&ext_fence_info->list, &row->ext_fences);
 	set_bit(CAM_GENERIC_FENCE_TYPE_HW_FENCE, &row->ext_fence_mask);
 	row->hw_fence_client_idx = client_entry_idx;
+	row->signaling_en = false;
 	spin_unlock_bh(&sync_dev->row_spinlocks[sync_obj]);
 	fence_cfg->reason_code = 0;
 	CAM_DBG(CAM_SYNC, "HW Fence created for session cookie: %u, sync obj: %u, synx_obj: %u",

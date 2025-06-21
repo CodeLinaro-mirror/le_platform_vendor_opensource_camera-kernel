@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2024-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #ifndef CAM_ICP_HW_MGR_H
@@ -394,6 +394,7 @@ struct cam_icp_clk_info {
  * @synx_signaling_en: core to core fencing is enabled
  *                     using synx
  * @enable_ipe_qos: flag to indicate whether ipe qos is enabled
+ * @icp_clock_cfg_cnt: count for icp clock config
  */
 struct cam_icp_hw_mgr {
 	struct mutex hw_mgr_mutex;
@@ -448,6 +449,7 @@ struct cam_icp_hw_mgr {
 	atomic_t recovery;
 	bool synx_signaling_en;
 	bool enable_ipe_qos;
+	uint32_t icp_clock_cfg_cnt;
 };
 
 /**

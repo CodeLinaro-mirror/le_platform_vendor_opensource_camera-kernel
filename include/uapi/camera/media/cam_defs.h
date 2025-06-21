@@ -33,6 +33,7 @@
 #define CAM_UPDATE_SENSOR_STREAM_CONFIG     (CAM_COMMON_OPCODE_BASE_v2 + 0x4)
 #define CAM_QUERY_CAP_V4                    (CAM_COMMON_OPCODE_BASE_v2 + 0x5)
 #define CAM_SYNX_TEST_TRIGGER               (CAM_COMMON_OPCODE_BASE_v2 + 0x6)
+#define CAM_QUERY_HW_DEV_INFO               (CAM_COMMON_OPCODE_BASE_v2 + 0x7)
 
 #define CAM_EXT_OPCODE_BASE                     0x200
 #define CAM_CONFIG_DEV_EXTERNAL                 (CAM_EXT_OPCODE_BASE + 0x1)

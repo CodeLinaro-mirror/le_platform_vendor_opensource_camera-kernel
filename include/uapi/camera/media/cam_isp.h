@@ -1571,20 +1571,20 @@ struct cam_isp_crop_setting_block_info {
  *                                    between HWL and KMD regarding fast crop.
  *
  * @version          : Struct version
- * @rd_idx           : Read index of setting_data array, updated only by KMD.
- * @wr_idx           : Read index of setting_data array, updated only by UMD.
  * @num_blocks       : Size of setting_data array.
  * @block_size       : Size of setting_data.
  * @reserved         : Reserved for 64 bit alignment
+ * @rd_idx           : Read index of setting_data array, updated only by KMD.
+ * @wr_idx           : Read index of setting_data array, updated only by UMD.
  * @setting_data     : Information related to each crop setting.
  */
 struct cam_isp_crop_setting_info {
 	__s32    version;
-	__u32    rd_idx;
-	__u32    wr_idx;
 	__u32    num_blocks;
 	__u32    block_size;
 	__u32    reserved;
+	__u64    rd_idx;
+	__u64    wr_idx;
 	__DECLARE_FLEX_ARRAY(struct cam_isp_crop_setting_block_info, setting_data_flex);
 };
 

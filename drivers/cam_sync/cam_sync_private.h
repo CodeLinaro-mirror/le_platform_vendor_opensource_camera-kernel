@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #ifndef __CAM_SYNC_PRIVATE_H__
@@ -241,6 +241,7 @@ struct sync_table_row {
 	struct sync_synx_obj_info synx_obj_info;
 	struct list_head ext_fences;
 	bool is_merged_primary;
+	bool signaling_en;
 };
 
 /**

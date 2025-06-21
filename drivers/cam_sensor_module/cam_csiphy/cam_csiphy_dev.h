@@ -55,6 +55,8 @@
 #define CSIPHY_AUXILIARY_SETTING         11
 #define CSIPHY_SHORT_CHANNEL_PARAMS      12
 #define CSIPHY_STANDARD_CHANNEL_PARAMS   13
+#define CSIPHY_CDR_SHORT_LN_SETTINGS     14
+#define CSIPHY_CDR_STANDARD_LN_SETTINGS  15
 
 #define CSIPHY_MAX_INSTANCES_PER_PHY           3
 #define CSIPHY_MAX_INSTANCES_PER_AGGREG_RX_PHY 6
@@ -326,6 +328,19 @@ struct csiphy_work_queue {
 };
 
 /**
+ * struct cam_csiphy_dev_cdr_sweep_params
+ *
+ * @cdr_tolerance       : cdr tolerance
+ * @tolerance_op_type   : if tolerance needs to be added/subtracted
+ * @cdr_sweep_enabled   : cdr sweep enabled
+ */
+struct cam_csiphy_dev_cdr_sweep_params {
+	uint32_t cdr_tolerance;
+	uint32_t tolerance_op_type;
+	bool     cdr_sweep_enabled;
+};
+
+/**
  * struct csiphy_device
  * @device_name                : Device name
  * @mutex                      : ioctl operation mutex
@@ -407,6 +422,8 @@ struct csiphy_device {
 	uint32_t                       lanes_enabled;
 	uint32_t                       channel_type;
 	uint32_t                       dphy_cphy_combo_type;
+	struct cam_csiphy_dev_cdr_sweep_params
+					cdr_params;
 	struct cam_lanes_assigned_info lanes_assigned[
 					CSIPHY_MAX_INSTANCES_PER_AGGREG_RX_PHY];
 };

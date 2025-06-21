@@ -10035,10 +10035,16 @@ static int cam_ife_mgr_config_hw(void *hw_mgr_priv,
 				rc = -EINVAL;
 				return rc;
 		}
+		CAM_DBG(CAM_ISP, "ctx id:%d rd_idx: %llu wr_idx: %llu settings_id: %llu",
+			ctx->ctx_index, crop_setting->rd_idx, crop_setting->wr_idx,
+			cfg->crop_settings_id);
 
 		/* Check if shared buffer has valid crop settings */
-		if (crop_setting->wr_idx >= 0) {
-			i = crop_setting->rd_idx;
+		if (crop_setting->wr_idx != INVALID_CROP_SETTINGS_ID) {
+			if (crop_setting->rd_idx == INVALID_CROP_SETTINGS_ID)
+				i = 0;
+			else
+				i = crop_setting->rd_idx;
 			do {
 				block_info = &crop_setting->setting_data_flex[i];
 				if (!block_info) {
@@ -14158,7 +14164,7 @@ static int cam_isp_blob_hw_fence_mode_config(
 		prepare->priv;
 	ctx = prepare->ctxt_to_hw_map;
 
-	if (!g_ife_hw_mgr.isp_bus_caps.ipcc_en) {
+	if (hw_fence_config->num_res && !g_ife_hw_mgr.isp_bus_caps.ipcc_en) {
 		rc = -EOPNOTSUPP;
 		goto end;
 	}
