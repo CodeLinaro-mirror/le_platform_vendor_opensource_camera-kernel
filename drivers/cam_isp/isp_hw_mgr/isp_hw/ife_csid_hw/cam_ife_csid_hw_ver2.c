@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #include <linux/iopoll.h>
@@ -6138,6 +6138,40 @@ static int cam_ife_csid_ver2_update_aup(struct cam_ife_csid_ver2_hw *csid_hw,
 	return 0;
 }
 
+/**
+ * cam_ife_csid_get_csid_hw_num() - Get CSID hardware number based on hardware index
+ *
+ * @csid_hw_index: CSID hardware index
+ *
+ * This function returns the appropriate CSID hardware number based on the
+ * hardware index and CPAS version. For Titan 634, it applies special mapping.
+ *
+ * Return: CSID hardware number
+ */
+static int cam_ife_csid_get_csid_hw_num(uint32_t csid_hw_index)
+{
+	int rc = 0;
+	uint32_t cpas_version = 0;
+
+	rc = cam_cpas_get_cpas_hw_version(&cpas_version);
+	if (rc) {
+		CAM_ERR(CAM_ISP, "Failed to get CPAS version, rc=%d", rc);
+		return csid_hw_index; /* Return default mapping on error */
+	}
+
+	if (cpas_version == CAM_CPAS_TITAN_634_V100) {
+		/* For Titan 634:
+		 * - Indices 0-3 remain unchanged
+		 * - Indices 4-7 are mapped to 2-5 (subtract 2)
+		 * - Indices 8+ are mapped to 4+ (subtract 4)
+		 */
+		return ((csid_hw_index <= 3) ? csid_hw_index :
+			((csid_hw_index <= 7) ? (csid_hw_index - 2) : (csid_hw_index - 4)));
+	}
+
+	return csid_hw_index;
+}
+
 static int cam_ife_csid_ver2_get_csid_cid_info(struct cam_ife_csid_ver2_hw *csid_hw,
 	void *cmd_args)
 {
@@ -6175,7 +6209,8 @@ static int cam_ife_csid_ver2_get_csid_cid_info(struct cam_ife_csid_ver2_hw *csid
 			if ((csid_cid_info->vc_dt_cid[i].vc == path_cfg->path_vcdt.vc_dt[j].vc) &&
 				(csid_cid_info->vc_dt_cid[i].dt == path_cfg->path_vcdt.vc_dt[j].dt)) {
 				csid_cid_info->vc_dt_cid[i].cid = path_cfg->cid;
-				csid_cid_info->csid_hw_no = csid_hw->hw_intf->hw_idx;
+				csid_cid_info->csid_hw_no =
+					cam_ife_csid_get_csid_hw_num(csid_hw->hw_intf->hw_idx);
 				vc_dt_found = true;
 				break;
 			}

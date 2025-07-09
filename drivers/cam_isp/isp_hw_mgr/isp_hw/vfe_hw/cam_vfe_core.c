@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #include <linux/delay.h>
@@ -84,7 +84,6 @@ int cam_vfe_init_hw(void *hw_priv, void *init_hw_args, uint32_t arg_size)
 			vfe_hw->open_count);
 		return 0;
 	}
-	mutex_unlock(&vfe_hw->hw_mutex);
 
 	soc_info = &vfe_hw->soc_info;
 	core_info = (struct cam_vfe_hw_core_info *)vfe_hw->core_info;
@@ -140,6 +139,7 @@ int cam_vfe_init_hw(void *hw_priv, void *init_hw_args, uint32_t arg_size)
 	}
 
 	vfe_hw->hw_state = CAM_HW_STATE_POWER_UP;
+	mutex_unlock(&vfe_hw->hw_mutex);
 	return rc;
 
 deinint_vfe_res:
@@ -148,7 +148,6 @@ deinint_vfe_res:
 disable_soc:
 	cam_vfe_disable_soc_resources(soc_info);
 decrement_open_cnt:
-	mutex_lock(&vfe_hw->hw_mutex);
 	vfe_hw->open_count--;
 	mutex_unlock(&vfe_hw->hw_mutex);
 	return rc;

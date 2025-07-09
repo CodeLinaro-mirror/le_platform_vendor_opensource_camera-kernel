@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2024-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #include <linux/init.h>
@@ -442,6 +442,12 @@ int cam_res_mgr_gpio_request(struct device *dev, uint gpio,
 	bool                         gpio_found = false;
 	int                          pctrl_idx = -1;
 	struct cam_gpio_res         *gpio_res = NULL;
+
+	if (!cam_res) {
+		CAM_DBG(CAM_RES, "cam_res data is not avaialbe");
+		rc = -EINVAL;
+		goto end;
+	}
 
 	mutex_lock(&cam_res->gpio_res_lock);
 	if (cam_res && cam_res->shared_gpio_enabled) {

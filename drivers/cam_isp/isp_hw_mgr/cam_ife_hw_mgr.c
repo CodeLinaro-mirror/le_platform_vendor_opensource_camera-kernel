@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #include <linux/slab.h>
@@ -8732,6 +8732,8 @@ static int cam_ife_mgr_acquire_hw(void *hw_mgr_priv, void *acquire_hw_args)
 	uint32_t                           input_size = 0;
 	bool                               free_in_port = true;
 	uint32_t                           secure_mode = 0;
+	bool                               res_rdi_context_set = false;
+	struct cam_isp_hw_mgr_res         *hw_mgr_res;
 	CAM_DBG(CAM_ISP, "Enter...");
 
 	if (!acquire_args || acquire_args->num_acq <= 0) {
@@ -9056,6 +9058,31 @@ out:
 		}
 	}
 	ife_ctx->is_slave_down = false;
+
+	/* User space submit setup packet before stream on, need to config primary resource
+	 * during acquire time for setup packet using.
+	 */
+	for (i = 0; i < max_ife_out_res; i++) {
+		hw_mgr_res = &ife_ctx->res_list_ife_out[i];
+		if (!hw_mgr_res->hw_res[0])
+			continue;
+		switch (hw_mgr_res->res_id) {
+		case CAM_ISP_IFE_OUT_RES_RDI_0:
+		case CAM_ISP_IFE_OUT_RES_RDI_1:
+		case CAM_ISP_IFE_OUT_RES_RDI_2:
+		case CAM_ISP_IFE_OUT_RES_RDI_3:
+			if ((!res_rdi_context_set) && ife_ctx->flags.is_rdi_only_context) {
+				hw_mgr_res->hw_res[0]->rdi_only_ctx =
+					(ife_ctx->flags.is_rdi_only_context ||
+					ife_ctx->flags.is_rdi_and_stats_context);
+				res_rdi_context_set = true;
+				ife_ctx->primary_rdi_out_res = hw_mgr_res->res_id;
+			}
+			break;
+		default:
+			break;
+		}
+	}
 
 	cam_ife_hw_mgr_put_ctx(&ife_hw_mgr->used_ctx_list, &ife_ctx);
 
@@ -11384,7 +11411,6 @@ static int cam_ife_mgr_start_hw(void *hw_mgr_priv, void *start_hw_args)
 	struct cam_isp_resource_node        *rsrc_node = NULL;
 	uint32_t                             i;
 	uint32_t                             camif_debug;
-	bool                                 res_rdi_context_set = false;
 	uint32_t                             primary_rdi_src_res;
 	uint32_t                             primary_rdi_out_res;
 	uint32_t                             primary_rdi_csid_res;
@@ -11608,27 +11634,13 @@ start_only:
 
 	CAM_DBG(CAM_ISP, "START IFE OUT ... in ctx id:%d",
 		ctx->ctx_index);
+
+	if (ctx->flags.is_rdi_only_context)
+		primary_rdi_out_res = ctx->primary_rdi_out_res;
+
 	/* start the IFE out devices */
 	for (i = 0; i < max_ife_out_res; i++) {
 		hw_mgr_res = &ctx->res_list_ife_out[i];
-		switch (hw_mgr_res->res_id) {
-		case CAM_ISP_IFE_OUT_RES_RDI_0:
-		case CAM_ISP_IFE_OUT_RES_RDI_1:
-		case CAM_ISP_IFE_OUT_RES_RDI_2:
-		case CAM_ISP_IFE_OUT_RES_RDI_3:
-			if (!res_rdi_context_set && ctx->flags.is_rdi_only_context) {
-				hw_mgr_res->hw_res[0]->rdi_only_ctx =
-					(ctx->flags.is_rdi_only_context ||
-					ctx->flags.is_rdi_and_stats_context);
-				res_rdi_context_set = true;
-				primary_rdi_out_res = hw_mgr_res->res_id;
-				ctx->primary_rdi_out_res = primary_rdi_out_res;
-
-			}
-			break;
-		default:
-			break;
-		}
 		rc = cam_ife_hw_mgr_start_hw_res(
 			&ctx->res_list_ife_out[i], ctx);
 		if (rc) {
@@ -21527,6 +21539,7 @@ void cam_ife_hw_mgr_deinit(void)
 	cam_smmu_destroy_handle(g_ife_hw_mgr.mgr_common.img_iommu_hdl_secure);
 	g_ife_hw_mgr.mgr_common.img_iommu_hdl_secure = -1;
 
+	cam_smmu_unmap_phy_mem_in_fence_queue_region(g_ife_hw_mgr.mgr_common.img_iommu_hdl);
 	cam_smmu_destroy_handle(g_ife_hw_mgr.mgr_common.img_iommu_hdl);
 	g_ife_hw_mgr.mgr_common.img_iommu_hdl = -1;
 	g_ife_hw_mgr.num_caches_found = 0;

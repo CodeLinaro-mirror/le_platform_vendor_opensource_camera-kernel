@@ -3122,14 +3122,15 @@ int cam_sync_hw_fence_session_cleanup(void)
 			client_entry = &hw_fence_info.hw_fence_tbl[client_entry_idx];
 			if (client_entry->active) {
 				clear_bit(j, hw_fence_info.client_bitmaps[i]);
+				spin_unlock(hw_fence_info.hw_fence_locks[client_entry_idx]);
 				rc = cam_sync_deinitialize_hw_fence_session(
 					client_entry->cookie);
 				if (rc) {
-					spin_unlock(hw_fence_info.hw_fence_locks[client_entry_idx]);
 					return rc;
 				}
+			} else {
+				spin_unlock(hw_fence_info.hw_fence_locks[client_entry_idx]);
 			}
-			spin_unlock(hw_fence_info.hw_fence_locks[client_entry_idx]);
 		}
 	}
 	return rc;
@@ -4062,7 +4063,7 @@ static int cam_sync_component_bind(struct device *dev,
 	cam_sync_init_entity(sync_dev);
 	video_set_drvdata(sync_dev->vdev, sync_dev);
 
-	cam_req_mgr_worker_create("sync_worker", 5,
+	cam_req_mgr_worker_create("sync_worker", 20,
 		&sync_dev->worker, CRM_WORKER_USAGE_IRQ, 0);
 
 	if (!sync_dev->worker) {

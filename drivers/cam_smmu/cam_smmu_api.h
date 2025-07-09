@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2014-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2023-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #ifndef _CAM_SMMU_API_H_
@@ -516,8 +516,7 @@ int cam_smmu_map_phy_mem_in_fence_queue_region(int smmu_hdl, phys_addr_t phy_add
 /**
  * @brief : API to unmap an entry from the fence queue region
  */
-int cam_smmu_unmap_phy_mem_in_fence_queue_region(int smmu_hdl,
-	dma_addr_t paddr, size_t size);
+int cam_smmu_unmap_phy_mem_in_fence_queue_region(int smmu_hdl);
 
 /**
  * @brief : API to get CSF version in use that's received from SMMU proxy driver

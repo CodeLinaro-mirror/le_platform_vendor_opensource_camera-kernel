@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2014-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2023-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #include <linux/module.h>
@@ -1339,25 +1339,6 @@ static struct cam_dma_buff_info *cam_smmu_find_mapping_by_virt_address(
 	return NULL;
 }
 
-static struct cam_dma_buff_info *cam_smmu_find_kernel_mapping_by_virt_address(
-	int idx, dma_addr_t virt_addr)
-{
-	struct cam_dma_buff_info *mapping;
-
-	list_for_each_entry(mapping, &iommu_cb_set.cb_info[idx].smmu_buf_kernel_list,
-			list) {
-		if (mapping->paddr == virt_addr) {
-			CAM_DBG(CAM_SMMU, "Found virtual address %lx",
-				 (unsigned long)virt_addr);
-			return mapping;
-		}
-	}
-
-	CAM_ERR(CAM_SMMU, "Error: Cannot find virtual address %lx by index %d",
-		(unsigned long)virt_addr, idx);
-	return NULL;
-}
-
 static struct cam_dma_buff_info *cam_smmu_find_mapping_by_ion_index(int idx,
 	int ion_fd, struct dma_buf *dmabuf)
 {
@@ -1998,15 +1979,14 @@ end:
 	return rc;
 }
 
-int cam_smmu_unmap_phy_mem_in_fence_queue_region(int smmu_hdl,
-	dma_addr_t paddr, size_t size)
+int cam_smmu_unmap_phy_mem_in_fence_queue_region(int smmu_hdl)
 {
 	int rc = 0, idx;
 	size_t unmapped = 0;
 	struct cam_context_bank_info *cb_info;
-	struct cam_dma_buff_info *mapping_info = NULL;
+	struct cam_dma_buff_info *mapping_info = NULL, *temp = NULL;
 
-	if (!size || (smmu_hdl == HANDLE_INIT) || !paddr) {
+	if (smmu_hdl == HANDLE_INIT) {
 		CAM_ERR(CAM_SMMU, "Error: Input args are invalid");
 		return -EINVAL;
 	}
@@ -2029,27 +2009,35 @@ int cam_smmu_unmap_phy_mem_in_fence_queue_region(int smmu_hdl,
 	}
 
 	cb_info = &iommu_cb_set.cb_info[idx];
-	mapping_info = cam_smmu_find_kernel_mapping_by_virt_address(idx, paddr);
-	if (!mapping_info) {
-		CAM_ERR(CAM_SMMU, "Error: Invalid params");
-		rc = -ENODEV;
+
+	if (list_empty_careful(&iommu_cb_set.cb_info[idx].smmu_buf_kernel_list)) {
+		CAM_ERR(CAM_SMMU, "KMD %s buffer list is empty",
+			iommu_cb_set.cb_info[idx].name[0]);
+		rc = -EINVAL;
 		goto end;
 	}
 
-	unmapped = iommu_unmap(cb_info->domain, paddr, size);
-	if (unmapped != size) {
-		CAM_ERR(CAM_SMMU, "Only %zu unmapped out of total %zu",
-			unmapped, size);
-		rc = -EINVAL;
+	list_for_each_entry_safe(mapping_info, temp,
+		&iommu_cb_set.cb_info[idx].smmu_buf_kernel_list, list) {
+
+		if (mapping_info->region_id == CAM_SMMU_REGION_FENCE_QUEUE && mapping_info->paddr
+			&& mapping_info->len) {
+			unmapped = iommu_unmap(cb_info->domain, mapping_info->paddr,
+					mapping_info->len);
+			if (unmapped != mapping_info->len) {
+				CAM_ERR(CAM_SMMU, "Only %zu unmapped out of total %zu",
+					unmapped, mapping_info->len);
+				rc = -EINVAL;
+			}
+
+			cam_smmu_free_iova(CAM_SMMU_REGION_FENCE_QUEUE, mapping_info->paddr,
+				mapping_info->len, iommu_cb_set.cb_info[idx].handle);
+
+			list_del_init(&mapping_info->list);
+			CAM_DBG(CAM_SMMU, "Unmap paddr = %pK for cb = %s",
+				mapping_info->paddr, cb_info->name[0]);
+		}
 	}
-
-	cam_smmu_free_iova(CAM_SMMU_REGION_FENCE_QUEUE, paddr,
-		size, iommu_cb_set.cb_info[idx].handle);
-
-	list_del_init(&mapping_info->list);
-	kfree(mapping_info);
-	CAM_DBG(CAM_SMMU, "Unmap paddr = %pK for cb = %s",
-		paddr, cb_info->name[0]);
 
 end:
 	return rc;
@@ -4251,8 +4239,10 @@ static void cam_smmu_deinit_cb(struct cam_context_bank_info *cb)
 	}
 
 	if (cb->fence_queue_pool_support) {
-		gen_pool_destroy(cb->fence_queue_mem_pool);
-		cb->fence_queue_mem_pool = NULL;
+		if (cb->fence_queue_mem_pool) {
+			gen_pool_destroy(cb->fence_queue_mem_pool);
+			cb->fence_queue_mem_pool = NULL;
+		}
 	}
 
 	if (cb->scratch_buf_support) {
@@ -4298,13 +4288,15 @@ static int cam_smmu_setup_cb(struct cam_context_bank_info *cb,
 				goto end;
 
 			rc = gen_pool_add(cb->shared_mem_pool[i],
-					cb->shared_info.nested_regions[i].region_info.iova_start,
-					cb->shared_info.nested_regions[i].region_info.iova_len,
-					-1);
+				cb->shared_info.nested_regions[i].region_info.iova_start,
+				cb->shared_info.nested_regions[i].region_info.iova_len,
+				-1);
 			if (rc) {
 				CAM_ERR(CAM_SMMU, "Genpool chunk creation failed");
-				gen_pool_destroy(cb->shared_mem_pool[i]);
-				cb->shared_mem_pool[i] = NULL;
+				if (cb->shared_mem_pool[i]) {
+					gen_pool_destroy(cb->shared_mem_pool[i]);
+					cb->shared_mem_pool[i] = NULL;
+				}
 				goto end;
 			}
 
@@ -4358,8 +4350,10 @@ static int cam_smmu_setup_cb(struct cam_context_bank_info *cb,
 				cb->fence_queue_pool.iova_len, -1);
 		if (rc) {
 			CAM_ERR(CAM_SMMU, "Genpool chunk creation failed");
-			gen_pool_destroy(cb->fence_queue_mem_pool);
-			cb->fence_queue_mem_pool = NULL;
+			if (cb->fence_queue_mem_pool) {
+				gen_pool_destroy(cb->fence_queue_mem_pool);
+				cb->fence_queue_mem_pool = NULL;
+			}
 			goto end;
 		}
 

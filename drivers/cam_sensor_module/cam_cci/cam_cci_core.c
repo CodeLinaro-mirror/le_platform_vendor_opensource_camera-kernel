@@ -2307,7 +2307,9 @@ static int32_t cam_cci_apply_i2c_setting(struct cci_device *cci_dev,
 			cci_dev->soc_info.index, master, i2cqueue, rc);
 		return rc;
 	}
-	get_ctx->i2c_queue_cmd_size++;
+
+	if (i2cqueue == PRIORITY_QUEUE)
+		get_ctx->i2c_queue_cmd_size++;
 
 	while (cmd_size) {
 		uint32_t pack = 0;
@@ -2484,7 +2486,9 @@ static int32_t cam_cci_apply_i2c_setting(struct cci_device *cci_dev,
 			cci_dev->soc_info.index, master, i2cqueue, rc);
 		return rc;
 	}
-	get_ctx->i2c_queue_cmd_size++;
+
+	if (i2cqueue == PRIORITY_QUEUE)
+		get_ctx->i2c_queue_cmd_size++;
 
 	return rc;
 }
