@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #include <linux/module.h>
@@ -748,7 +748,7 @@ static int32_t cam_sensor_cmd_buffer(struct cam_sensor_ctrl_t *s_ctrl,
 	offset += csl_packet->cmd_buf_offset / 4;
 	cmd_desc = (struct cam_cmd_buf_desc *)(offset);
 
-	if (csl_packet->header.request_id == 1) {
+	if (s_ctrl->cci_contextId == CONTEXT_ID_MAX) {
 		rc = cam_sensor_get_cci_contextid(s_ctrl);
 		if (rc < 0) {
 			CAM_ERR(CAM_SENSOR, "Invalid context id");
@@ -2624,6 +2624,47 @@ static int cam_sensor_apply_settings_ul(
 	return rc;
 }
 
+static int cam_sensor_apply_trigger_mode_event_settings(
+	struct cam_sensor_ctrl_t *s_ctrl,
+	struct cam_req_mgr_no_crm_apply_request *notify,
+	uint64_t sensor_req_id)
+{
+	int rc                                = 0;
+	int offset = sensor_req_id % MAX_PER_FRAME_ARRAY;
+
+	// Trigger mode sensor
+	struct cci_trigger_cam_setting_array *cci_set =
+		s_ctrl->i2c_data.per_frame_event_settings;
+
+	CAM_DBG(CAM_SENSOR, "set valid %d reqid %d offset %d",
+			cci_set[offset].is_settings_valid,
+			cci_set[offset].request_id, offset);
+
+	if (cci_set[offset].is_settings_valid) {
+		s_ctrl->frame_state = CAM_SENSOR_FRAME_APPLY;
+		if (cci_set[offset].request_id != sensor_req_id) {
+			CAM_INFO(CAM_SENSOR,
+				"slot[%d] RequestId[%d] not in queue ",
+				s_ctrl->soc_info.index,
+				sensor_req_id);
+		} else {
+			rc = cam_sensor_apply_event_settings(s_ctrl,
+					sensor_req_id);
+			if (!rc) {
+				s_ctrl->last_applied_req = sensor_req_id;
+				notify->last_apply_req   = sensor_req_id;
+				CAM_DBG(CAM_SENSOR, "slot[%d] apply[%llu]",
+						s_ctrl->soc_info.index,
+						s_ctrl->last_applied_req);
+			}
+		}
+	} else {
+		CAM_DBG(CAM_SENSOR, "setting are not valid");
+		s_ctrl->frame_state = CAM_SENSOR_FRAME_APPLY_PENDING;
+	}
+	return rc;
+}
+
 static int cam_sensor_apply_settings_no_crm(
 	struct cam_sensor_ctrl_t *s_ctrl,
 	struct cam_req_mgr_no_crm_apply_request *notify)
@@ -2653,14 +2694,9 @@ static int cam_sensor_apply_settings_no_crm(
 		s_ctrl->soc_info.index, isp_req_id, sensor_req_id, sensor_pd, s_ctrl->last_applied_req);
 
 	/* detected a skip */
-	if ((sensor_req_id - s_ctrl->last_applied_req) > 1) {
+	if ((sensor_req_id - s_ctrl->last_applied_req) > 1 && !(s_ctrl->is_trigger_mode)) {
 		uint64_t new_req_id = 0;
 		uint64_t latest_nop_req_id = 0;
-
-		if (s_ctrl->is_trigger_mode) {
-			CAM_ERR(CAM_SENSOR, "Invalid condition");
-			return -EINVAL;
-		}
 
 		new_req_id = cam_sensor_find_latest_req(
 							s_ctrl,
@@ -2702,58 +2738,29 @@ static int cam_sensor_apply_settings_no_crm(
 					s_ctrl->soc_info.index,
 					sensor_req_id);
 		}
+	} else if (s_ctrl->is_trigger_mode) {
+		rc = cam_sensor_apply_trigger_mode_event_settings(s_ctrl,
+						notify, sensor_req_id);
 	} else {
 		/* This is a no skip case */
 		int offset = sensor_req_id % MAX_PER_FRAME_ARRAY;
-		if (s_ctrl->is_trigger_mode) {
-				// Trigger mode sensor
-				struct cci_trigger_cam_setting_array *cci_set =
-					s_ctrl->i2c_data.per_frame_event_settings;
+		struct i2c_settings_array *i2c_set = s_ctrl->i2c_data.per_frame;
 
-				CAM_DBG(CAM_SENSOR, "set valid %d reqid %d offset %d",
-						cci_set[offset].is_settings_valid,
-						cci_set[offset].request_id, offset);
-
-				if (cci_set[offset].is_settings_valid) {
-					s_ctrl->frame_state = CAM_SENSOR_FRAME_APPLY;
-					if (cci_set[offset].request_id != sensor_req_id) {
-						CAM_INFO(CAM_SENSOR,
-							"slot[%d] RequestId[%d] not in queue ",
-							s_ctrl->soc_info.index,
-							sensor_req_id);
-					} else {
-						rc = cam_sensor_apply_event_settings(s_ctrl,
-								sensor_req_id);
-						if (!rc) {
-							s_ctrl->last_applied_req = sensor_req_id;
-							notify->last_apply_req   = sensor_req_id;
-							CAM_DBG(CAM_SENSOR, "slot[%d] apply[%llu]",
-									s_ctrl->soc_info.index,
-									s_ctrl->last_applied_req);
-						}
-					}
-				} else {
-					CAM_DBG(CAM_SENSOR, "setting are not valid");
-					s_ctrl->frame_state = CAM_SENSOR_FRAME_APPLY_PENDING;
-				}
+		if (i2c_set[offset].request_id != sensor_req_id) {
+			CAM_INFO(CAM_SENSOR,
+						"slot[%d] RequestId[%d] not in queue ",
+						s_ctrl->soc_info.index,
+						sensor_req_id);
 		} else {
-			struct i2c_settings_array *i2c_set = s_ctrl->i2c_data.per_frame;
-			if (i2c_set[offset].request_id != sensor_req_id) {
-				CAM_INFO(CAM_SENSOR,
-							"slot[%d] RequestId[%d] not in queue ",
-							s_ctrl->soc_info.index,
-							sensor_req_id);
-			} else {
-				rc = cam_sensor_apply_settings(s_ctrl,
-							sensor_req_id,
-							opcode);
-				if (!rc) {
-					s_ctrl->last_applied_req = sensor_req_id;
-					notify->last_apply_req   = sensor_req_id;
-					CAM_DBG(CAM_SENSOR, "slot[%d] apply[%llu]",
-									s_ctrl->soc_info.index,
-									s_ctrl->last_applied_req);
-				}
+			rc = cam_sensor_apply_settings(s_ctrl,
+						sensor_req_id,
+						opcode);
+			if (!rc) {
+				s_ctrl->last_applied_req = sensor_req_id;
+				notify->last_apply_req   = sensor_req_id;
+				CAM_DBG(CAM_SENSOR, "slot[%d] apply[%llu]",
+								s_ctrl->soc_info.index,
+								s_ctrl->last_applied_req);
 			}
 		}
 	}

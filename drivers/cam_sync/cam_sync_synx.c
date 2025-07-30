@@ -41,6 +41,63 @@ struct cam_synx_obj_device {
 static struct cam_synx_obj_device *g_cam_synx_obj_dev;
 static char cam_synx_session_name[64] = "Camera_Generic_Synx_Session";
 
+static void __cam_synx_obj_signal_cb(u32 h_synx, int status, void *data)
+{
+	struct cam_synx_obj_signal_sync_obj signal_sync_obj;
+	struct cam_synx_obj_row *synx_obj_row = NULL;
+
+	if (!data) {
+		CAM_ERR(CAM_SYNX,
+			"Invalid data passed to synx obj : %d callback function.",
+			synx_obj_row->synx_obj);
+		return;
+	}
+
+	synx_obj_row = (struct cam_synx_obj_row *)data;
+
+	/* If this synx obj is signaled by sync obj, skip cb */
+	if (synx_obj_row->sync_signal_synx)
+		return;
+
+	if (synx_obj_row->synx_obj != h_synx) {
+		CAM_ERR(CAM_SYNX,
+			"Synx obj: %d callback does not match synx obj: %d in sync table.",
+			h_synx, synx_obj_row->synx_obj);
+		return;
+	}
+
+	if (synx_obj_row->state == CAM_SYNX_OBJ_STATE_INVALID) {
+		CAM_ERR(CAM_SYNX,
+			"Synx obj :%d is in invalid state: %d",
+			synx_obj_row->synx_obj, synx_obj_row->state);
+		return;
+	}
+
+	CAM_DBG(CAM_SYNX, "Synx obj: %d signaled, signal sync obj: %d",
+		 synx_obj_row->synx_obj, synx_obj_row->sync_obj);
+
+	if ((synx_obj_row->cb_registered_for_sync) && (synx_obj_row->sync_cb)) {
+		signal_sync_obj.synx_obj = synx_obj_row->synx_obj;
+		switch (status) {
+		case SYNX_STATE_SIGNALED_SUCCESS:
+			signal_sync_obj.status = CAM_SYNC_STATE_SIGNALED_SUCCESS;
+			break;
+		case SYNX_STATE_SIGNALED_CANCEL:
+			signal_sync_obj.status = CAM_SYNC_STATE_SIGNALED_CANCEL;
+			break;
+		default:
+			CAM_WARN(CAM_SYNX,
+				"Synx signal status %d is neither SUCCESS nor CANCEL, custom code?",
+				status);
+			signal_sync_obj.status = CAM_SYNC_STATE_SIGNALED_ERROR;
+			break;
+		}
+		synx_obj_row->state = CAM_SYNX_OBJ_STATE_SIGNALED;
+		synx_obj_row->sync_cb(synx_obj_row->sync_obj, &signal_sync_obj);
+	}
+
+}
+
 /*
  * Synx APIs need to be invoked in non atomic context,
  * all these utils invoke synx driver
@@ -58,6 +115,19 @@ static inline int __cam_synx_create_hdl_util(
 {
 	return synx_create((session_hdl ? session_hdl :
 		g_cam_synx_obj_dev->session_handle), params);
+}
+
+static inline int __cam_synx_deregister_cb_util(
+	uint32_t synx_hdl, void *data)
+{
+	struct synx_callback_params cb_params;
+
+	cb_params.userdata = data;
+	cb_params.cancel_cb_func = NULL;
+	cb_params.h_synx = synx_hdl;
+	cb_params.cb_func = __cam_synx_obj_signal_cb;
+
+	return synx_cancel_async_wait(g_cam_synx_obj_dev->session_handle, &cb_params);
 }
 
 static void *__cam_synx_get_fence(
@@ -161,63 +231,6 @@ static int __cam_synx_obj_release_row(int32_t row_idx)
 	}
 
 	return __cam_synx_obj_release(row_idx);
-}
-
-static void __cam_synx_obj_signal_cb(u32 h_synx, int status, void *data)
-{
-	struct cam_synx_obj_signal_sync_obj signal_sync_obj;
-	struct cam_synx_obj_row *synx_obj_row = NULL;
-
-	if (!data) {
-		CAM_ERR(CAM_SYNX,
-			"Invalid data passed to synx obj : %d callback function.",
-			synx_obj_row->synx_obj);
-		return;
-	}
-
-	synx_obj_row = (struct cam_synx_obj_row *)data;
-
-	/* If this synx obj is signaled by sync obj, skip cb */
-	if (synx_obj_row->sync_signal_synx)
-		return;
-
-	if (synx_obj_row->synx_obj != h_synx) {
-		CAM_ERR(CAM_SYNX,
-			"Synx obj: %d callback does not match synx obj: %d in sync table.",
-			h_synx, synx_obj_row->synx_obj);
-		return;
-	}
-
-	if (synx_obj_row->state == CAM_SYNX_OBJ_STATE_INVALID) {
-		CAM_ERR(CAM_SYNX,
-			"Synx obj :%d is in invalid state: %d",
-			synx_obj_row->synx_obj, synx_obj_row->state);
-		return;
-	}
-
-	CAM_DBG(CAM_SYNX, "Synx obj: %d signaled, signal sync obj: %d",
-		 synx_obj_row->synx_obj, synx_obj_row->sync_obj);
-
-	if ((synx_obj_row->cb_registered_for_sync) && (synx_obj_row->sync_cb)) {
-		signal_sync_obj.synx_obj = synx_obj_row->synx_obj;
-		switch (status) {
-		case SYNX_STATE_SIGNALED_SUCCESS:
-			signal_sync_obj.status = CAM_SYNC_STATE_SIGNALED_SUCCESS;
-			break;
-		case SYNX_STATE_SIGNALED_CANCEL:
-			signal_sync_obj.status = CAM_SYNC_STATE_SIGNALED_CANCEL;
-			break;
-		default:
-			CAM_WARN(CAM_SYNX,
-				"Synx signal status %d is neither SUCCESS nor CANCEL, custom code?",
-				status);
-			signal_sync_obj.status = CAM_SYNC_STATE_SIGNALED_ERROR;
-			break;
-		}
-		synx_obj_row->state = CAM_SYNX_OBJ_STATE_SIGNALED;
-		synx_obj_row->sync_cb(synx_obj_row->sync_obj, &signal_sync_obj);
-	}
-
 }
 
 int cam_synx_obj_find_obj_in_table(uint32_t synx_obj, int32_t *idx)
@@ -419,10 +432,18 @@ int cam_synx_obj_internal_signal(int32_t row_idx,
 	/* Ensures sync obj cb is not invoked */
 	row->sync_signal_synx = true;
 
-	if (row->state == CAM_SYNX_OBJ_STATE_SIGNALED) {
+	if (row->state != CAM_SYNX_OBJ_STATE_ACTIVE) {
+		CAM_ERR(CAM_SYNX, "synx obj: %u not in right state: %d to signal",
+			signal_synx_obj->synx_obj, row->state);
 		spin_unlock_bh(&g_cam_synx_obj_dev->row_spinlocks[row_idx]);
-		CAM_WARN(CAM_SYNX, "synx obj fd: %d already in signaled state",
-			signal_synx_obj->synx_obj);
+		return -EINVAL;
+	}
+
+	if (row->synx_obj != signal_synx_obj->synx_obj) {
+		CAM_WARN(CAM_SYNX,
+			"Trying to signal synx obj: %u in row: %u having a different synx obj: %u",
+			signal_synx_obj->synx_obj, row_idx, row->synx_obj);
+		spin_unlock_bh(&g_cam_synx_obj_dev->row_spinlocks[row_idx]);
 		return 0;
 	}
 
@@ -436,11 +457,20 @@ int cam_synx_obj_internal_signal(int32_t row_idx,
 	}
 	spin_unlock_bh(&g_cam_synx_obj_dev->row_spinlocks[row_idx]);
 
+	if (row->cb_registered_for_sync) {
+		rc = __cam_synx_deregister_cb_util(signal_synx_obj->synx_obj, row);
+		if (rc) {
+			CAM_ERR(CAM_SYNX, "Failed to deregister cb for synx: %u rc: %d",
+				signal_synx_obj->synx_obj, rc);
+			goto end;
+		}
+	}
+
 	rc = __cam_synx_signal_util(NULL, signal_synx_obj->synx_obj, signal_status);
 	if (rc) {
 		CAM_ERR(CAM_SYNX, "Failed to signal synx hdl: %u with status: %u rc: %d",
 			signal_synx_obj->synx_obj, signal_status, rc);
-		return rc;
+		goto end;
 	}
 
 	spin_lock_bh(&g_cam_synx_obj_dev->row_spinlocks[row_idx]);
@@ -450,6 +480,7 @@ int cam_synx_obj_internal_signal(int32_t row_idx,
 	CAM_DBG(CAM_SYNX, "synx obj: %d signaled with status: %d rc: %d",
 		signal_synx_obj->synx_obj, signal_status, rc);
 
+end:
 	return rc;
 }
 

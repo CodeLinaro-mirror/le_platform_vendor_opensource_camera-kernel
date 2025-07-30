@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 #include "cam_sync_dma_fence.h"
 
@@ -353,20 +353,27 @@ static int __cam_dma_fence_signal_fence(
 	struct dma_fence *dma_fence,
 	int32_t status)
 {
+	int rc;
+	unsigned long flags;
 	bool fence_signaled = false;
 
-	fence_signaled = dma_fence_get_status_locked(dma_fence);
+	spin_lock_irqsave(dma_fence->lock, flags);
+	fence_signaled = dma_fence_is_signaled_locked(dma_fence);
 	if (fence_signaled) {
-		CAM_WARN(CAM_DMA_FENCE,
-			"dma fence seqno: %llu is already signaled %d",
-			dma_fence->seqno, fence_signaled);
-		return 0;
+		rc = -EPERM;
+		goto end;
 	}
 
 	if (status)
 		dma_fence_set_error(dma_fence, status);
 
-	return dma_fence_signal(dma_fence);
+	rc = dma_fence_signal_locked(dma_fence);
+end:
+	spin_unlock_irqrestore(dma_fence->lock, flags);
+	if (fence_signaled)
+		CAM_DBG(CAM_DMA_FENCE, "dma fence seqno: %llu is already signaled",
+			dma_fence->seqno);
+	return rc;
 }
 
 int cam_dma_fence_internal_signal(
@@ -381,7 +388,8 @@ int cam_dma_fence_internal_signal(
 		(dma_fence_row_idx >= CAM_DMA_FENCE_MAX_FENCES)) {
 		CAM_ERR(CAM_DMA_FENCE, "dma fence idx: %d is invalid",
 			dma_fence_row_idx);
-		return -EINVAL;
+		rc = -EINVAL;
+		goto end;
 	}
 
 	spin_lock_bh(&g_cam_dma_fence_dev->row_spinlocks[dma_fence_row_idx]);
@@ -395,7 +403,8 @@ int cam_dma_fence_internal_signal(
 		spin_unlock_bh(&g_cam_dma_fence_dev->row_spinlocks[dma_fence_row_idx]);
 		CAM_ERR(CAM_DMA_FENCE, "DMA fence in row: %d is invalid",
 			dma_fence_row_idx);
-		return -EINVAL;
+		rc = -EINVAL;
+		goto end;
 	}
 
 	if (row->state == CAM_DMA_FENCE_STATE_SIGNALED) {
@@ -403,7 +412,19 @@ int cam_dma_fence_internal_signal(
 		CAM_WARN(CAM_DMA_FENCE,
 			"dma fence fd: %d[seqno: %llu] already in signaled state",
 			signal_dma_fence->dma_fence_fd, dma_fence->seqno);
-		return 0;
+		rc = 0;
+		goto end;
+	}
+
+	if (row->cb_registered_for_sync) {
+		if (!dma_fence_remove_callback(row->fence, &row->fence_cb)) {
+			spin_unlock_bh(&g_cam_dma_fence_dev->row_spinlocks[dma_fence_row_idx]);
+			CAM_ERR(CAM_DMA_FENCE,
+				"Failed to remove cb for dma fence seqno: %llu fd: %d",
+				dma_fence->seqno, row->fd);
+			rc = -EINVAL;
+			goto end;
+		}
 	}
 
 	rc = __cam_dma_fence_signal_fence(dma_fence, signal_dma_fence->status);
@@ -419,16 +440,14 @@ int cam_dma_fence_internal_signal(
 		"dma fence fd: %d[seqno: %llu] signaled with status: %d rc: %d",
 		signal_dma_fence->dma_fence_fd, dma_fence->seqno,
 		signal_dma_fence->status, rc);
-
+end:
 	return rc;
 }
 
 int cam_dma_fence_signal_fd(struct cam_dma_fence_signal *signal_dma_fence)
 {
-	int rc = 0;
 	uint32_t idx;
 	struct dma_fence *dma_fence = NULL;
-	struct cam_dma_fence_row *row = NULL;
 
 	dma_fence = __cam_dma_fence_find_fence_in_table(
 		signal_dma_fence->dma_fence_fd, &idx);
@@ -439,43 +458,7 @@ int cam_dma_fence_signal_fd(struct cam_dma_fence_signal *signal_dma_fence)
 		return -EINVAL;
 	}
 
-	spin_lock_bh(&g_cam_dma_fence_dev->row_spinlocks[idx]);
-	row = &g_cam_dma_fence_dev->rows[idx];
-	/*
-	 * Check for invalid state again, there could be a contention
-	 * between signal and release
-	 */
-	if (row->state == CAM_DMA_FENCE_STATE_INVALID) {
-		spin_unlock_bh(&g_cam_dma_fence_dev->row_spinlocks[idx]);
-		CAM_ERR(CAM_DMA_FENCE,
-			"dma fence fd: %d is invalid row_idx: %u, failed to signal",
-			signal_dma_fence->dma_fence_fd, idx);
-		return -EINVAL;
-	}
-
-	if (row->state == CAM_DMA_FENCE_STATE_SIGNALED) {
-		spin_unlock_bh(&g_cam_dma_fence_dev->row_spinlocks[idx]);
-		CAM_WARN(CAM_DMA_FENCE,
-			"dma fence fd: %d[seqno: %llu] already in signaled state",
-			signal_dma_fence->dma_fence_fd, dma_fence->seqno);
-		return 0;
-	}
-
-	rc = __cam_dma_fence_signal_fence(dma_fence, signal_dma_fence->status);
-	if (rc)
-		CAM_WARN(CAM_DMA_FENCE,
-			"dma fence seqno: %llu fd: %d already signaled rc: %d",
-			dma_fence->seqno, row->fd, rc);
-
-	row->state = CAM_DMA_FENCE_STATE_SIGNALED;
-	spin_unlock_bh(&g_cam_dma_fence_dev->row_spinlocks[idx]);
-
-	CAM_DBG(CAM_DMA_FENCE,
-		"dma fence fd: %d[seqno: %llu] signaled with status: %d rc: %d",
-		signal_dma_fence->dma_fence_fd, dma_fence->seqno,
-		signal_dma_fence->status, rc);
-
-	return rc;
+	return cam_dma_fence_internal_signal(idx, signal_dma_fence);
 }
 
 static int __cam_dma_fence_get_fd(int32_t *row_idx,
@@ -745,6 +728,10 @@ int cam_dma_fence_driver_init(void)
 		spin_lock_init(&g_cam_dma_fence_dev->row_spinlocks[i]);
 
 	bitmap_zero(g_cam_dma_fence_dev->bitmap, CAM_DMA_FENCE_MAX_FENCES);
+
+	/* zero will be considered an invalid slot */
+	set_bit(0, g_cam_dma_fence_dev->bitmap);
+
 	g_cam_dma_fence_dev->dma_fence_context = dma_fence_context_alloc(1);
 
 	CAM_DBG(CAM_DMA_FENCE, "Camera DMA fence driver initialized");
