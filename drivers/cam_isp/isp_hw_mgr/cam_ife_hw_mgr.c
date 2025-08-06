@@ -5555,7 +5555,6 @@ static int cam_ife_mgr_prepare_hw_update(void *hw_mgr_priv,
 		(struct cam_hw_prepare_update_args *) prepare_hw_update_args;
 	struct cam_ife_hw_mgr_ctx               *ctx;
 	struct cam_ife_hw_mgr                   *hw_mgr;
-	struct cam_kmd_buf_info                  kmd_buf;
 	uint32_t                                 i;
 	bool                                     fill_fence = true;
 	struct cam_isp_prepare_hw_update_data   *prepare_hw_data;
@@ -5581,7 +5580,8 @@ static int cam_ife_mgr_prepare_hw_update(void *hw_mgr_priv,
 		return rc;
 
 	/* Pre parse the packet*/
-	rc = cam_packet_util_get_kmd_buffer(prepare->packet, &kmd_buf);
+	rc = cam_packet_util_get_kmd_buffer(prepare->packet,
+			&prepare_hw_data->kmd_cmd_buff_info);
 	if (rc)
 		return rc;
 
@@ -5610,7 +5610,7 @@ static int cam_ife_mgr_prepare_hw_update(void *hw_mgr_priv,
 
 		/* Add change base */
 		rc = cam_isp_add_change_base(prepare, &ctx->res_list_ife_src,
-			ctx->base[i].idx, &kmd_buf);
+			ctx->base[i].idx, &prepare_hw_data->kmd_cmd_buff_info);
 		if (rc) {
 			CAM_ERR(CAM_ISP,
 				"Failed in change base i=%d, idx=%d, rc=%d",
@@ -5621,7 +5621,8 @@ static int cam_ife_mgr_prepare_hw_update(void *hw_mgr_priv,
 
 		/* get command buffers */
 		if (ctx->base[i].split_id != CAM_ISP_HW_SPLIT_MAX) {
-			rc = cam_isp_add_command_buffers(prepare, &kmd_buf,
+			rc = cam_isp_add_command_buffers(prepare,
+				&prepare_hw_data->kmd_cmd_buff_info,
 				&ctx->base[i],
 				cam_isp_packet_generic_blob_handler,
 				ctx->res_list_ife_out, CAM_IFE_HW_OUT_RES_MAX);
@@ -5637,7 +5638,7 @@ static int cam_ife_mgr_prepare_hw_update(void *hw_mgr_priv,
 		rc = cam_isp_add_io_buffers(hw_mgr->mgr_common.img_iommu_hdl,
 			hw_mgr->mgr_common.img_iommu_hdl_secure,
 			prepare, ctx->base[i].idx,
-			&kmd_buf, ctx->res_list_ife_out,
+			&prepare_hw_data->kmd_cmd_buff_info, ctx->res_list_ife_out,
 			&ctx->res_list_ife_in_rd,
 			CAM_IFE_HW_OUT_RES_MAX, fill_fence);
 
@@ -5689,7 +5690,7 @@ static int cam_ife_mgr_prepare_hw_update(void *hw_mgr_priv,
 	for (i = 0; i < ctx->num_base; i++) {
 		/* Add change base */
 		rc = cam_isp_add_change_base(prepare, &ctx->res_list_ife_src,
-			ctx->base[i].idx, &kmd_buf);
+			ctx->base[i].idx, &prepare_hw_data->kmd_cmd_buff_info);
 		if (rc) {
 			CAM_ERR(CAM_ISP,
 				"Failed in change base adding reg_update cmd i=%d, idx=%d, rc=%d",
@@ -5699,7 +5700,7 @@ static int cam_ife_mgr_prepare_hw_update(void *hw_mgr_priv,
 
 		/*Add reg update */
 		rc = cam_isp_add_reg_update(prepare, &ctx->res_list_ife_src,
-			ctx->base[i].idx, &kmd_buf);
+			ctx->base[i].idx, &prepare_hw_data->kmd_cmd_buff_info);
 		if (rc) {
 			CAM_ERR(CAM_ISP,
 				"Add Reg_update cmd Failed i=%d, idx=%d, rc=%d",
