@@ -2731,9 +2731,21 @@ static int cam_icp_mgr_handle_buf_done_err(uint32_t *msg_ptr)
 	int j = 0, rc = 0;
 
 	ioconfig_ack = (struct hfi_msg_ipebps_async_ack *)msg_ptr;
+
+	if (!ioconfig_ack || !ioconfig_ack->user_data1) {
+		CAM_ERR(CAM_CORE, "Invalid ioconfig_ack or user_data1 is NULL");
+		return -EINVAL;
+	}
+
 	ctx_data = (struct cam_icp_hw_ctx_data *)
 			U64_TO_PTR(ioconfig_ack->user_data1);
-	ctx = (struct cam_context *)ctx_data->context_priv;
+
+	if (ctx_data && ctx_data->context_priv) {
+		ctx = (struct cam_context *)ctx_data->context_priv;
+	} else {
+		CAM_ERR(CAM_CORE, "Invalid ctx_data or context_priv");
+		return -EINVAL;
+	}
 
 	spin_lock(&ctx->lock);
 	req = list_first_entry(&ctx->active_req_list,

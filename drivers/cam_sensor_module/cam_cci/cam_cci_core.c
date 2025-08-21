@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #include <linux/module.h>
@@ -2990,9 +2990,10 @@ static struct cam_cci_queue_info cam_cci_process_cmd_queue(struct cci_device *cc
 	// if first cmd queue is i2c or gpio then no need to push any
 	// wait trigger cmd so to restrict it, so checking
 	// current_cmd_queue & next_cmd_queue != CCI_ANY_QUEUE
+	// in case of ASYNC_EXECUTION, no need to insert following cmds
 	if (current_cmd_queue != next_cmd_queue &&
 		current_cmd_queue != CCI_ANY_QUEUE &&
-		next_cmd_queue != CCI_ANY_QUEUE) {
+		next_cmd_queue != CCI_ANY_QUEUE && !parallel_exec_cmd_enable) {
 
 		current_cmd_queue = cam_push_wait_trigger_cmd(
 			cci_dev, get_ctx, current_cmd_queue, next_cmd_queue);

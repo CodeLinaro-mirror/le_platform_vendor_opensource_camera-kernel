@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #include <linux/debugfs.h>
@@ -923,6 +923,7 @@ int32_t cam_context_flush_ctx_to_hw(struct cam_context *ctx)
 		}
 	}
 
+	mutex_lock(&ctx->sync_mutex);
 	INIT_LIST_HEAD(&temp_list);
 	spin_lock(&ctx->lock);
 	list_splice_init(&ctx->active_req_list, &temp_list);
@@ -979,6 +980,7 @@ int32_t cam_context_flush_ctx_to_hw(struct cam_context *ctx)
 				"[%s][%d] : Moving req[%llu] from temp_list to free_list",
 				ctx->dev_name, ctx->ctx_id, req->request_id);
 	}
+	mutex_unlock(&ctx->sync_mutex);
 
 	CAM_DBG(CAM_CTXT, "[%s] X: NRT flush ctx", ctx->dev_name);
 
