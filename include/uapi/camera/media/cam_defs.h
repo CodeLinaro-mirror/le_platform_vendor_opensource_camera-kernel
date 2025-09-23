@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only WITH Linux-syscall-note */
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #ifndef __UAPI_CAM_DEFS_H__
@@ -71,6 +71,8 @@
 #define MAX_IO_PACKETS                     16
 #define MAX_SETTING_PACKETS                16
 #define MAX_IO_RESOURCES                   16
+#define MAX_SLICES                         16
+#define MAX_FENCES_PER_BATCH               (MAX_IO_PACKETS * MAX_SLICES)
 
 #define BATCH_PACKET_TYPE_SETUP_IOBUF               0
 #define BATCH_PACKET_TYPE_SETTING_UPDATE            1
@@ -679,6 +681,111 @@ struct  ul_cam_packet {
 	struct port_pattern_period    port_enable_pattern_period[UL_MAX_DEVICES][MAX_IO_RESOURCES];
 	struct setting_pattern_period setting_pattern_period;
 	struct response_buffer        rsp[MAX_IO_PACKETS];
+};
+
+/**
+ * struct cam_hwfence_en_info - Resource Info on which HW fence is needed
+ *
+ * @num_res:                          Number of resources on which HW fence is
+ *                                    needed
+ * @res_type:                         Array to hold resources
+ *
+ */
+struct cam_hwfence_en_info {
+	__u32 num_res;
+	__u32 reserved;
+	__u32 res_type[MAX_IO_RESOURCES];
+};
+
+/**
+ * struct cam_res_fence_info - HW fence info for each resource
+ *
+ * @res_type:                         Resource type
+ * @num_synx_hdls:                    Number of synx handles returned
+ * @num_slices:                       Number of slices
+ * @synx_hdls:                        Array of synx handles
+ */
+struct cam_res_fence_info {
+	__u32 res_type;
+	__u32 num_synx_hdls;
+	__u32 num_slices;
+	__u32 synx_hdls[MAX_FENCES_PER_BATCH];
+};
+
+/**
+ * struct cam_hwfence_info - HW fence Batch info
+ *
+ * @num_res_updated:                  Number of resources for which batch of HW fence updated
+ * @reserved:                         Reserved for 64-bit alignment
+ * @res_fence_info:                   Per resource HW fence info
+ */
+struct cam_hwfence_info {
+	__u32                     num_res_updated;
+	__u32                     reserved;
+	struct cam_res_fence_info fence_info_per_res[MAX_IO_RESOURCES];
+};
+
+/**
+ * struct ul_cam_packet_v2 - Structure for Ultra lite path packet (Ver 2)
+ *
+ * @version                                  Version detail of ul_cam_packet
+ * @batch_packet_type:                       Packet type. ie: SETUP_IOBUF, SETTING_UPDATE,
+ *                                           SETTING_UPDATE_RETRIEVE or RETRIEVE
+ * @link_hdl:                                Link handle
+ * @number_devices:                          number of devices applicable for packet
+ * @num_setting_packets:                     number of setting packets containig cmd per device
+ * @update_port_patern_period:               Flag to show if port pattern is updated
+ * @bubble_handling:                         Type of bubble handling, (SETUP packet only)
+ * @is_setting_sticky:                       Flag to show if settings are sticky
+ * @num_responses:                           Number of results
+ * @device_type:                             type of Devices
+ * @device_hdl:                              Device handles
+ * @num_io_packets:                          num of IO packets per device (SETUP packet Only)
+ * @num_res:                                 number of IO resources (Output)
+ * @num_produce_q:                           count of producer queues (Setup packet only)
+ * @is_fenceupdated:                         Flag to indicate if new batch of fences updated
+ * @is_reuse_enabled:                        Flag to indicate if HW fence reuse is enabled
+ * @is_pattern_complete:                     Flag to indicate if pattern is complete
+ * @is_hwfence_en:                           Flag to indicate if HW fence is enabled
+ * @producer_q:                              producer_q data
+ * @io_packet:                               IO packets per device (SETUP packet Only)
+ * @setting_packets:                         Setting packets per device
+ * @port_enable_pattern_period:              port enable pattern period per device
+ * @setting_pattern_period:                  setting pattern period per device
+ * @cam_hwfence_en_info:                     Resource info on which HW fence is needed
+ * @res_info:                                information of resource registered(Output)
+ * @rsp:                                     Responses (Output)
+ * @cam_hwfence_info:                        HW fence Batch info(Output)
+ */
+struct ul_cam_packet_v2 {
+	__u32                         version;
+	__u32                         batch_packet_type;
+	__s32                         link_hdl;
+	__u32                         number_devices;
+	__u32                         num_setting_packets;
+	__u32                         update_port_patern_period;
+	__u32                         bubble_handling;
+	__u32                         is_setting_sticky;
+	__u32                         num_responses;
+	__u32                         device_type[UL_MAX_DEVICES];
+	__s32                         device_hdl[UL_MAX_DEVICES];
+	__u32                         num_io_packets[UL_MAX_DEVICES];
+	__u32                         num_res;
+	__u32                         num_produce_q;
+	__u32                         reserved;
+	__u32                         is_fenceupdated;
+	__u32                         is_reuse_enabled;
+	__u32                         is_pattern_complete;
+	__u32                         is_hwfence_en;
+	struct producer_queue         producer_q[MAX_IO_RESOURCES];
+	struct packet_info            io_packet[UL_MAX_DEVICES][MAX_IO_PACKETS];
+	struct packet_info            setting_packets[UL_MAX_DEVICES][MAX_SETTING_PACKETS];
+	struct port_pattern_period    port_enable_pattern_period[UL_MAX_DEVICES][MAX_IO_RESOURCES];
+	struct setting_pattern_period setting_pattern_period;
+	struct cam_hwfence_en_info    hwfence_res_info;
+	struct resource_info          res_info[MAX_IO_RESOURCES];
+	struct response_buffer        rsp[MAX_IO_PACKETS];
+	struct cam_hwfence_info       fence_info;
 };
 
 /**

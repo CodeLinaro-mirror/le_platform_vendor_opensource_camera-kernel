@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #include <media/cam_defs.h>
@@ -1019,6 +1019,13 @@ int cam_isp_ul_parse_io_config(struct cam_isp_ctx_ul_data *ul_data,
 			hw_update_entry->flags = CAM_ISP_IOCFG_BL;
 			memcpy(&ul_data->resource_data[j].out_map_entries[buf_count],
 				&out_map_entry, sizeof(out_map_entry));
+			if (update_buf.wm_update->wr_ptr_offset) {
+				ul_data->resource_data[j].wr_ptr_offset[buf_count] =
+					update_buf.wm_update->wr_ptr_offset;
+				CAM_DBG(CAM_ISP, "Buf_count: %u, wr_ptr offset: 0x%x",
+					buf_count,
+					ul_data->resource_data[j].wr_ptr_offset[buf_count]);
+			}
 			kmd_buf_info->used_bytes += update_buf.cmd.used_bytes;
 			kmd_buf_info->offset     += update_buf.cmd.used_bytes;
 			ul_data->resource_data[j].buf_count++;
@@ -1027,6 +1034,7 @@ int cam_isp_ul_parse_io_config(struct cam_isp_ctx_ul_data *ul_data,
 	}
 	return rc;
 }
+
 int cam_isp_process_hw_fences(struct cam_hw_prepare_update_args *prepare,
 	struct cam_hw_intf    *hw_intf,
 	struct cam_buf_io_cfg *io_cfg)

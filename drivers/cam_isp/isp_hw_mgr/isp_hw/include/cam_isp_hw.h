@@ -238,6 +238,8 @@ enum cam_isp_hw_cmd_type {
 	CAM_ISP_HW_CMD_SET_HWFENCE_MODE,
 	CAM_ISP_HW_CMD_UPDATE_HWFENCE_INFO,
 	CAM_ISP_HW_CMD_GET_HWFENCE_DEVICE_INFO,
+	CAM_ISP_HW_CMD_GET_SESSION_COOKIE,
+	CAM_ISP_HW_CMD_GET_SRC_GRP,
 	CAM_ISP_HW_CMD_MAX,
 };
 
@@ -402,6 +404,7 @@ struct cam_isp_hw_cmd_buf_update {
  * @ io_cfg:           IO buffer config information sent from UMD
  * @ fh_enabled:       flag to indicate if this WM enables frame header
  * @ en_virtual_frame: Enable virtual frame
+ * @wr_ptr_offset:     Array to hold wr_ptr offsets for buffers
  */
 struct cam_isp_hw_get_wm_update {
 	dma_addr_t                     *image_buf;
@@ -416,6 +419,7 @@ struct cam_isp_hw_get_wm_update {
 	struct cam_buf_io_cfg          *io_cfg;
 	bool                            fh_enabled;
 	bool                            en_virtual_frame;
+	uint32_t                        *wr_ptr_offset;
 };
 
 /*

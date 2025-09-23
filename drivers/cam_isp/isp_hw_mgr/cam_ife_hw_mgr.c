@@ -14217,6 +14217,7 @@ static int cam_isp_blob_hw_fence_mode_config(
 		mode_cfg.fencing_mode = port_hw_fence_config->fencing_mode;
 		mode_cfg.res_type = port_hw_fence_config->res_type;
 		mode_cfg.src_grp = port_hw_fence_config->src_grp;
+		mode_cfg.batch_hwfence_en = 0;
 
 		hw_intf = g_ife_hw_mgr.ife_devices[blob_info->base_info->idx]->hw_intf;
 		if (hw_intf && hw_intf->hw_ops.process_cmd) {
@@ -18711,6 +18712,91 @@ end:
 	return rc;
 }
 
+static int cam_ife_mgr_set_hwfence_mode(
+	struct cam_ife_hw_mgr_ctx *ctx,
+	struct cam_isp_hw_cmd_args *isp_hw_cmd_args)
+{
+	int rc = -EINVAL, i;
+	struct cam_hw_intf                       *hw_intf;
+	struct cam_isp_hw_fence_res_info         *hwfence_info;
+	struct cam_isp_hw_mgr_res                *hw_mgr_res;
+	struct cam_vfe_bus_hwfence_mode_cfg_args  mode_cfg = {0};
+
+	hwfence_info = (struct cam_isp_hw_fence_res_info *)isp_hw_cmd_args->cmd_data;
+	hw_mgr_res = &ctx->res_list_ife_out[hwfence_info->res_type & 0xFF];
+
+	for (i = 0; i < CAM_ISP_HW_SPLIT_MAX; i++) {
+		if (!hw_mgr_res->hw_res[i])
+			continue;
+
+		hw_intf = hw_mgr_res->hw_res[i]->hw_intf;
+		if (hw_intf && hw_intf->hw_ops.process_cmd) {
+			rc = hw_intf->hw_ops.process_cmd(
+				hw_intf->hw_priv,
+				CAM_ISP_HW_CMD_GET_SRC_GRP,
+				(void *)hwfence_info,
+				sizeof(struct cam_isp_hw_fence_res_info));
+			if (rc) {
+				CAM_ERR(CAM_ISP, "Failed to get source group ctx: %u, rc: %d",
+					ctx->ctx_index, rc);
+				return -EINVAL;
+			}
+
+			mode_cfg.fencing_mode = CAM_HW_FENCE_SLICE_BASED;
+			mode_cfg.res_type = hwfence_info->res_type;
+			mode_cfg.batch_hwfence_en = 1;
+			mode_cfg.src_grp = hwfence_info->source_group;
+
+			CAM_INFO(CAM_ISP, "Source group: %u", mode_cfg.src_grp);
+			rc = hw_intf->hw_ops.process_cmd(
+				hw_intf->hw_priv,
+				CAM_ISP_HW_CMD_SET_HWFENCE_MODE,
+				&mode_cfg, sizeof(struct cam_vfe_bus_hwfence_mode_cfg_args));
+
+			if (rc) {
+				CAM_ERR(CAM_ISP,
+					"HW fence mode config failed res_id: %u, rc: %d, ctx_idx: %u, res_type: %u, fence_mode: %u",
+					hw_mgr_res->res_id, rc, ctx->ctx_index,
+					mode_cfg.res_type, mode_cfg.fencing_mode);
+				return -EINVAL;
+			}
+		}
+	}
+	return rc;
+}
+
+static int cam_ife_mgr_get_session_cookie(
+	struct cam_ife_hw_mgr_ctx *ctx,
+	struct cam_isp_hw_cmd_args *isp_hw_cmd_args)
+{
+	int rc = -EINVAL, i;
+	struct cam_hw_intf                  *hw_intf;
+	struct cam_isp_hw_fence_res_info  *hwfence_info;
+	struct cam_isp_hw_mgr_res         *hw_mgr_res;
+
+	hwfence_info = (struct cam_isp_hw_fence_res_info *)isp_hw_cmd_args->cmd_data;
+	hw_mgr_res = &ctx->res_list_ife_out[hwfence_info->res_type & 0xFF];
+
+	for (i = 0; i < CAM_ISP_HW_SPLIT_MAX; i++) {
+		if (!hw_mgr_res->hw_res[i])
+			continue;
+
+		hw_intf = hw_mgr_res->hw_res[i]->hw_intf;
+		if (hw_intf && hw_intf->hw_ops.process_cmd) {
+			rc = hw_intf->hw_ops.process_cmd(
+				hw_intf->hw_priv,
+				CAM_ISP_HW_CMD_GET_SESSION_COOKIE,
+				(void *)hwfence_info,
+				sizeof(struct cam_isp_hw_fence_res_info));
+
+			if (rc)
+				CAM_ERR(CAM_ISP, "Failed to get session cookie ctx: %u, rc: %d",
+					ctx->ctx_index, rc);
+		}
+	}
+	return rc;
+}
+
 static int cam_ife_mgr_cmd(void *hw_mgr_priv, void *cmd_args)
 {
 	int rc = 0;
@@ -18870,6 +18956,12 @@ static int cam_ife_mgr_cmd(void *hw_mgr_priv, void *cmd_args)
 			break;
 		case CAM_ISP_HW_MGR_GET_MAX_IFE_OUT_RES:
 			isp_hw_cmd_args->u.max_ife_out_res = max_ife_out_res;
+			break;
+		case CAM_ISP_HW_MGR_GET_SESSION_COOKIE:
+			rc = cam_ife_mgr_get_session_cookie(ctx, isp_hw_cmd_args);
+			break;
+		case CAM_ISP_HW_MGR_SET_HWFENCE_MODE:
+			rc = cam_ife_mgr_set_hwfence_mode(ctx, isp_hw_cmd_args);
 			break;
 		default:
 			CAM_ERR(CAM_ISP, "Invalid HW mgr command:0x%x",
@@ -21449,8 +21541,10 @@ int cam_ife_hw_mgr_init(struct cam_hw_mgr_intf *hw_mgr_intf, int *iommu_hdl)
 			rc  = cam_smmu_map_phy_mem_in_fence_queue_region(
 				g_ife_hw_mgr.mgr_common.img_iommu_hdl,
 				init_params.fenceq_dev_addr, init_params.len, &iova_queue);
-			if (rc)
+			if (rc) {
+				CAM_ERR(CAM_ISP, "Failed to map in fence queue region");
 				goto hw_fence_session_cleanup;
+			}
 
 			hwfenceinfo.client_id = init_params.client_core;
 			hwfenceinfo.ipcc_reg_iova = iova_queue + init_params.offset;

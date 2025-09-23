@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only
  *
- * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 #ifndef __CAM_SYNC_SYNX_H__
 #define __CAM_SYNC_SYNX_H__
@@ -14,7 +14,7 @@
 #include "cam_sync_api.h"
 #include "cam_debug_util.h"
 
-#define CAM_SYNX_MAX_OBJS 64
+#define CAM_SYNX_MAX_OBJS 2048
 #define CAM_SYNX_OBJ_NAME_LEN 64
 
 /* Synx obj state */
@@ -84,6 +84,19 @@ int cam_synx_obj_create(const char *name, struct synx_session *session_hdl,
 	uint32_t flags, uint32_t *synx_obj, int32_t *row_idx);
 
 /**
+ * @brief Creates a batch of synx objects
+ *
+ * @param session_hdl     : Synx session handle
+ * @param hwfence_info    : Created synx objects info
+ *
+ * @return Status of operation. Zero in case of success.
+ * -EINVAL will be returned if params were invalid.
+ * -ENOMEM will be returned if the kernel can't allocate space for
+ * synx object.
+ */
+int cam_synx_obj_batch_create(struct synx_session *session_hdl,
+	struct cam_sync_hw_fence_res_info  *hwfence_info);
+/**
  * @brief Signal a synx obj when sync obj is signaled
  *
  * @param row_idx         : Synx obj table row index
@@ -118,6 +131,15 @@ int cam_synx_obj_import_dma_fence(const char *name, uint32_t flags, void *fence,
 int cam_synx_obj_release(struct cam_synx_obj_release_params *release_params);
 
 /**
+ * @brief Release a batch of synx objects
+ *
+ * @param hwfence_info : Synx objects release info
+ *
+ * @return 0 upon success, negative value otherwise
+ */
+int cam_synx_obj_batch_release(struct cam_sync_hw_fence_res_info  *hwfence_info);
+
+/**
  * @brief Signal a synx obj [userspace API]
  *
  * @param signal_synx_obj : Signal info
@@ -147,6 +169,17 @@ int cam_synx_obj_register_cb(int32_t *sync_obj, int32_t row_idx,
  * @return Status of operation. Negative in case of error. Zero otherwise.
  */
 int cam_synx_update_hw_fence_queue(void *session_hdl, int32_t synx_hdl);
+
+/**
+ * @brief Creates a batch of synx objects
+ *
+ * @param hwfence_info    : synx objects info for which fence queue is to be
+ *                          updated
+ *
+ * @return Status of operation. Zero in case of success.
+ * -EINVAL will be returned if params were invalid.
+ */
+int cam_synx_batch_update_hwfence_queue(struct cam_sync_hw_fence_res_info  *hwfence_info);
 
 /**
  * @brief Get native fence
@@ -221,4 +254,14 @@ void cam_synx_obj_driver_deinit(void);
 enum synx_client_id cam_synx_map_camera_client_id_for_synx(
 	enum cam_sync_fencing_client_cores cam_client_id,
 	uint32_t signal_id);
+
+/**
+ * @brief: signal HW fence from SW
+ *
+ * @param synx_hdl         : synx handle
+ * @param status           : status
+ *
+ * @return Status of operation. Zero in case of success
+ */
+int cam_synx_signal_hwfence(uint32_t synx_hdl, uint32_t status);
 #endif /* __CAM_SYNC_SYNX_H__ */

@@ -1435,7 +1435,7 @@ static int cam_vfe_bus_ver3_config_hwfence_regs(
 {
 	struct cam_vfe_bus_ver3_ipcc_out_info    ipcc_out_info;
 	struct cam_vfe_bus_ver3_common_data      *common_data;
-	uint32_t fence_addr = 0, fence_offset = 0, fence_cfg1 = 0;
+	uint32_t fence_addr = 0, fence_offset = 0, fence_cfg1 = 0, line_done_cfg = 0;
 	uint32_t ipcc_addr = 0, ipcc_offset = 0, ipcc_cfg0 = 0;
 
 	common_data = rsrc_data->common_data;
@@ -1487,12 +1487,20 @@ static int cam_vfe_bus_ver3_config_hwfence_regs(
 		ipcc_cfg0 = ipcc_offset << common_data->ipcc_offset_shift;
 		ipcc_cfg0 |= 1;
 
+		if (rsrc_data->hwfence_mode == CAM_HW_FENCE_SLICE_BASED) {
+			line_done_cfg = (1 << common_data->slice_en_shift)|
+				(rsrc_data->height << common_data->line_count_shift);
+			cam_io_w(line_done_cfg, common_data->mem_base +
+				rsrc_data->hw_regs->line_done_cfg);
+		}
+
 		cam_io_w(fence_cfg1, common_data->mem_base + rsrc_data->hw_regs->fence_cfg_1);
 		cam_io_w(ipcc_cfg0, common_data->mem_base + rsrc_data->hw_regs->ipcc_cfg_0);
 
 		CAM_INFO(CAM_ISP,
-				"VFE:%d WM:%d Fence_cfg1: 0x%x IPCC_cfg0: 0x%x",
-				common_data->core_index, rsrc_data->index, fence_cfg1, ipcc_cfg0);
+				"VFE:%d WM:%d Fence_cfg1: 0x%x IPCC_cfg0: 0x%x line_done_cfg: 0x%x",
+				common_data->core_index, rsrc_data->index, fence_cfg1, ipcc_cfg0,
+				line_done_cfg);
 	}
 
 	return 0;
@@ -1562,7 +1570,6 @@ static int cam_vfe_bus_ver3_start_wm(struct cam_isp_resource_node *wm_res)
 	dest_hw_ipcc_id = bus_priv->ipcc_info.ipcc_dest_client_id;
 
 	if (rsrc_data->out_rsrc_data->hwfence_cap) {
-
 		/* program fencing mode */
 		if (rsrc_data->hwfence_cap_mask && rsrc_data->hwfence_mode) {
 			rc = cam_synx_enable_resources(rsrc_data->ipcc_out_info.client_idx,
@@ -1580,6 +1587,8 @@ static int cam_vfe_bus_ver3_start_wm(struct cam_isp_resource_node *wm_res)
 			if (valid_hwfence_mode > 0)
 				cam_io_w_mb(valid_hwfence_mode, common_data->mem_base +
 					rsrc_data->out_rsrc_data->hwfence_mode_offset);
+			CAM_DBG(CAM_ISP, "HWfence mode set: WM: %u, mode: %u", rsrc_data->index,
+				valid_hwfence_mode);
 		}
 
 		if (!rsrc_data->hw_regs->hwfence_cap_mask)  {
@@ -1618,7 +1627,6 @@ static int cam_vfe_bus_ver3_start_wm(struct cam_isp_resource_node *wm_res)
 				"VFE : %u Failed to configure hw fence regs for WM : %u",
 				rsrc_data->common_data->core_index, wm_res->res_name);
 		}
-
 	}
 
 	/* Validate for debugfs and mmu reg info for targets that don't list it */
@@ -3692,6 +3700,71 @@ static int cam_vfe_bus_ver3_config_wm(void *priv, void *cmd_args,
 	return 0;
 }
 
+static void cam_vfe_bus_ver3_program_hwfence_regs(
+	uint32_t *reg_val_pair, uint32_t *j,
+	struct cam_vfe_bus_ver3_priv          *bus_priv,
+	struct cam_vfe_bus_ver3_wm_resource_data *wm_data)
+{
+	struct cam_vfe_bus_ver3_common_data      *common_data;
+	uint32_t fence_addr = 0, fence_offset = 0;
+	uint32_t ipcc_addr = 0, ipcc_offset = 0, ipcc_cfg1 = 0, dest_hw_ipcc_id;
+	dma_addr_t ipcc_computed_addr;
+	struct cam_vfe_bus_ver3_ipcc_out_info    ipcc_out_info;
+
+	dest_hw_ipcc_id = bus_priv->ipcc_info.ipcc_dest_client_id;
+	ipcc_computed_addr = (bus_priv->ipcc_info.ipcc_base_addr +
+		bus_priv->common_data.ipcc_client_send_offset) +
+		(bus_priv->common_data.ipcc_protocol_reg_block_size *
+		bus_priv->ipcc_info.ipcc_protocol_id) +
+		(bus_priv->common_data.ipcc_client_reg_block_size *
+		bus_priv->ipcc_info.hw_client_ipcc_id);
+
+	CAM_DBG(CAM_ISP,
+		"computed addr: 0x%llx base: 0x%llx offset: 0x%x ipcc_id: 0x%x",
+		ipcc_computed_addr, bus_priv->ipcc_info.ipcc_base_addr,
+		(bus_priv->common_data.ipcc_client_send_offset) +
+		(bus_priv->common_data.ipcc_protocol_reg_block_size *
+		bus_priv->ipcc_info.ipcc_protocol_id) +
+		(bus_priv->common_data.ipcc_client_reg_block_size *
+		bus_priv->ipcc_info.hw_client_ipcc_id),
+		bus_priv->ipcc_info.hw_client_ipcc_id);
+
+	common_data = wm_data->common_data;
+
+	ipcc_out_info = wm_data->ipcc_out_info;
+
+	if (cam_smmu_is_expanded_memory()) {
+		fence_addr = CAM_36BIT_INTF_GET_IOVA_BASE(ipcc_out_info.queue_addr);
+		fence_offset = CAM_36BIT_INTF_GET_IOVA_OFFSET(ipcc_out_info.queue_addr);
+
+		ipcc_addr = CAM_36BIT_INTF_GET_IOVA_BASE(ipcc_computed_addr);
+		ipcc_offset = CAM_36BIT_INTF_GET_IOVA_OFFSET(ipcc_computed_addr);
+
+		CAM_DBG(CAM_ISP,
+			"WM:%d fence_addr: 0x%x offset: 0x%x ipcc addr: 0x%x offset: 0x%x",
+				wm_data->index, fence_addr, fence_offset,
+				ipcc_addr, ipcc_offset);
+	} else {
+		ipcc_addr = ipcc_computed_addr;
+		fence_addr = ipcc_out_info.queue_addr;
+
+		CAM_DBG(CAM_ISP, "WM:%d ipcc_addr  0x%X fence addr 0x%x",
+				wm_data->index, ipcc_addr, fence_addr);
+	}
+
+	dest_hw_ipcc_id = dest_hw_ipcc_id << bus_priv->common_data.ipcc_dest_client_shift;
+	ipcc_cfg1 = dest_hw_ipcc_id | ipcc_out_info.signal_id;
+
+	CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, *j, wm_data->hw_regs->fence_addr, fence_addr);
+	CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, *j, wm_data->hw_regs->ipcc_addr, ipcc_addr);
+
+	CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, *j, wm_data->hw_regs->ipcc_cfg_1, ipcc_cfg1);
+
+	CAM_DBG(CAM_ISP,
+		"WM:%d ipcc_addr  0x%X fence addr 0x%x, ipcc_cfg1: %u",
+		wm_data->index, ipcc_addr, fence_addr, ipcc_cfg1);
+}
+
 static int cam_vfe_bus_ver3_update_wm(void *priv, void *cmd_args,
 	uint32_t arg_size)
 {
@@ -3708,17 +3781,11 @@ static int cam_vfe_bus_ver3_update_wm(void *priv, void *cmd_args,
 	uint32_t frame_inc = 0, val;
 	uint32_t iova_addr, iova_offset, image_buf_offset = 0, stride, slice_h;
 	dma_addr_t iova;
-	int ret = 0;
-	struct cam_vfe_bus_ver3_ipcc_out_info    ipcc_out_info;
-	struct cam_vfe_bus_ver3_common_data      *common_data;
-	uint32_t fence_addr = 0, fence_offset = 0;
-	uint32_t ipcc_addr = 0, ipcc_offset = 0, ipcc_cfg1 = 0, dest_hw_ipcc_id;
-	dma_addr_t ipcc_computed_addr;
+	int ret = 0, idx = -1;
 
 	bus_priv = (struct cam_vfe_bus_ver3_priv  *) priv;
 	update_buf = (struct cam_isp_hw_get_cmd_update *) cmd_args;
 
-	dest_hw_ipcc_id = bus_priv->ipcc_info.ipcc_dest_client_id;
 	vfe_out_data = (struct cam_vfe_bus_ver3_vfe_out_data *)
 		update_buf->res->res_priv;
 	if (!vfe_out_data || !vfe_out_data->cdm_util_ops) {
@@ -3760,92 +3827,41 @@ static int cam_vfe_bus_ver3_update_wm(void *priv, void *cmd_args,
 
 		wm_data = vfe_out_data->wm_res[i].res_priv;
 		ubwc_client = wm_data->hw_regs->ubwc_regs;
+		CAM_DBG(CAM_ISP,
+			"WM: %u, wm_data->hwfence_mode %u, wm_data->ipcc_out_info.batch_hwfence_en %u",
+			wm_data->index, wm_data->hwfence_mode,
+			wm_data->ipcc_out_info.batch_hwfence_en);
 
-		/* update hw fence registers */
-
-		if ((wm_data->hwfence_mode) && (wm_data->ipcc_out_info.updated)) {
+		/* Update hw fence registers */
+		if (!wm_data->hwfence_mode) {
+			CAM_ERR(CAM_ISP, "HW fencing not enabled for this WM : %d",
+					wm_data->index);
 
 			CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
-				wm_data->hw_regs->fence_cfg_0, wm_data->ipcc_out_info.wr_ptr);
+				wm_data->hw_regs->ipcc_cfg_0, 0x0);
 
-			CAM_DBG(CAM_ISP, "WM: %u, Fence_cfg0: %u",
-				wm_data->index, wm_data->ipcc_out_info.wr_ptr);
-
-			ipcc_computed_addr = (bus_priv->ipcc_info.ipcc_base_addr +
-				bus_priv->common_data.ipcc_client_send_offset) +
-				(bus_priv->common_data.ipcc_protocol_reg_block_size *
-				bus_priv->ipcc_info.ipcc_protocol_id) +
-				(bus_priv->common_data.ipcc_client_reg_block_size *
-				bus_priv->ipcc_info.hw_client_ipcc_id);
-
-			CAM_DBG(CAM_ISP,
-				"computed addr: 0x%llx base: 0x%llx offset: 0x%x ipcc_id: 0x%x",
-				ipcc_computed_addr, bus_priv->ipcc_info.ipcc_base_addr,
-				(bus_priv->common_data.ipcc_client_send_offset) +
-				(bus_priv->common_data.ipcc_protocol_reg_block_size *
-				bus_priv->ipcc_info.ipcc_protocol_id) +
-				(bus_priv->common_data.ipcc_client_reg_block_size *
-				bus_priv->ipcc_info.hw_client_ipcc_id),
-				bus_priv->ipcc_info.hw_client_ipcc_id);
-
-			common_data = wm_data->common_data;
-
-			if (!wm_data->hwfence_mode) {
-				CAM_ERR(CAM_ISP, "HW fencing not enabled for this WM : %d",
-						wm_data->index);
-
+			CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+				wm_data->hw_regs->fence_cfg_1, 0x0);
+		} else {
+			if (wm_data->ipcc_out_info.updated) {
 				CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
-					wm_data->hw_regs->ipcc_cfg_0, 0x0);
+					wm_data->hw_regs->fence_cfg_0,
+					wm_data->ipcc_out_info.wr_ptr);
 
-				CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
-					wm_data->hw_regs->fence_cfg_1, 0x0);
-			} else {
-				ipcc_out_info =
-					wm_data->ipcc_out_info;
+				CAM_DBG(CAM_ISP, "WM: %u, Fence_cfg0: %u",
+					wm_data->index, wm_data->ipcc_out_info.wr_ptr);
 
-				if (cam_smmu_is_expanded_memory()) {
-					fence_addr =
-					CAM_36BIT_INTF_GET_IOVA_BASE(ipcc_out_info.queue_addr);
-					fence_offset =
-					CAM_36BIT_INTF_GET_IOVA_OFFSET(ipcc_out_info.queue_addr);
-
-					ipcc_addr =
-						CAM_36BIT_INTF_GET_IOVA_BASE(ipcc_computed_addr);
-					ipcc_offset =
-						CAM_36BIT_INTF_GET_IOVA_OFFSET(ipcc_computed_addr);
-
-					CAM_DBG(CAM_ISP,
-							"WM:%d fence_addr: 0x%x offset: 0x%x ipcc addr: 0x%x offset: 0x%x",
-							wm_data->index, fence_addr, fence_offset,
-							ipcc_addr, ipcc_offset);
-				} else {
-					ipcc_addr = ipcc_computed_addr;
-					fence_addr = ipcc_out_info.queue_addr;
-
-					CAM_DBG(CAM_ISP, "WM:%d ipcc_addr  0x%X fence addr 0x%x",
-							wm_data->index, ipcc_addr, fence_addr);
-				}
-
-				dest_hw_ipcc_id = dest_hw_ipcc_id <<
-					bus_priv->common_data.ipcc_dest_client_shift;
-				ipcc_cfg1 = dest_hw_ipcc_id | ipcc_out_info.signal_id;
-
-				CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
-					wm_data->hw_regs->fence_addr, fence_addr);
-
-				CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
-					wm_data->hw_regs->ipcc_addr, ipcc_addr);
-
-				CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
-					wm_data->hw_regs->ipcc_cfg_1, ipcc_cfg1);
-
-				CAM_DBG(CAM_ISP,
-					"WM:%d ipcc_addr  0x%X fence addr 0x%x, ipcc_cfg1: %u",
-					wm_data->index, ipcc_addr, fence_addr, ipcc_cfg1);
-
+				cam_vfe_bus_ver3_program_hwfence_regs(reg_val_pair, &j,
+					bus_priv, wm_data);
+				wm_data->ipcc_out_info.updated = false;
 			}
-
-			wm_data->ipcc_out_info.updated = false;
+			if (wm_data->ipcc_out_info.batch_hwfence_en) {
+				CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
+					wm_data->hw_regs->fence_cfg_0, 0x0);
+				idx = j;
+				cam_vfe_bus_ver3_program_hwfence_regs(reg_val_pair, &j,
+					bus_priv, wm_data);
+			}
 		}
 
 		/* Disable frame header in case it was previously enabled */
@@ -4059,6 +4075,14 @@ static int cam_vfe_bus_ver3_update_wm(void *priv, void *cmd_args,
 			update_buf->cmd.cmd_buf_addr,
 			num_regval_pairs, reg_val_pair);
 
+		if (idx != -1) {
+			update_buf->wm_update->wr_ptr_offset = update_buf->cmd.cmd_buf_addr +
+				cdm_util_ops->cdm_required_size_reg_random(idx / 2) - 1;
+			CAM_DBG(CAM_ISP, "wr_ptr offset: 0x%x offset 0x%x val 0x%x",
+				update_buf->wm_update->wr_ptr_offset,
+				*(update_buf->wm_update->wr_ptr_offset - 1),
+				*(update_buf->wm_update->wr_ptr_offset));
+		}
 		/* cdm util returns dwords, need to convert to bytes */
 		update_buf->cmd.used_bytes = size * 4;
 	} else {
@@ -4222,6 +4246,8 @@ static int cam_vfe_bus_ver3_hwfence_mode_cfg(void *priv, void *cmd_args,
 				srcgrp_fencemode_map[mode_cfg->src_grp] =
 					mode_cfg->fencing_mode;
 				rsrc_data->hwfencemode_set = 1;
+				wm_data->ipcc_out_info.batch_hwfence_en =
+					mode_cfg->batch_hwfence_en;
 			} else {
 				CAM_ERR(CAM_ISP,
 						"Failed to assign different fencing mode for res under same source group, res_id : %u, src_grp: %u, fencing mode expected: %u, fencing mode received: %u",
@@ -4240,6 +4266,69 @@ static int cam_vfe_bus_ver3_hwfence_mode_cfg(void *priv, void *cmd_args,
 				mode_cfg->fencing_mode, mode_cfg->res_type);
 		return -EINVAL;
 	}
+
+	return 0;
+}
+
+static int cam_vfe_bus_ver3_get_source_group(void *priv, void *cmd_args,
+	uint32_t arg_size)
+{
+	struct cam_isp_hw_fence_res_info  *hwfence_info;
+	struct cam_vfe_bus_ver3_priv      *bus_priv;
+	struct cam_vfe_bus_ver3_vfe_out_data     *rsrc_data = NULL;
+	struct cam_isp_resource_node             *rsrc_node = NULL;
+	enum cam_vfe_bus_ver3_vfe_out_type  vfe_out_res_id = CAM_VFE_BUS_VER3_VFE_OUT_MAX;
+	uint32_t  outmap_index = CAM_VFE_BUS_VER3_VFE_OUT_MAX;
+
+	bus_priv = (struct cam_vfe_bus_ver3_priv  *) priv;
+	hwfence_info = (struct cam_isp_hw_fence_res_info  *) cmd_args;
+
+	vfe_out_res_id = cam_vfe_bus_ver3_get_out_res_id_and_index(bus_priv,
+			hwfence_info->res_type, &outmap_index);
+	rsrc_node = &bus_priv->vfe_out[outmap_index];
+	rsrc_data = rsrc_node->res_priv;
+	if (!rsrc_data) {
+		CAM_ERR(CAM_ISP, "VFE out data is null, res_id: %d",
+				vfe_out_res_id);
+		return -EINVAL;
+	}
+	hwfence_info->source_group = rsrc_data->source_group;
+
+	return 0;
+}
+
+static int cam_vfe_bus_ver3_get_session_cookie(void *priv, void *cmd_args,
+	uint32_t arg_size)
+{
+	struct cam_isp_hw_fence_res_info  *hwfence_info;
+	struct cam_vfe_bus_ver3_priv      *bus_priv;
+	struct cam_vfe_bus_ver3_vfe_out_data     *rsrc_data = NULL;
+	struct cam_isp_resource_node             *rsrc_node = NULL;
+	struct cam_vfe_bus_ver3_wm_resource_data *wm_data = NULL;
+	enum cam_vfe_bus_ver3_vfe_out_type  vfe_out_res_id = CAM_VFE_BUS_VER3_VFE_OUT_MAX;
+	uint32_t  outmap_index = CAM_VFE_BUS_VER3_VFE_OUT_MAX;
+
+	bus_priv = (struct cam_vfe_bus_ver3_priv  *) priv;
+	hwfence_info = (struct cam_isp_hw_fence_res_info  *) cmd_args;
+
+	vfe_out_res_id = cam_vfe_bus_ver3_get_out_res_id_and_index(bus_priv,
+			hwfence_info->res_type, &outmap_index);
+	rsrc_node = &bus_priv->vfe_out[outmap_index];
+	rsrc_data = rsrc_node->res_priv;
+	if (!rsrc_data) {
+		CAM_ERR(CAM_ISP, "VFE out data is null, res_id: %d",
+				vfe_out_res_id);
+		return -EINVAL;
+	}
+
+	if (!rsrc_data->hwfence_cap) {
+		CAM_ERR(CAM_ISP, "HW fencing not supported for res_id : %d",
+				vfe_out_res_id);
+		return -EINVAL;
+	}
+
+	wm_data = rsrc_data->wm_res[0].res_priv;
+	hwfence_info->session_cookie = wm_data->ipcc_out_info.session_cookie;
 
 	return 0;
 }
@@ -5734,6 +5823,12 @@ static int cam_vfe_bus_ver3_process_cmd(
 	case CAM_ISP_HW_CMD_GET_HWFENCE_DEVICE_INFO:
 		rc = cam_vfe_bus_ver3_get_hwfence_device_info(priv, cmd_args, arg_size);
 		break;
+	case CAM_ISP_HW_CMD_GET_SESSION_COOKIE:
+		rc = cam_vfe_bus_ver3_get_session_cookie(priv, cmd_args, arg_size);
+		break;
+	case CAM_ISP_HW_CMD_GET_SRC_GRP:
+		rc = cam_vfe_bus_ver3_get_source_group(priv, cmd_args, arg_size);
+		break;
 	default:
 		CAM_ERR_RATE_LIMIT(CAM_ISP, "Invalid camif process command:%d",
 			cmd_type);
@@ -5858,9 +5953,11 @@ int cam_vfe_bus_ver3_init(
 	bus_priv->common_data.ipcc_client_reg_block_size =
 		ver3_hw_info->ipcc_client_reg_block_size;
 	bus_priv->common_data.ipcc_offset_shift = ver3_hw_info->ipcc_offset_shift;
-	bus_priv->common_data.ipcc_offset_shift = ver3_hw_info->fence_entry_size_shift;
+	bus_priv->common_data.fence_entry_size_shift = ver3_hw_info->fence_entry_size_shift;
 	bus_priv->common_data.fence_offset_shift = ver3_hw_info->fence_offset_shift;
 	bus_priv->common_data.ipcc_dest_client_shift = ver3_hw_info->ipcc_dest_client_shift;
+	bus_priv->common_data.slice_en_shift = ver3_hw_info->slice_en_shift;
+	bus_priv->common_data.line_count_shift = ver3_hw_info->line_count_shift;
 
 	for (i = 0; i < CAM_VFE_BUS_VER3_MAX_SRC_GRPS; i++)
 		bus_priv->srcgrp_fencemode_map[i] = -1;

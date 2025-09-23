@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 #ifndef _CAM_REQ_MGR_CORE_H_
 #define _CAM_REQ_MGR_CORE_H_
@@ -755,6 +755,13 @@ void cam_req_mgr_link_reset_open_cnt(int32_t link_hdl);
 int32_t cam_req_mgr_link_get_additional_timeout(int32_t link_hdl);
 
 int cam_req_mgr_batch_request(struct cam_batch_config_dev_cmd *cmd);
+
+/**
+ * cam_req_mgr_batch_request_v2()
+ * @brief: Processes batch requests(ver 2)
+ * @cmd: Command payload for batch configure device
+ */
+int cam_req_mgr_batch_request_v2(struct cam_batch_config_dev_cmd *cmd);
 
 int cam_req_mgr_fast_crop_sync_cmd(struct cam_req_mgr_fast_crop_sync *fast_crop_sync_info);
 

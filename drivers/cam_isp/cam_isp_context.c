@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #include <linux/debugfs.h>
@@ -68,7 +68,8 @@ static int __cam_isp_ctx_frame_drop_recovery(struct cam_isp_context *ctx_isp,
 	struct cam_ctx_request    *req);
 
 static int cam_isp_ctx_ul_fastpath_retrieve_results(
-	struct cam_context *ctx, uint32_t *num_results, struct response_buffer *response_buffers);
+	struct cam_context *ctx, uint32_t *num_results, struct response_buffer *response_buffers,
+	struct cam_hwfence_info *fence_info, uint32_t *is_fenceupdated);
 
 static const char *__cam_isp_evt_val_to_type(
 	uint32_t evt_id)
@@ -632,6 +633,80 @@ static int cam_isp_ctx_scratchbuf_cfg(struct cam_isp_context *ctx_isp)
 		return rc;
 	}
 	ctx_isp->foveation_info.is_settingid_scratchcfg = true;
+	return rc;
+}
+
+static int __cam_isp_ctx_release_batch_fence_util(void *priv, void *data)
+{
+	int rc = -EINVAL;
+	struct cam_isp_context             *ctx_isp = NULL;
+	struct cam_sync_hw_fence_res_info  *fence_res_info = NULL;
+
+	if (!priv) {
+		CAM_ERR(CAM_CRM, "input args NULL %pK", priv);
+		rc = -EINVAL;
+		return rc;
+	}
+
+	ctx_isp = (struct cam_isp_context *)priv;
+	fence_res_info = (struct cam_sync_hw_fence_res_info *) data;
+	if (fence_res_info) {
+		rc = cam_sync_release_batch_fences(fence_res_info);
+		if (rc)
+			CAM_ERR(CAM_SYNC, "Failed to release batch of fences, rc: %d", rc);
+	}
+	kfree(fence_res_info);
+	return rc;
+}
+
+static int __cam_isp_ctx_create_batch_fence_util(void *priv, void *data)
+{
+	int i, j, rc = -EINVAL;
+	struct cam_isp_context             *ctx_isp = NULL;
+	struct cam_sync_hw_fence_res_info  *fence_res_info = NULL;
+	struct cam_isp_ul_resource_update_entry *res_data;
+	struct cam_res_hwfence_info *fence_info = NULL;
+	struct cam_context *ctx;
+
+	if (!priv) {
+		CAM_ERR(CAM_CRM, "input args NULL %pK", priv);
+		rc = -EINVAL;
+		return rc;
+	}
+
+	ctx_isp = (struct cam_isp_context *)priv;
+	fence_res_info = (struct cam_sync_hw_fence_res_info *) data;
+	res_data = ctx_isp->ul_data.resource_data;
+	ctx = ctx_isp->base;
+
+	if (fence_res_info) {
+		rc = cam_sync_create_batch_fences(fence_res_info);
+		if (rc) {
+			CAM_ERR(CAM_SYNC, "Failed to create batch of fences, rc: %d", rc);
+			rc = -EINVAL;
+			goto end;
+		}
+		rc = cam_sync_batch_update_fence_queue(fence_res_info);
+		if (rc) {
+			CAM_ERR(CAM_ISP, "Failed to update hwfence queue, rc: %d", rc);
+			rc = -EINVAL;
+			goto end;
+		}
+
+		for (i = 0; i < MAX_IO_RESOURCES; i++) {
+			if (res_data[i].resource_type != fence_res_info->res_type)
+				continue;
+			res_data[i].is_fence_updated = true;
+			fence_info = &res_data[i].fence_info;
+			fence_info->num_synx_hdls = fence_res_info->num_fences;
+			for (j = 0; j < fence_info->num_synx_hdls; j++) {
+				fence_info->next_synx_hdls[j] = fence_res_info->synx_hdls[j];
+				fence_info->next_wr_ptrs[j] = fence_res_info->wr_ptrs[j];
+			}
+		}
+	}
+end:
+	kfree(fence_res_info);
 	return rc;
 }
 
@@ -1921,6 +1996,53 @@ static void __cam_isp_ctx_handle_req_reset_util(
 	ctx_isp->last_bufdone_err_apply_req_id = 0;
 	req_isp->sensor_req_id = 0;
 	req_isp->applied_crop_req_id = 0;
+}
+
+static int cam_isp_schedule_fence_release_for_req(struct cam_isp_context *ctx_isp,
+	struct cam_isp_ctx_req               *req_isp)
+{
+	struct cam_isp_ul_resource_update_entry *res_data;
+	int i, j, rc = -EINVAL;
+	struct cam_sync_hw_fence_res_info *release_params = NULL;
+	struct crm_worker_task *task;
+
+	res_data = ctx_isp->ul_data.resource_data;
+	for (i = 0; i < req_isp->num_fence_map_out; i++) {
+		for (j = 0; j < MAX_IO_RESOURCES; j++) {
+			if (req_isp->fence_map_out[i].resource_handle != res_data[j].resource_type)
+				continue;
+
+			if (!res_data[j].is_fence_updated)
+				continue;
+
+			task = cam_req_mgr_worker_get_task(ctx_isp->ul_data.fence_worker);
+			if (IS_ERR_OR_NULL(task)) {
+				CAM_ERR_RATE_LIMIT(CAM_CRM, "no empty task = %d", PTR_ERR(task));
+				return -EBUSY;
+			}
+			release_params = kzalloc(sizeof(struct cam_sync_hw_fence_res_info),
+				GFP_KERNEL);
+			if (!release_params) {
+				CAM_ERR(CAM_SYNX, "Failed to alloc mem");
+				return -ENOMEM;
+			}
+
+			res_data[j].is_fence_updated = false;
+			memcpy(release_params->synx_hdls, res_data[j].fence_info.previous_synx_hdls,
+				MAX_FENCES_PER_BATCH * sizeof(uint32_t));
+			release_params->num_fences = res_data[j].buf_count;
+
+			task->process_cb = __cam_isp_ctx_release_batch_fence_util;
+			task->payload = release_params;
+
+			rc = cam_req_mgr_worker_enqueue_task(task, ctx_isp, CRM_TASK_PRIORITY_0);
+			if (rc)
+				CAM_ERR(CAM_REQ, "Release fences failed, rc:%d",
+					rc);
+		}
+	}
+	req_isp->fence_updated = false;
+	return rc;
 }
 
 static int __cam_isp_ctx_handle_buf_done_for_req_list(
@@ -9464,6 +9586,45 @@ end:
 	spin_unlock(&isp_ctx->ul_fp_params.fast_path_lock);
 }
 
+static void __cam_isp_ctx_ul_populate_fences(
+	struct cam_isp_context *ctx_isp, struct cam_isp_ctx_req *req_isp,
+	struct cam_hwfence_info   *fence_info)
+{
+	struct cam_isp_ul_resource_update_entry *res_data;
+	int i, j, k;
+	struct cam_res_fence_info *per_res_fence_info;
+
+	res_data = ctx_isp->ul_data.resource_data;
+	fence_info->num_res_updated = 0;
+
+	for (i = 0; i < req_isp->num_fence_map_out; i++) {
+		for (j = 0; j < MAX_IO_RESOURCES; j++) {
+			if (req_isp->fence_map_out[i].resource_handle != res_data[j].resource_type)
+				continue;
+
+			if (!res_data[j].is_fence_updated)
+				continue;
+
+			per_res_fence_info =
+				&fence_info->fence_info_per_res[fence_info->num_res_updated++];
+			per_res_fence_info->res_type = res_data[j].resource_type;
+			per_res_fence_info->num_synx_hdls = res_data[j].fence_info.num_synx_hdls;
+			per_res_fence_info->num_slices = 1;
+			CAM_DBG(CAM_ISP,
+				"num_res_updated: %u, res_type: 0x%x, num_synx_hdls: %u,num_slices: %u",
+				fence_info->num_res_updated, per_res_fence_info->res_type,
+				per_res_fence_info->num_synx_hdls, per_res_fence_info->num_slices);
+			for (k = 0; k < per_res_fence_info->num_synx_hdls; k++) {
+				per_res_fence_info->synx_hdls[k] =
+					res_data[j].fence_info.next_synx_hdls[k];
+				CAM_DBG(CAM_ISP,
+					"Sending batch of fences, per_res_fence_info->synx_hdls[k]: %u",
+					per_res_fence_info->synx_hdls[k]);
+			}
+		}
+	}
+}
+
 static void __cam_isp_ctx_ul_fastpath_populate_buf_hdls(
 	int32_t *result_idx, uint64_t timestamp, uint64_t boot_timestamp, uint64_t request_id,
 	struct cam_isp_context *isp_ctx, struct cam_isp_ctx_req *req_isp,
@@ -9518,13 +9679,17 @@ static bool __cam_isp_ctx_ul_fastpath_match_for_primary_port(
 static int __cam_isp_ctx_ul_fastpath_retrieve_result_util(
 	int32_t *result_idx, uint32_t last_consumed_addr, uint64_t timestamp,
 	uint64_t boot_timestamp, struct cam_context *ctx,
-	struct response_buffer *response_buffers, uint32_t status)
+	struct response_buffer *response_buffers, uint32_t status,
+	struct cam_hwfence_info   *fence_info, uint32_t *is_fenceupdated)
 {
 	int rc = -EAGAIN;
 	bool found_match;
 	struct cam_isp_context *isp_ctx = (struct cam_isp_context *)ctx->ctx_priv;
 	struct cam_ctx_request *req, *req_tmp;
 	struct cam_isp_ctx_req *req_isp;
+
+	if (is_fenceupdated)
+		*is_fenceupdated = 0;
 
 	if (list_empty(&ctx->active_req_list)) {
 		/* Check in wait list */
@@ -9546,6 +9711,15 @@ static int __cam_isp_ctx_ul_fastpath_retrieve_result_util(
 					__cam_isp_ctx_ul_fastpath_populate_buf_hdls(result_idx,
 						timestamp, boot_timestamp, req->request_id, isp_ctx,
 						req_isp, response_buffers, status);
+					if (req_isp->fence_updated && fence_info)
+						cam_isp_schedule_fence_release_for_req(isp_ctx,
+							req_isp);
+					if (fence_info && isp_ctx->ul_data.new_batch_available) {
+						__cam_isp_ctx_ul_populate_fences(isp_ctx, req_isp,
+							fence_info);
+						*is_fenceupdated = 1;
+						isp_ctx->ul_data.new_batch_available = false;
+					}
 					CAM_WARN(CAM_ISP,
 						"Match for last_consumed: 0x%x found in request: %llu [wait list] in ctx: %u on link: 0x%x",
 						last_consumed_addr, req->request_id,
@@ -9569,12 +9743,20 @@ static int __cam_isp_ctx_ul_fastpath_retrieve_result_util(
 				found_match = __cam_isp_ctx_ul_fastpath_match_for_primary_port(
 					isp_ctx->primary_port_info[0]->res_id,
 					last_consumed_addr, req);
-
 				if (found_match) {
 					req_isp->ul_fp_result_posted = true;
 					__cam_isp_ctx_ul_fastpath_populate_buf_hdls(result_idx,
 						timestamp, boot_timestamp, req->request_id,
 						isp_ctx, req_isp, response_buffers, status);
+					if (req_isp->fence_updated && fence_info)
+						cam_isp_schedule_fence_release_for_req(isp_ctx,
+							req_isp);
+					if (fence_info && isp_ctx->ul_data.new_batch_available) {
+						__cam_isp_ctx_ul_populate_fences(isp_ctx, req_isp,
+							fence_info);
+						*is_fenceupdated = 1;
+						isp_ctx->ul_data.new_batch_available = false;
+					}
 					CAM_WARN(CAM_ISP,
 						"Match for last_consumed: 0x%x found in request: %llu [pending list] in ctx: %u on link: 0x%x",
 						last_consumed_addr, req->request_id,
@@ -9601,6 +9783,14 @@ static int __cam_isp_ctx_ul_fastpath_retrieve_result_util(
 			__cam_isp_ctx_ul_fastpath_populate_buf_hdls(result_idx,
 				timestamp, boot_timestamp, req->request_id, isp_ctx,
 				req_isp, response_buffers, status);
+			if (req_isp->fence_updated && fence_info)
+				cam_isp_schedule_fence_release_for_req(isp_ctx, req_isp);
+			if (fence_info && isp_ctx->ul_data.new_batch_available) {
+				__cam_isp_ctx_ul_populate_fences(isp_ctx, req_isp,
+					fence_info);
+				*is_fenceupdated = 1;
+				isp_ctx->ul_data.new_batch_available = false;
+			}
 			isp_ctx->active_req_cnt--;
 			__cam_isp_ctx_handle_req_reset_util(isp_ctx, req);
 			rc = 0;
@@ -9686,7 +9876,16 @@ static int __cam_isp_ctx_acquire_hw_v2(struct cam_context *ctx,
 		(param.op_flags & CAM_IFE_CTX_FAST_CROP_EN);
 	ctx_isp->ul_path_en =
 		(param.op_flags & CAM_IFE_CTX_UL_PATH);
+
 	memset(&ctx_isp->ul_data, 0, sizeof(ctx_isp->ul_data));
+	if (ctx_isp->ul_path_en) {
+		rc = cam_req_mgr_worker_create("ul_fence", 20,
+			&ctx_isp->ul_data.fence_worker, CRM_WORKER_USAGE_IRQ, 0);
+		if (rc)
+			CAM_ERR(CAM_ISP,
+				"Failed to create worker for fences on UL, rc:%d",
+				rc);
+	}
 	for (i = 0; i < MAX_SETTING_PACKETS; i++)
 		memset(&ctx_isp->setting_data[i], 0, sizeof(ctx_isp->setting_data[i]));
 	rc = __cam_isp_ctx_allocate_mem_hw_entries(ctx, &param);
@@ -10195,7 +10394,8 @@ end:
 
 static int cam_isp_ctx_ul_fastpath_retrieve_results(
 	struct cam_context *ctx, uint32_t *num_responses,
-	struct response_buffer *response_buffers)
+	struct response_buffer *response_buffers,
+	struct cam_hwfence_info   *fence_info, uint32_t *is_fenceupdated)
 {
 	int num_entries, rc = 0, i, result_idx = 0;
 	struct cam_isp_context *isp_ctx;
@@ -10246,10 +10446,12 @@ static int cam_isp_ctx_ul_fastpath_retrieve_results(
 			continue;
 		}
 		last_consumed = isp_ctx->ul_fp_results[rd_idx].last_consumed_addr;
-		rc = __cam_isp_ctx_ul_fastpath_retrieve_result_util(&result_idx, last_consumed,
-			isp_ctx->ul_fp_results[rd_idx].timestamp,
+		rc = __cam_isp_ctx_ul_fastpath_retrieve_result_util(&result_idx,
+			last_consumed, isp_ctx->ul_fp_results[rd_idx].timestamp,
 			isp_ctx->ul_fp_results[rd_idx].boot_timestamp,
-			ctx, response_buffers, isp_ctx->ul_fp_results[rd_idx].status);
+			ctx, response_buffers, isp_ctx->ul_fp_results[rd_idx].status,
+			fence_info ? fence_info : NULL,
+			is_fenceupdated ? is_fenceupdated : NULL);
 		if (rc)
 			CAM_WARN(CAM_ISP,
 				"Match not found for addr: 0x%x in context: %u link: 0x%x at result queue index: %u",
@@ -11074,6 +11276,9 @@ static int cam_context_prepare_ul_request(struct cam_isp_context *ctx_isp)
 	uint8_t *producer_queue;
 	uint32_t rd_idx, wr_idx;
 	unsigned long flags;
+	struct cam_sync_hw_fence_res_info  *fence_res_info = NULL;
+	struct crm_worker_task                   *task = NULL;
+	int rc;
 
 	if (list_empty(&cam_ctx->free_req_list)) {
 		CAM_INFO(CAM_ISP, "free list empty, returning ctx:%u",
@@ -11154,6 +11359,13 @@ static int cam_context_prepare_ul_request(struct cam_isp_context *ctx_isp)
 					spin_unlock_irqrestore(
 						&ctx_isp->ul_fp_params.fast_path_lock, flags);
 
+					/* signal synx fence as cancelled */
+					rc = cam_sync_signal_hwfence(
+						res_data[j].fence_info.current_wr_ptrs[k],
+						CAM_SYNC_STATE_SIGNALED_CANCEL);
+					if (rc)
+						CAM_ERR(CAM_ISP, "Failed to signal hwfence");
+
 					req_isp->reapply_type = CAM_CONFIG_REAPPLY_NONE;
 					req_isp->cdm_reset_before_apply = false;
 					req_isp->num_acked = 0;
@@ -11169,10 +11381,62 @@ static int cam_context_prepare_ul_request(struct cam_isp_context *ctx_isp)
 			memcpy(&req_isp->fence_map_out[req_isp->num_fence_map_out],
 				&res_data[j].out_map_entries[k],
 				sizeof(struct cam_hw_fence_map_entry));
+			if (res_data[j].is_hw_fence_en) {
+				*(res_data[j].wr_ptr_offset[k]) =
+					res_data[j].fence_info.current_wr_ptrs[k];
+				CAM_DBG(CAM_ISP, "Res: 0x%x Fence_cfg0 : %u",
+					res_data[j].resource_type,
+					*(res_data[j].wr_ptr_offset[k]));
+			}
 			req_isp->num_cfg++;
 			req_isp->num_fence_map_out++;
 			res_data[j].curr_buf_index = k;
 			break;
+		}
+	}
+
+	for (j = 0; j < MAX_IO_RESOURCES; j++) {
+		if (res_data[j].curr_buf_index != res_data[j].buf_count - 1)
+			continue;
+
+		if (!res_data[j].is_hw_fence_en)
+			continue;
+
+		task = cam_req_mgr_worker_get_task(ctx_isp->ul_data.fence_worker);
+		if (IS_ERR_OR_NULL(task)) {
+			CAM_ERR_RATE_LIMIT(CAM_CRM, "no empty task = %d", PTR_ERR(task));
+			return -EBUSY;
+		}
+
+		fence_res_info = kzalloc(sizeof(struct cam_sync_hw_fence_res_info),
+					GFP_KERNEL);
+		if (!fence_res_info)
+			return -ENOMEM;
+
+		for (k = 0; k < res_data[j].buf_count; k++) {
+			res_data[j].fence_info.previous_synx_hdls[k] =
+				res_data[j].fence_info.current_synx_hdls[k];
+
+			res_data[j].fence_info.current_synx_hdls[k] =
+				res_data[j].fence_info.next_synx_hdls[k];
+			res_data[j].fence_info.current_wr_ptrs[k] =
+				res_data[j].fence_info.next_wr_ptrs[k];
+		}
+
+		req_isp->fence_updated = true;
+		ctx_isp->ul_data.new_batch_available = true;
+		fence_res_info->res_type = res_data[j].resource_type;
+		fence_res_info->session_cookie = res_data[j].fence_info.session_cookie;
+		fence_res_info->num_fences = res_data[j].buf_count;
+
+		task->process_cb = __cam_isp_ctx_create_batch_fence_util;
+		task->payload = fence_res_info;
+
+		rc = cam_req_mgr_worker_enqueue_task(task, ctx_isp, CRM_TASK_PRIORITY_0);
+		if (rc) {
+			CAM_ERR(CAM_REQ, "Pending request processing failed, rc:%d",
+				rc);
+			kfree(fence_res_info);
 		}
 	}
 
@@ -12093,12 +12357,13 @@ int cam_isp_no_crm_handle_dev_notify(uint32_t dev_hdl,
 	return rc;
 }
 
-
 int cam_isp_no_crm_setup_ul(int32_t dev_hdl, struct cam_packet *packet,
 	struct port_pattern_period *port_enable_pattern_period, uint32_t *num_res,
-	struct resource_info *res_info, struct producer_queue *producer_q, uint32_t num_producer_q)
+	struct resource_info *res_info, struct producer_queue *producer_q, uint32_t num_producer_q,
+	struct cam_hwfence_en_info *hwfence_res_info, struct cam_hwfence_info *fence_info,
+	bool is_hwfence_en)
 {
-	int rc = 0, i, j;
+	int rc = 0, i, j, k;
 	size_t len;
 	bool match_found;
 	struct cam_hw_prepare_update_args  cfg      = {0};
@@ -12107,7 +12372,12 @@ int cam_isp_no_crm_setup_ul(int32_t dev_hdl, struct cam_packet *packet,
 	struct cam_isp_context                   *ctx_isp;
 	struct cam_isp_prepare_hw_update_data    *hw_update_data;
 	struct cam_isp_ul_resource_update_entry  *res_data;
-
+	struct cam_hw_cmd_args            hw_cmd_args;
+	struct cam_isp_hw_cmd_args        isp_hw_cmd_args;
+	struct cam_isp_hw_fence_res_info  hwfence_info;
+	struct cam_sync_hw_fence_res_info *fence_res_info = NULL;
+	struct cam_res_fence_info *per_res_fence_info;
+	struct crm_worker_task                   *task = NULL;
 
 	if (!ctx) {
 		CAM_ERR(CAM_ISP, "Invalid context handle 0x%x", dev_hdl);
@@ -12128,6 +12398,27 @@ int cam_isp_no_crm_setup_ul(int32_t dev_hdl, struct cam_packet *packet,
 	hw_update_data->ul_data = &ctx_isp->ul_data;
 	hw_update_data->is_ul_setup = true;
 
+	/* to update fencing mode */
+	if (is_hwfence_en) {
+		for (j = 0; j < hwfence_res_info->num_res; j++) {
+			hwfence_info.res_type = hwfence_res_info->res_type[j];
+
+			hw_cmd_args.ctxt_to_hw_map = ctx_isp->hw_ctx;
+			hw_cmd_args.cmd_type = CAM_HW_MGR_CMD_INTERNAL;
+			isp_hw_cmd_args.cmd_type = CAM_ISP_HW_MGR_SET_HWFENCE_MODE;
+			isp_hw_cmd_args.cmd_data = &hwfence_info;
+			hw_cmd_args.u.internal_args = (void *)&isp_hw_cmd_args;
+			rc = ctx->hw_mgr_intf->hw_cmd(
+				ctx->hw_mgr_intf->hw_mgr_priv, &hw_cmd_args);
+			if (rc) {
+				CAM_ERR(CAM_ISP,
+					"Failed to set fencing mode for res:%u, rc: %d",
+					hwfence_info.res_type, rc);
+				return -EINVAL;
+			}
+		}
+	}
+
 	rc = ctx->hw_mgr_intf->hw_prepare_update(
 		ctx->hw_mgr_intf->hw_mgr_priv, &cfg);
 	if (rc != 0) {
@@ -12143,6 +12434,103 @@ int cam_isp_no_crm_setup_ul(int32_t dev_hdl, struct cam_packet *packet,
 	for (i = 0; i < MAX_IO_RESOURCES; i++) {
 		if (!res_data[i].resource_type)
 			break;
+
+		if (!is_hwfence_en)
+			goto no_fence;
+
+		for (j = 0; j < hwfence_res_info->num_res; j++) {
+
+			if (res_data[i].resource_type != hwfence_res_info->res_type[j])
+				continue;
+
+			if (res_data[i].is_hw_fence_en)
+				continue;
+
+			res_data[i].is_hw_fence_en = true;
+
+			hwfence_info.res_type = hwfence_res_info->res_type[j];
+
+			hw_cmd_args.ctxt_to_hw_map = ctx_isp->hw_ctx;
+			hw_cmd_args.cmd_type = CAM_HW_MGR_CMD_INTERNAL;
+			isp_hw_cmd_args.cmd_type = CAM_ISP_HW_MGR_GET_SESSION_COOKIE;
+			isp_hw_cmd_args.cmd_data = &hwfence_info;
+			hw_cmd_args.u.internal_args = (void *)&isp_hw_cmd_args;
+			rc = ctx->hw_mgr_intf->hw_cmd(
+				ctx->hw_mgr_intf->hw_mgr_priv, &hw_cmd_args);
+			if (rc) {
+				CAM_ERR(CAM_ISP,
+					"Failed to get session cookie for res:%u, rc: %d",
+					hwfence_info.res_type, rc);
+				return -EINVAL;
+			}
+			CAM_DBG(CAM_ISP, "res_type: %u, session cookie: %u",
+				hwfence_info.res_type, hwfence_info.session_cookie);
+			res_data[i].fence_info.session_cookie = hwfence_info.session_cookie;
+
+			fence_res_info = kzalloc(sizeof(struct cam_sync_hw_fence_res_info),
+					GFP_KERNEL);
+			if (!fence_res_info) {
+				CAM_ERR(CAM_SYNX, "mem allocation failed");
+					return -ENOMEM;
+			}
+			fence_res_info->res_type = res_data[i].resource_type;
+			fence_res_info->num_fences = res_data[i].buf_count;
+			fence_res_info->session_cookie = res_data[i].fence_info.session_cookie;
+
+			rc = cam_sync_create_batch_fences(fence_res_info);
+			if (rc) {
+				CAM_ERR(CAM_ISP,
+					"Failed to create batch of fences, rc:%d",
+					rc);
+				rc = -EINVAL;
+				return rc;
+			}
+			rc = cam_sync_batch_update_fence_queue(fence_res_info);
+			if (rc) {
+				CAM_ERR(CAM_ISP, "Failed to update hwfence queue");
+				rc = -EINVAL;
+				return rc;
+			}
+
+			/* Sending 1st batch to UMD in UL packet */
+			per_res_fence_info =
+				&fence_info->fence_info_per_res[fence_info->num_res_updated++];
+			per_res_fence_info->res_type = hwfence_info.res_type;
+			per_res_fence_info->num_synx_hdls = fence_res_info->num_fences;
+			per_res_fence_info->num_slices = 1;
+			CAM_DBG(CAM_ISP,
+				"num_res_updated: %u, res_type: 0x%x, num_synx_hdls: %u,num_slices: %u",
+				fence_info->num_res_updated, per_res_fence_info->res_type,
+				per_res_fence_info->num_synx_hdls, per_res_fence_info->num_slices);
+			for (k = 0; k < per_res_fence_info->num_synx_hdls; k++) {
+				per_res_fence_info->synx_hdls[k] =
+					fence_res_info->synx_hdls[k];
+				CAM_DBG(CAM_ISP,
+					"Sending batch of fences, per_res_fence_info->synx_hdls[k]: %u",
+					per_res_fence_info->synx_hdls[k]);
+				/* Store 1st batch in UL data */
+				res_data[i].fence_info.current_synx_hdls[k] =
+					fence_res_info->synx_hdls[k];
+				res_data[i].fence_info.current_wr_ptrs[k] =
+					fence_res_info->wr_ptrs[k];
+			}
+			/* Schedule creation of next batch of fences */
+			ctx_isp->ul_data.new_batch_available = true;
+			task = cam_req_mgr_worker_get_task(ctx_isp->ul_data.fence_worker);
+			if (IS_ERR_OR_NULL(task)) {
+				CAM_ERR_RATE_LIMIT(CAM_CRM, "no empty task = %d", PTR_ERR(task));
+				return -EBUSY;
+			}
+			task->process_cb = __cam_isp_ctx_create_batch_fence_util;
+			task->payload = fence_res_info;
+			rc = cam_req_mgr_worker_enqueue_task(task, ctx_isp, CRM_TASK_PRIORITY_0);
+			if (rc) {
+				CAM_ERR(CAM_REQ, "Pending request processing failed, rc:%d",
+					rc);
+			}
+			break;
+		}
+no_fence:
 		res_info[*num_res].resource_type = res_data[i].resource_type;
 		res_info[*num_res].num_hdls      = res_data[i].buf_count;
 		for (j = 0; j < res_info[*num_res].num_hdls; j++)
@@ -12178,6 +12566,25 @@ int cam_isp_no_crm_setup_ul(int32_t dev_hdl, struct cam_packet *packet,
 	return rc;
 }
 
+static int cam_isp_ul_retrieve_results_v2(int32_t dev_hdl,
+	struct ul_cam_packet_v2 *ul_packet)
+{
+	int rc = -EINVAL;
+	int32_t num_responses = 0;
+	struct cam_context *ctx = (struct cam_context *) cam_get_device_priv(dev_hdl);
+
+	if (!ctx || !ul_packet)
+		return rc;
+
+	rc = cam_isp_ctx_ul_fastpath_retrieve_results(ctx,
+		&num_responses, ul_packet->rsp, &ul_packet->fence_info,
+		&ul_packet->is_fenceupdated);
+	if (!rc)
+		ul_packet->num_responses = num_responses;
+
+	return rc;
+}
+
 static int cam_isp_ul_retrieve_results(int32_t dev_hdl,
 	struct ul_cam_packet *ul_packet)
 {
@@ -12189,7 +12596,7 @@ static int cam_isp_ul_retrieve_results(int32_t dev_hdl,
 		return rc;
 
 	rc = cam_isp_ctx_ul_fastpath_retrieve_results(ctx,
-		&num_responses, ul_packet->rsp);
+		&num_responses, ul_packet->rsp, NULL, NULL);
 	if (!rc)
 		ul_packet->num_responses = num_responses;
 
@@ -12206,6 +12613,7 @@ struct cam_req_mgr_no_crm_kmd_ops no_crm_isp_intf = {
 	.setup     = cam_isp_no_crm_setup_ul,
 	.add_req   = cam_isp_ul_update_dev,
 	.retrieve  = cam_isp_ul_retrieve_results,
+	.retrieve_v2 = cam_isp_ul_retrieve_results_v2,
 };
 
 int cam_isp_context_init(struct cam_isp_context *ctx,

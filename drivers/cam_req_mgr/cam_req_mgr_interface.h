@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #ifndef _CAM_REQ_MGR_INTERFACE_H
@@ -102,9 +102,11 @@ typedef int (*cam_req_mgr_no_crm_add_req)(int32_t dev_hdl, struct cam_packet *pa
 	struct port_pattern_period *port_enable_pattern_period);
 typedef int (*cam_req_mgr_no_crm_setup)(int32_t dev_hdl, struct cam_packet *packet,
 	struct port_pattern_period *port_enable_pattern_period, uint32_t *num_res,
-	struct resource_info *res_info, struct producer_queue *producer_q, uint32_t num_producer_q);
+	struct resource_info *res_info, struct producer_queue *producer_q, uint32_t num_producer_q,
+	struct cam_hwfence_en_info *hwfence_res_info, struct cam_hwfence_info *fence_info,
+	bool is_hwfence_en);
 typedef int (*cam_req_mgr_no_crm_retrieve)(int32_t dev_hdl, struct ul_cam_packet *ul_packet);
-
+typedef int (*cam_req_mgr_no_crm_retrieve_v2)(int32_t dev_hdl, struct ul_cam_packet_v2 *ul_packet);
 /**
  * @brief          : cam_req_mgr_crm_cb - func table
  *
@@ -171,6 +173,7 @@ struct cam_req_mgr_no_crm_kmd_ops {
 	cam_req_mgr_no_crm_add_req          add_req;
 	cam_req_mgr_no_crm_setup            setup;
 	cam_req_mgr_no_crm_retrieve         retrieve;
+	cam_req_mgr_no_crm_retrieve_v2      retrieve_v2;
 };
 
 /**

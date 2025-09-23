@@ -2620,6 +2620,79 @@ free_mem:
 	return rc;
 }
 
+int cam_sync_batch_update_fence_queue(
+	struct cam_sync_hw_fence_res_info  *hwfence_info)
+{
+	int rc = -EINVAL;
+
+	rc = cam_synx_batch_update_hwfence_queue(hwfence_info);
+	if (rc) {
+		CAM_ERR(CAM_SYNC, "Failed to update wr_ptrs, rc: %d", rc);
+		goto end;
+	}
+
+	CAM_DBG(CAM_SYNC, "Fence queue updated for res:%u", hwfence_info->res_type);
+end:
+	return rc;
+}
+
+int cam_sync_release_batch_fences(struct cam_sync_hw_fence_res_info  *hwfence_info)
+{
+	int rc = -EINVAL;
+
+	rc = cam_synx_obj_batch_release(hwfence_info);
+	if (rc) {
+		CAM_ERR(CAM_SYNC, "Failed to release batch of fences, rc: %d", rc);
+		goto end;
+	}
+
+	CAM_DBG(CAM_SYNC, "Batch HW Fence released for res:%u", hwfence_info->res_type);
+end:
+	return rc;
+}
+
+int cam_sync_create_batch_fences(
+	struct cam_sync_hw_fence_res_info  *hwfence_info)
+{
+	int rc = -EINVAL;
+	uint32_t client_core = 0, col_idx = 0, client_entry_idx = 0;
+	struct synx_session *session_hdl;
+	struct cam_sync_hw_fence_client_entries *client_entry;
+
+	if (!cam_sync_validate_and_get_hw_fence_client_info(hwfence_info->session_cookie,
+				&client_core, &col_idx))
+		goto end;
+
+	client_entry_idx = (client_core * CAM_SYNC_HW_FENCE_MAX_SUB_GRPS) + col_idx;
+
+	spin_lock(hw_fence_info.hw_fence_locks[client_entry_idx]);
+	client_entry = &hw_fence_info.hw_fence_tbl[client_entry_idx];
+	rc = __cam_sync_validate_hw_fence_client_entry(hwfence_info->session_cookie,
+		client_entry);
+
+	if (rc) {
+		spin_unlock(hw_fence_info.hw_fence_locks[client_entry_idx]);
+		goto end;
+	}
+
+	session_hdl = client_entry->session_hdl;
+	spin_unlock(hw_fence_info.hw_fence_locks[client_entry_idx]);
+
+	rc = cam_synx_obj_batch_create(session_hdl, hwfence_info);
+	if (rc)
+		goto end;
+
+	CAM_DBG(CAM_SYNC, "Batch HW Fence created for session cookie: %u",
+		hwfence_info->session_cookie);
+end:
+	return rc;
+}
+
+int cam_sync_signal_hwfence(uint32_t synx_hdl, uint32_t status)
+{
+	return cam_synx_signal_hwfence(synx_hdl, status);
+}
+
 static int cam_generic_fence_create_hw_fence(
 	uint32_t session_cookie, struct cam_generic_fence_config *fence_cfg,
 	int32_t sync_obj)
@@ -3154,6 +3227,25 @@ int cam_sync_deinitialize_hw_fence_session(int32_t session_hdl)
 }
 
 int cam_sync_hw_fence_session_cleanup(void)
+{
+	return -EOPNOTSUPP;
+}
+
+int cam_sync_create_batch_fences(struct cam_sync_hw_fence_res_info  *hwfence_info)
+{
+	return -EOPNOTSUPP;
+}
+
+int cam_sync_release_batch_fences(struct cam_sync_hw_fence_res_info  *hwfence_info)
+{
+	return -EOPNOTSUPP;
+}
+
+int cam_sync_batch_update_fence_queue(struct cam_sync_hw_fence_res_info  *hwfence_info)
+{
+	return -EOPNOTSUPP;
+}
+int cam_sync_signal_hwfence(uint32_t synx_hdl, uint32_t status)
 {
 	return -EOPNOTSUPP;
 }

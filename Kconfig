@@ -90,3 +90,13 @@ config CAM_ENABLE_SOCCP
 	  Enabling this feature allows the usage of
 	  HW fences. SOCCP HW related code only
 	  compiles if this flag is enabled.
+
+config SYNX_BATCH_API
+	bool "Enable Synx batch APIs"
+	help
+	   This is enabling Synx batch APIs
+	   in sync/synx modules. Enabling this
+	   feature allows the usage of batch APIs
+	   defined in Synx headers. Synx Batch
+	   APIs compile only when this flag is
+	   enabled.

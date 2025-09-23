@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #include <linux/module.h>
@@ -147,6 +147,7 @@ int32_t cam_csiphy_remote_cmd_buf_parser(struct csiphy_remote_device *csiphy_dev
 	uintptr_t                generic_ptr;
 	uintptr_t                generic_pkt_ptr;
 	struct cam_packet       *csl_packet = NULL;
+	struct cam_packet       *csl_packet_u = NULL;
 	struct cam_cmd_buf_desc *cmd_desc = NULL;
 	uint32_t                *cmd_buf = NULL;
 	struct cam_csiphy_remote_info  *cam_cmd_csiphy_info = NULL;
@@ -171,21 +172,18 @@ int32_t cam_csiphy_remote_cmd_buf_parser(struct csiphy_remote_device *csiphy_dev
 		CAM_ERR(CAM_CSIPHY_REMOTE,
 			"Inval cam_packet struct size: %zu, len: %zu",
 			 sizeof(struct cam_packet), len);
-		cam_mem_put_cpu_buf(cfg_dev->packet_handle);
 		rc = -EINVAL;
-		return rc;
+		goto put_ref;
 	}
 
 	remain_len -= (size_t)cfg_dev->offset;
-	csl_packet = (struct cam_packet *)
+	csl_packet_u = (struct cam_packet *)
 		(generic_pkt_ptr + (uint32_t)cfg_dev->offset);
 
-	if (cam_packet_util_validate_packet(csl_packet,
-		remain_len)) {
-		CAM_ERR(CAM_CSIPHY_REMOTE, "Invalid packet params");
-		cam_mem_put_cpu_buf(cfg_dev->packet_handle);
-		rc = -EINVAL;
-		return rc;
+	rc = cam_packet_util_copy_pkt_to_kmd(csl_packet_u, &csl_packet, remain_len);
+	if (rc) {
+		CAM_ERR(CAM_SENSOR, "Copying packet to KMD failed");
+		goto put_ref;
 	}
 
 	cmd_desc = (struct cam_cmd_buf_desc *)
@@ -197,8 +195,8 @@ int32_t cam_csiphy_remote_cmd_buf_parser(struct csiphy_remote_device *csiphy_dev
 	if (rc < 0) {
 		CAM_ERR(CAM_CSIPHY_REMOTE,
 			"Failed to get cmd buf Mem address : %d", rc);
-		cam_mem_put_cpu_buf(cfg_dev->packet_handle);
-		return rc;
+		cam_common_mem_free(csl_packet);
+		goto put_ref;
 	}
 
 	if ((len < sizeof(struct cam_csiphy_remote_info)) ||
@@ -239,8 +237,10 @@ int32_t cam_csiphy_remote_cmd_buf_parser(struct csiphy_remote_device *csiphy_dev
 		phy_info->sensor_physical_id);
 
 end:
-	cam_mem_put_cpu_buf(cfg_dev->packet_handle);
+	cam_common_mem_free(csl_packet);
 	cam_mem_put_cpu_buf(cmd_desc->mem_handle);
+put_ref:
+	cam_mem_put_cpu_buf(cfg_dev->packet_handle);
 	return rc;
 }
 

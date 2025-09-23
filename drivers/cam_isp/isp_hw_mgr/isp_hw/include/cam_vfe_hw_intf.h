@@ -307,12 +307,14 @@ struct cam_vfe_clock_update_args {
  * @res_type              Resource to configure hw fencing for
  * @fencing_mode          Frame or slice
  * @src_grp               Source group
+ * @batch_hwfence_en      Indicates HW fence batching is enabled
  *
  */
 struct cam_vfe_bus_hwfence_mode_cfg_args {
 	uint32_t          res_type;
 	uint32_t          fencing_mode;
 	uint32_t          src_grp;
+	uint32_t          batch_hwfence_en;
 };
 
 /*

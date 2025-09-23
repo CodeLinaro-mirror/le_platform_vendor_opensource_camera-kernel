@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #include <linux/module.h>
@@ -668,6 +668,11 @@ static long cam_private_ioctl(struct file *file, void *fh,
 	case CAM_REQ_MGR_REQUEST_DUMP: {
 		struct cam_dump_req_cmd cmd;
 
+		if (!cam_debugfs_available()) {
+			CAM_DBG(CAM_CORE, "Dump request disabled");
+			return 0;
+		}
+
 		if (k_ioctl->size != sizeof(cmd))
 			return -EINVAL;
 
@@ -759,6 +764,23 @@ static long cam_private_ioctl(struct file *file, void *fh,
 		rc = cam_req_mgr_fast_crop_sync_cmd(&cmd);
 		if (rc)
 			CAM_ERR(CAM_CORE, "Fast crop sync failed");
+		}
+		break;
+	case CAM_REQ_MGR_BATCH_REQ_V2: {
+		struct cam_batch_config_dev_cmd cmd;
+
+		if (k_ioctl->size != sizeof(cmd))
+			return -EINVAL;
+
+		if (copy_from_user(&cmd,
+			u64_to_user_ptr(k_ioctl->handle),
+			sizeof(struct cam_batch_config_dev_cmd))) {
+			rc = -EFAULT;
+			break;
+		}
+		rc = cam_req_mgr_batch_request_v2(&cmd);
+		if (rc)
+			CAM_ERR(CAM_CORE, "Batch request failed");
 		}
 		break;
 	default:

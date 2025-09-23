@@ -288,6 +288,7 @@ struct cam_vfe_bus_ver3_ipcc_out_info {
 	int32_t     wr_ptr;
 	uint32_t    client_idx;
 	bool        updated;
+	bool        batch_hwfence_en;
 };
 
 struct cam_vfe_bus_ver3_vfe_out_data {
@@ -419,6 +420,8 @@ struct cam_vfe_bus_ver3_hw_info {
 	uint32_t fence_entry_size_shift;
 	uint32_t fence_offset_shift;
 	uint32_t ipcc_dest_client_shift;
+	uint32_t slice_en_shift;
+	uint32_t line_count_shift;
 };
 
 /**
@@ -573,6 +576,8 @@ struct cam_vfe_bus_ver3_common_data {
 	uint32_t                                    fence_offset_shift;
 	uint32_t                                    fence_entry_size_shift;
 	uint32_t                                    ipcc_dest_client_shift;
+	uint32_t                                    slice_en_shift;
+	uint32_t                                    line_count_shift;
 };
 
 int cam_vfe_populate_out(

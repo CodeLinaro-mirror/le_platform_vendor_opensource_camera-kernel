@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2025, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #include <linux/device.h>
@@ -2584,8 +2584,10 @@ static void cam_cpas_dump_monitor_array(
 static int cam_cpas_log_event(struct cam_hw_info *cpas_hw,
 	const char *identifier_string, int32_t identifier_value)
 {
+	mutex_lock(&cpas_hw->hw_mutex);
 	cam_cpas_update_monitor_array(cpas_hw, identifier_string,
 		identifier_value);
+	mutex_unlock(&cpas_hw->hw_mutex);
 
 	return 0;
 }

@@ -558,6 +558,8 @@ int cam_vfe_process_cmd(void *hw_priv, uint32_t cmd_type,
 	case CAM_ISP_HW_CMD_SET_HWFENCE_MODE:
 	case CAM_ISP_HW_CMD_UPDATE_HWFENCE_INFO:
 	case CAM_ISP_HW_CMD_GET_HWFENCE_DEVICE_INFO:
+	case CAM_ISP_HW_CMD_GET_SESSION_COOKIE:
+	case CAM_ISP_HW_CMD_GET_SRC_GRP:
 		rc = core_info->vfe_bus->hw_ops.process_cmd(
 			core_info->vfe_bus->bus_priv, cmd_type, cmd_args,
 			arg_size);

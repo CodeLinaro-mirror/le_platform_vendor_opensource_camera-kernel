@@ -250,6 +250,7 @@ struct cam_isp_ctx_sensor_req_info {
  * @applied_crop_req_id:       Indicates applied crop request for this request
  * @buf_done_tracker           Indicates the ports that have received buf dones for this request
  * @ul_fp_result_posted        Indicates if this request has already been serviced for fastpath
+ * @fence_updated              Indicates new batch of fence is updated
  *
  */
 struct cam_isp_ctx_req {
@@ -278,6 +279,7 @@ struct cam_isp_ctx_req {
 	uint64_t                              applied_crop_req_id;
 	uint64_t                              buf_done_tracker;
 	bool                                  ul_fp_result_posted;
+	bool                                  fence_updated;
 };
 
 /**

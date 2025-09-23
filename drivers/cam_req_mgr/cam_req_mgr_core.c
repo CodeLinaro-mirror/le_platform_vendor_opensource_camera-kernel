@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #include <linux/module.h>
@@ -3888,7 +3888,7 @@ end:
 }
 
 size_t cam_req_mgr_parse_config_cmd(struct cam_batch_config_dev_cmd *cmd,
-	struct ul_cam_packet **packet)
+	void **packet, size_t packet_size)
 {
 	size_t len;
 	uintptr_t packet_addr;
@@ -3908,15 +3908,15 @@ size_t cam_req_mgr_parse_config_cmd(struct cam_batch_config_dev_cmd *cmd,
 		return  -EINVAL;
 	}
 
-	if ((len < sizeof(struct ul_cam_packet)) ||
-		((size_t)cmd->offset > len - sizeof(struct ul_cam_packet))) {
+	if ((len < packet_size) ||
+		((size_t)cmd->offset > len - packet_size)) {
 		CAM_ERR(CAM_CRM, "invalid buff length: %zu or offset: %zu expected %zu", len,
-			(size_t)cmd->offset, sizeof(struct ul_cam_packet));
+			(size_t)cmd->offset, packet_size);
 		rc = -EINVAL;
 		goto err;
 	}
 
-	*packet = (struct ul_cam_packet *) ((uint8_t *)packet_addr + (uint32_t)cmd->offset);
+	*packet = (void *)((uint8_t *)packet_addr + (uint32_t)cmd->offset);
 
 	cam_mem_put_cpu_buf((int32_t) cmd->ul_packet_handle);
 	return (len - (size_t)cmd->offset);
@@ -3958,6 +3958,191 @@ err:
 
 }
 
+int cam_req_mgr_batch_request_v2(struct cam_batch_config_dev_cmd *cmd)
+{
+	int i, j, k;
+	struct ul_cam_packet_v2                    *ul_packet  = NULL;
+	struct cam_packet               *packet;
+	struct cam_req_mgr_core_link    *link = NULL;
+	struct port_pattern_period *port_enable_pattern_period = NULL;
+
+	cam_req_mgr_parse_config_cmd(cmd, (void **)&ul_packet, sizeof(struct ul_cam_packet_v2));
+	if (IS_ERR_OR_NULL(ul_packet))
+		return -EINVAL;
+
+	if (!ul_packet->link_hdl) {
+		CAM_ERR(CAM_ISP, "link is NULL");
+		return -EINVAL;
+	}
+
+	link = cam_get_link_priv(ul_packet->link_hdl);
+	if (!link) {
+		CAM_ERR(CAM_CRM, "Link 0x%x not valid",
+			ul_packet->link_hdl);
+		return -EINVAL;
+
+	}
+	if (link->state != CAM_CRM_LINK_STATE_READY) {
+		CAM_ERR(CAM_CRM, "Link 0x%x is not in ready state",
+			ul_packet->link_hdl);
+		return -EINVAL;
+	}
+
+	if (ul_packet->batch_packet_type == BATCH_PACKET_TYPE_SETUP_IOBUF) {
+		if (link->ul_state != CAM_CRM_UL_LINK_STATE_INIT) {
+			CAM_ERR(CAM_CRM, "Link 0x%x is not in init state",
+				ul_packet->link_hdl);
+			return -EINVAL;
+		}
+		for (i = 0; i < ul_packet->number_devices; i++) {
+			for (j = 0; j < link->num_devs; j++) {
+				if (link->l_dev[j].dev_hdl != ul_packet->device_hdl[i])
+					continue;
+				if (!link->l_dev[j].no_crm_ops) {
+					CAM_INFO(CAM_ISP,
+						"noCRM ops not applicable for dev_hdl 0x%x %s",
+						link->l_dev[j].dev_hdl,
+						link->l_dev[j].dev_info.name);
+					continue;
+				}
+				if (!link->l_dev[j].no_crm_ops->setup &&
+					ul_packet->num_io_packets[i]) {
+					CAM_ERR(CAM_CRM,
+						"setup not supported for dev_hdl 0x%x type %d %s",
+						link->l_dev[j].dev_hdl,
+						link->l_dev[j].dev_info.dev_id,
+						link->l_dev[j].dev_info.name);
+					return -EINVAL;
+				}
+
+				if (ul_packet->update_port_patern_period)
+					port_enable_pattern_period =
+						ul_packet->port_enable_pattern_period[i];
+				for (k = 0; k < ul_packet->num_io_packets[i]; k++) {
+					packet = cam_req_mgr_get_cam_packet(
+						ul_packet->io_packet[i][k].packet_hdl,
+						ul_packet->io_packet[i][k].packet_offset);
+					if (IS_ERR_OR_NULL(packet)) {
+						CAM_ERR(CAM_CRM, "Unable to fetch packet");
+						return -EINVAL;
+					}
+					link->l_dev[j].no_crm_ops->setup(
+						ul_packet->device_hdl[i], packet,
+						port_enable_pattern_period, &ul_packet->num_res,
+						ul_packet->res_info, ul_packet->producer_q,
+						ul_packet->num_produce_q,
+						&ul_packet->hwfence_res_info,
+						&ul_packet->fence_info,
+						ul_packet->is_hwfence_en);
+					port_enable_pattern_period = NULL;
+					if (ul_packet->is_hwfence_en)
+						ul_packet->is_fenceupdated = 1;
+				}
+				for (k = 0; k < ul_packet->num_setting_packets; k++) {
+					packet = cam_req_mgr_get_cam_packet(
+						ul_packet->setting_packets[i][k].packet_hdl,
+						ul_packet->setting_packets[i][k].packet_offset);
+					if (IS_ERR_OR_NULL(packet)) {
+						CAM_ERR(CAM_CRM, "Unable to fetch packet");
+						return -EINVAL;
+					}
+					link->l_dev[j].no_crm_ops->add_req(
+					ul_packet->device_hdl[i], packet,
+					port_enable_pattern_period);
+					port_enable_pattern_period = NULL;
+				}
+			}
+		}
+		if (ul_packet->num_setting_packets) {
+			if (!link->is_setting_period_valid) {
+				memcpy(&link->setting_period_packet,
+					&ul_packet->setting_pattern_period,
+					sizeof(struct setting_pattern_period));
+				link->curr_seting_idx = 0;
+			} else {
+				memcpy(&link->new_setting_period_packet,
+					&ul_packet->setting_pattern_period,
+					sizeof(struct setting_pattern_period));
+				link->is_new_setting_available = true;
+			}
+			link->is_setting_sticky = ul_packet->is_setting_sticky;
+			link->is_setting_period_valid = true;
+		}
+		link->ul_state = CAM_CRM_UL_LINK_STATE_READY;
+	} else if (ul_packet->batch_packet_type == BATCH_PACKET_TYPE_SETTING_UPDATE ||
+		ul_packet->batch_packet_type == BATCH_PACKET_TYPE_SETTING_UPDATE_RETREIVE) {
+		if (link->ul_state != CAM_CRM_UL_LINK_STATE_READY) {
+			CAM_ERR(CAM_CRM, "Link 0x%x is not in ready state", ul_packet->link_hdl);
+			return -EINVAL;
+		}
+		for (i = 0; i < ul_packet->number_devices; i++) {
+			for (j = 0; j < link->num_devs; j++) {
+				if (link->l_dev[j].dev_hdl != ul_packet->device_hdl[i])
+					continue;
+				if (!link->l_dev[j].no_crm_ops) {
+					CAM_INFO(CAM_ISP,
+						"noCRM ops not applicable for dev_hdl 0x%x %s",
+						link->l_dev[j].dev_hdl,
+						link->l_dev[j].dev_info.name);
+					continue;
+				}
+				if (!link->l_dev[j].no_crm_ops->add_req) {
+					CAM_ERR(CAM_CRM,
+						"add req not supported for dev_hdl 0x%x type %d %s",
+						link->l_dev[j].dev_hdl,
+						link->l_dev[j].dev_info.dev_id,
+						link->l_dev[j].dev_info.name);
+					return -EINVAL;
+				}
+				if (ul_packet->update_port_patern_period)
+					port_enable_pattern_period =
+						ul_packet->port_enable_pattern_period[i];
+				for (k = 0; k < ul_packet->num_setting_packets; k++) {
+					packet = cam_req_mgr_get_cam_packet(
+						ul_packet->setting_packets[i][k].packet_hdl,
+						ul_packet->setting_packets[i][k].packet_offset);
+					if (IS_ERR_OR_NULL(packet)) {
+						CAM_ERR(CAM_CRM,
+							"Unable to fetch packet");
+						return -EINVAL;
+					}
+					link->l_dev[j].no_crm_ops->add_req(
+					ul_packet->device_hdl[i], packet,
+					port_enable_pattern_period);
+					port_enable_pattern_period = NULL;
+				}
+			}
+		}
+		if (!link->is_setting_period_valid) {
+			memcpy(&link->setting_period_packet,
+				&ul_packet->setting_pattern_period,
+				sizeof(struct setting_pattern_period));
+			link->curr_seting_idx = 0;
+		} else {
+			memcpy(&link->new_setting_period_packet,
+				&ul_packet->setting_pattern_period,
+				sizeof(struct setting_pattern_period));
+			link->is_new_setting_available = true;
+		}
+		link->is_setting_sticky = ul_packet->is_setting_sticky;
+		link->is_setting_period_valid = true;
+	}
+	if (ul_packet->batch_packet_type == BATCH_PACKET_TYPE_SETTING_UPDATE_RETREIVE ||
+		ul_packet->batch_packet_type == BATCH_PACKET_TYPE_RETREIVE) {
+		if (link->ul_state != CAM_CRM_UL_LINK_STATE_READY) {
+			CAM_ERR(CAM_CRM, "Link 0x%x is not in ready state", ul_packet->link_hdl);
+			return -EINVAL;
+		}
+		for (j = 0; j < link->num_devs; j++) {
+			if (link->l_dev[j].no_crm_ops->retrieve_v2) {
+				link->l_dev[j].no_crm_ops->retrieve_v2(
+					link->l_dev[j].dev_hdl, ul_packet);
+			}
+		}
+	}
+	return 0;
+}
+
 int cam_req_mgr_batch_request(struct cam_batch_config_dev_cmd *cmd)
 {
 	int i, j, k;
@@ -3966,7 +4151,7 @@ int cam_req_mgr_batch_request(struct cam_batch_config_dev_cmd *cmd)
 	struct cam_req_mgr_core_link    *link = NULL;
 	struct port_pattern_period *port_enable_pattern_period = NULL;
 
-	cam_req_mgr_parse_config_cmd(cmd, &ul_packet);
+	cam_req_mgr_parse_config_cmd(cmd, (void **)&ul_packet, sizeof(struct ul_cam_packet));
 	if (IS_ERR_OR_NULL(ul_packet))
 		return -EINVAL;
 
@@ -4029,7 +4214,7 @@ int cam_req_mgr_batch_request(struct cam_batch_config_dev_cmd *cmd)
 						ul_packet->device_hdl[i], packet,
 						port_enable_pattern_period, &ul_packet->num_res,
 						ul_packet->res_info, ul_packet->producer_q,
-						ul_packet->num_produce_q);
+						ul_packet->num_produce_q, NULL, NULL, false);
 					port_enable_pattern_period = NULL;
 				}
 				for (k = 0; k < ul_packet->num_setting_packets; k++) {

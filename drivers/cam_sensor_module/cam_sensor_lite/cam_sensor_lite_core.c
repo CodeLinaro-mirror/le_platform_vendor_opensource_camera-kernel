@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #include <linux/module.h>
@@ -901,7 +901,9 @@ static int cam_sensor_lite_validate_cmd_descriptor(
 	uintptr_t generic_ptr;
 	size_t len_of_buff = 0;
 	uint32_t                  *cmd_buf    = NULL;
+	struct sensor_lite_header *cmd_header_user = NULL;
 	struct sensor_lite_header *cmd_header = NULL;
+	ssize_t cmd_header_size = 0;
 
 	if (!cmd_desc || !cmd_type || !cmd_addr)
 		return -EINVAL;
@@ -913,10 +915,26 @@ static int cam_sensor_lite_validate_cmd_descriptor(
 			"Failed to get cmd buf Mem address : %d", rc);
 		return rc;
 	}
+	if (cmd_desc->offset >= len_of_buff) {
+		CAM_ERR(CAM_SENSOR_LITE, "Buffer offset: %d past length of the buffer %zu",
+			cmd_desc->offset,
+			len_of_buff);
+		rc = -EINVAL;
+		goto end;
+	}
 
 	cmd_buf = (uint32_t *)generic_ptr;
 	cmd_buf += cmd_desc->offset / 4;
-	cmd_header = (struct sensor_lite_header *)cmd_buf;
+	cmd_header_user = (struct sensor_lite_header *)cmd_buf;
+	cmd_header_size = cmd_header_user->size;
+
+	cmd_header = kmemdup(cmd_header_user, cmd_header_size, GFP_KERNEL);
+	if (!cmd_header) {
+		CAM_ERR(CAM_SENSOR_LITE, "Local cmd_header mem allocation failed");
+		rc = -ENOMEM;
+		goto end;
+	}
+	cmd_header->size = cmd_header_size;
 
 	if (len_of_buff < sizeof(struct sensor_lite_header)) {
 		CAM_ERR(CAM_SENSOR_LITE,
@@ -973,7 +991,7 @@ static int cam_sensor_lite_cmd_buf_parse(
 
 	for (i = 0; i < packet->num_cmd_buf; i++) {
 		uint32_t  cmd_type = -1;
-		uintptr_t cmd_addr;
+		uintptr_t cmd_addr = 0;
 		cmd_desc = (struct cam_cmd_buf_desc *)
 			((uint32_t *)&packet->payload +
 			(packet->cmd_buf_offset / 4) +
@@ -983,8 +1001,13 @@ static int cam_sensor_lite_cmd_buf_parse(
 				cmd_desc,
 				&cmd_type,
 				&cmd_addr);
-		if (rc < 0)
+		if (rc < 0)	{
+			if (cmd_addr != 0) {
+				kfree((void *)cmd_addr);
+				cmd_addr = 0;
+			}
 			goto end;
+		}
 
 		switch (cmd_type) {
 		case SENSORLITE_CMD_TYPE_SLAVEDESTINIT:
@@ -1031,6 +1054,8 @@ static int cam_sensor_lite_cmd_buf_parse(
 				((struct sensor_lite_header *)cmd_addr)->tag);
 			break;
 		}
+		kfree((void *)cmd_addr);
+		cmd_addr = 0;
 	}
 
 	/* Add request */
@@ -1057,6 +1082,7 @@ static int cam_sensor_lite_packet_parse(
 	uintptr_t generic_ptr;
 	size_t len_of_buff = 0, remain_len = 0;
 	struct cam_packet *csl_packet = NULL;
+	struct cam_packet *csl_packet_u = NULL;
 
 	rc = cam_mem_get_cpu_buf(config->packet_handle,
 		&generic_ptr, &len_of_buff);
@@ -1072,18 +1098,17 @@ static int cam_sensor_lite_packet_parse(
 			"Inval cam_packet struct size: %zu, len_of_buff: %zu",
 			 sizeof(struct cam_packet), len_of_buff);
 		rc = -EINVAL;
-		goto end;
+		goto put_ref;
 	}
 	remain_len = len_of_buff;
 	remain_len -= (size_t)config->offset;
-	csl_packet = (struct cam_packet *)(generic_ptr +
+	csl_packet_u = (struct cam_packet *)(generic_ptr +
 		(uint32_t)config->offset);
 
-	if (cam_packet_util_validate_packet(csl_packet,
-		remain_len)) {
-		CAM_ERR(CAM_SENSOR_LITE, "Invalid packet params");
-		rc = -EINVAL;
-		goto end;
+	rc = cam_packet_util_copy_pkt_to_kmd(csl_packet_u, &csl_packet, remain_len);
+	if (rc) {
+		CAM_ERR(CAM_SENSOR_LITE, "Copying packet to KMD failed");
+		goto put_ref;
 	}
 
 	CAM_DBG(CAM_SENSOR_LITE,
@@ -1118,7 +1143,10 @@ static int cam_sensor_lite_packet_parse(
 		rc = -EINVAL;
 		break;
 	}
+
 end:
+cam_common_mem_free(csl_packet);
+put_ref:
 	cam_mem_put_cpu_buf(config->packet_handle);
 	return rc;
 }
@@ -1241,6 +1269,7 @@ int32_t __cam_sensor_lite_handle_probe(
 	void *ptr = NULL;
 	size_t len;
 	struct cam_packet *pkt = NULL;
+	struct cam_packet *pkt_u = NULL;
 	struct cam_cmd_buf_desc *cmd_desc = NULL;
 	uintptr_t cmd_buf1 = 0;
 	uintptr_t packet = 0;
@@ -1254,11 +1283,17 @@ int32_t __cam_sensor_lite_handle_probe(
 		return -EINVAL;
 	}
 
-	pkt = (struct cam_packet *)packet;
-	if (pkt == NULL) {
+	pkt_u = (struct cam_packet *)packet;
+	if (pkt_u == NULL) {
 		CAM_ERR(CAM_SENSOR_LITE, "packet pos is invalid");
 		rc = -EINVAL;
-		goto end;
+		goto put_ref;
+	}
+
+	rc = cam_packet_util_copy_pkt_to_kmd(pkt_u, &pkt, len);
+	if (rc) {
+		CAM_ERR(CAM_SENSOR, "Copying packet to KMD failed");
+		goto put_ref;
 	}
 
 	if ((len < sizeof(struct cam_packet)) ||
@@ -1413,6 +1448,8 @@ int32_t __cam_sensor_lite_handle_probe(
 		rc = -EINVAL;
 	}
 end:
+	cam_common_mem_free(pkt);
+put_ref:
 	cam_mem_put_cpu_buf(handle);
 	return rc;
 }

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #ifndef _CAM_ISP_HW_MGR_INTF_H_
@@ -166,6 +166,28 @@ struct cam_isp_ctx_wait_last_stream_sof_info {
 	uint64_t      frame_duration;
 };
 
+/**
+ * struct cam_res_hwfence_info - HWfence resource info
+ *
+ * @num_synx_hdls       number of synx hdls
+ * @session_cookie      session cookie for this resource
+ * @current_synx_hdls   holds current batch of synx handles
+ * @next_synx_hdls      holds next batch of synx handles
+ * @current_wr_ptrs     holds current batch of wr_ptrs
+ * @next_wr_ptrs        holds next batch of wr_ptrs
+ * @previous_synx_hdls  holds previous batch of synx handles, ready for release
+ *
+ */
+struct cam_res_hwfence_info {
+	uint32_t       num_synx_hdls;
+	uint32_t       session_cookie;
+	uint32_t       current_synx_hdls[MAX_FENCES_PER_BATCH];
+	uint32_t       next_synx_hdls[MAX_FENCES_PER_BATCH];
+	uint32_t       current_wr_ptrs[MAX_FENCES_PER_BATCH];
+	uint32_t       next_wr_ptrs[MAX_FENCES_PER_BATCH];
+	uint32_t       previous_synx_hdls[MAX_FENCES_PER_BATCH];
+};
+
 struct cam_isp_ul_resource_update_entry {
 	int                            resource_type;
 	int                            buf_count;
@@ -175,6 +197,10 @@ struct cam_isp_ul_resource_update_entry {
 	int32_t                        producer_q_hdl;
 	uintptr_t                      producer_q_kmdvaddr;
 	bool                           is_producer_q_valid;
+	bool                           is_hw_fence_en;
+	bool                           is_fence_updated;
+	struct cam_res_hwfence_info    fence_info;
+	uint32_t                       *wr_ptr_offset[MAX_IO_PACKETS];
 };
 
 struct cam_isp_ul_change_base_cmd {
@@ -205,6 +231,21 @@ struct cam_isp_ctx_ul_data {
 	struct cam_isp_ul_rup_aup_cmd               rup_aup_cmd;
 	uint64_t                                    sensor_applied_setting_id;
 	uint64_t                                    curr_index_period;
+	struct cam_req_mgr_core_worker             *fence_worker;
+	bool                                        new_batch_available;
+};
+
+/**
+ * struct cam_isp_hw_fence_res_info
+ *
+ * @res_type        resource type
+ * @session_cookie  session cookie for this resource
+ * @source_group    source group of this resource
+ */
+struct cam_isp_hw_fence_res_info {
+	uint32_t res_type;
+	uint32_t session_cookie;
+	uint32_t source_group;
 };
 
 /**
@@ -498,6 +539,8 @@ enum cam_isp_hw_mgr_command {
 	CAM_ISP_HW_MGR_FAST_RESULT_NOTIFIER_CFG,
 	CAM_ISP_HW_MGR_GET_LAST_CONSUMED_ADDR_INFO,
 	CAM_ISP_HW_MGR_GET_MAX_IFE_OUT_RES,
+	CAM_ISP_HW_MGR_GET_SESSION_COOKIE,
+	CAM_ISP_HW_MGR_SET_HWFENCE_MODE,
 	CAM_ISP_HW_MGR_CMD_MAX,
 };
 

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #ifndef __CAM_SYNC_API_H__
@@ -12,6 +12,7 @@
 #include <linux/completion.h>
 #include <linux/videodev2.h>
 #include <media/cam_sync.h>
+#include <media/cam_defs.h>
 
 /* Sync object types */
 #define CAM_SYNC_TYPE_UMD         0
@@ -101,6 +102,23 @@ struct cam_sync_hwfence_info {
 	struct cam_sync_hwfence_tx_q_wr_pntr_info wr_pntr_arr[CAM_GENERIC_FENCE_BATCH_MAX];
 };
 
+/**
+ * struct cam_sync_hw_fence_res_info - HW fence info per resource
+ *
+ * @res_type:       Resource type
+ * @session_cookie: Session cookie for resource
+ * @num_fences:     number of fences requested
+ * @synx_hdls:      Array of synx handles created
+ * @wr_ptrs:        Array of wr_ptrs corresponding to synx handles
+ */
+struct cam_sync_hw_fence_res_info {
+	uint32_t res_type;
+	uint32_t session_cookie;
+	uint32_t num_fences;
+	int32_t  synx_hdls[MAX_FENCES_PER_BATCH];
+	uint32_t wr_ptrs[MAX_IO_PACKETS];
+};
+
 /* Kernel APIs */
 
 /**
@@ -126,6 +144,26 @@ struct cam_sync_signal_param {
 };
 
 /**
+ * @brief: Releases a batch of fences
+ *
+ * @param hwfence_info : struct to hold information of fences which need
+ *                       to be released
+ *
+ * @return Status of operation. Zero in case of success.
+ */
+int cam_sync_release_batch_fences(struct cam_sync_hw_fence_res_info *hwfence_info);
+
+/**
+ * @brief: Update HWfence queue for a batch of fences
+ *
+ * @param hwfence_info : struct to hold information of fences for which fence
+ *                       queue needs to be updated
+ *
+ * @return Status of operation. Zero in case of success.
+ */
+int cam_sync_batch_update_fence_queue(struct cam_sync_hw_fence_res_info *hwfence_info);
+
+/**
  * @brief: Creates a sync object
  *
  *  The newly created sync obj is assigned to sync_obj.
@@ -145,6 +183,16 @@ struct cam_sync_signal_param {
  */
 int cam_sync_create(uint32_t sync_manager_idx, int32_t *sync_obj, const char *name,
 	uint32_t type);
+
+/**
+ * @brief: Creates a batch of fences
+ *
+ * @param hwfence_info : struct to hold information of fences which need
+ *                       to be created
+ *
+ * @return Status of operation. Zero in case of success.
+ */
+int cam_sync_create_batch_fences(struct cam_sync_hw_fence_res_info *hwfence_info);
 
 /**
  * @brief: Registers a callback with a sync object
@@ -314,6 +362,16 @@ int cam_sync_deinitialize_hw_fence_session(int32_t session_hdl);
  */
 int cam_sync_check_and_update_hw_fence_queue_pntrs(
 	struct cam_sync_hwfence_info *hwfence_info);
+
+/**
+ * @brief: signal HW fence from SW
+ *
+ * @param synx_hdl         : synx handle
+ * @param status           : status
+ *
+ * @return Status of operation. Zero in case of success
+ */
+int cam_sync_signal_hwfence(uint32_t synx_hdl, uint32_t status);
 
 /**
  * @brief : API to register SYNC to platform framework.

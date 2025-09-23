@@ -959,6 +959,8 @@ static struct cam_vfe_bus_ver3_hw_info vfe736x_bus_hw_info = {
 	.ipcc_offset_shift = 4,
 	.fence_offset_shift = 9,
 	.ipcc_dest_client_shift = 16,
+	.slice_en_shift = 20,
+	.line_count_shift = 4,
 	.fence_entry_size_shift = 1,
 };
 

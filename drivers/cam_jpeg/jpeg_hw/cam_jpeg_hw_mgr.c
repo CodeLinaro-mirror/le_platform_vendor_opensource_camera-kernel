@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #include <linux/uaccess.h>
@@ -461,6 +461,8 @@ static int cam_jpeg_mgr_bottom_half_irq(void *priv, void *data)
 		CAM_DBG(CAM_JPEG, "Encoded Size %d Thresold Size: %u",
 			task_data->u.output_encode_size,
 			jpeg_req->thumbnail_threshold_size);
+
+		cam_cpas_notify_event("JPEG FrameDone", 0);
 
 		if (jpeg_req->thumbnail_threshold_size) {
 			if (task_data->u.output_encode_size > jpeg_req->thumbnail_threshold_size) {
