@@ -318,6 +318,7 @@ struct v4l2_loopback_device {
 
 	/* qcarcam open ret*/
 	int qcarcam_ctrl_ret;
+	int open_timeout;
 	struct completion open_complete;
 	struct completion close_complete;
 	struct v4l2_fh *open_ret_fh;
@@ -2627,7 +2628,8 @@ static int process_output_cmd(struct v4l2_loopback_device *dev,
 	case AIS_V4L2_OUTPUT_PRIV_OPEN_RET:
 		dev->qcarcam_ctrl_ret = kcmd->ctrl_ret;
 		dev->open_ret_fh = fh;
-		complete(&dev->open_complete);
+		if (!dev->open_timeout)
+			complete(&dev->open_complete);
 		break;
 	case AIS_V4L2_OUTPUT_PRIV_CLOSE_RET:
 		dev->qcarcam_ctrl_ret = kcmd->ctrl_ret;
@@ -2681,10 +2683,10 @@ static int process_output_cmd(struct v4l2_loopback_device *dev,
 			}
 			free_stream_data(opener->data);
 			opener->data = NULL;
-			opener->connected_opener->data = NULL;
 		}
 		if (opener->connected_opener)
 		{
+			opener->connected_opener->data = NULL;
 			kfree(opener->connected_opener);
 			opener->connected_opener = NULL;
 		}
@@ -2879,6 +2881,8 @@ static int v4l2_loopback_open(struct file *file)
 			CAM_INFO(CAM_V4L2, "app open dev=%s", dev->vdev->name);
 			mutex_lock(&dev->dev_mutex);
 			etype = V4L2L_READER;
+			dev->open_timeout = 0;
+			reinit_completion(&dev->open_complete);
 			send_v4l2_event_ex3(dev->main_opener, AIS_V4L2_CLIENT_OUTPUT,
 				AIS_V4L2_OPEN_INPUT, pid);
 			rc = wait_for_completion_timeout(&dev->open_complete,
@@ -2897,6 +2901,7 @@ static int v4l2_loopback_open(struct file *file)
 			} else {
 				CAM_ERR(CAM_V4L2, "open fail dev=%s, timeout %d",
 					dev->vdev->name, rc);
+				dev->open_timeout = 1;
 				rc = -ETIMEDOUT;
 				mutex_unlock(&dev->dev_mutex);
 				return rc;
@@ -3319,6 +3324,7 @@ static int v4l2_loopback_init(struct v4l2_loopback_device *dev, int nr)
 		goto error;
 	}
 	dev->v4l2_dev.ctrl_handler = hdl;
+	dev->open_timeout = 0;
 
 	init_completion(&dev->open_complete);
 	init_completion(&dev->close_complete);
