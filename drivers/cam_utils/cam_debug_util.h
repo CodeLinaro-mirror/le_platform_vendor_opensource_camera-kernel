@@ -182,4 +182,20 @@ const char *cam_get_module_name(unsigned int module_id);
 				__LINE__, ##args);			\
 	})
 
+/**
+ * cam_debugfs_available()
+ *
+ * @brief:  Check if debugfs is enabled for camera. Use this function before creating any
+ *          debugfs entries.
+ *
+ * @return: true if enabled, false otherwise
+ */
+static inline bool cam_debugfs_available(void)
+{
+	#if defined(CONFIG_DEBUG_FS)
+		return true;
+	#else
+		return false;
+	#endif
+}
 #endif /* _CAM_DEBUG_UTIL_H_ */

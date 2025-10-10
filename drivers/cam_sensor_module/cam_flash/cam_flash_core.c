@@ -1278,6 +1278,7 @@ int cam_flash_pmic_pkt_parser(struct cam_flash_ctrl *fctrl, void *arg)
 	uint32_t *cmd_buf =  NULL;
 	uint32_t *offset = NULL;
 	uint32_t frm_offset = 0;
+	uint32_t count;
 	size_t len_of_buffer;
 	size_t remain_len;
 	struct cam_control *ioctl_ctrl = NULL;
@@ -1288,7 +1289,9 @@ int cam_flash_pmic_pkt_parser(struct cam_flash_ctrl *fctrl, void *arg)
 	struct cam_req_mgr_add_request add_req = {0};
 	struct cam_flash_init *cam_flash_info = NULL;
 	struct cam_flash_set_rer *flash_rer_info = NULL;
+	struct cam_flash_set_rer *flash_rer_info_u = NULL;
 	struct cam_flash_set_on_off *flash_operation_info = NULL;
+	struct cam_flash_set_on_off *flash_operation_info_u = NULL;
 	struct cam_flash_query_curr *flash_query_info = NULL;
 	struct cam_flash_frame_setting *flash_data = NULL;
 	struct cam_flash_private_soc *soc_private = NULL;
@@ -1410,17 +1413,36 @@ int cam_flash_pmic_pkt_parser(struct cam_flash_ctrl *fctrl, void *arg)
 				goto rel_cmd_buf;
 			}
 
-			flash_operation_info =
+			flash_operation_info_u =
 				(struct cam_flash_set_on_off *) cmd_buf;
-			if (!flash_operation_info) {
+			if (!flash_operation_info_u) {
 				CAM_ERR(CAM_FLASH,
 					"flash_operation_info Null");
 				rc = -EINVAL;
 				goto rel_cmd_buf;
 			}
+
+			count = flash_operation_info_u->count;
+			rc = cam_common_mem_kdup((void**)&flash_operation_info,
+					flash_operation_info_u,
+					sizeof(struct cam_flash_set_on_off));
+			if (rc) {
+				CAM_ERR(CAM_FLASH, "Alloc and copy flash operation info failed");
+				break;
+			}
+
+			if (count != flash_operation_info->count) {
+				CAM_ERR(CAM_FLASH, "Count changed: userspace: %d, kernel: %d",
+					count, flash_operation_info->count);
+				rc = -EINVAL;
+				cam_common_mem_free(flash_operation_info);
+				break;
+			}
+
 			if (flash_operation_info->count >
 				CAM_FLASH_MAX_LED_TRIGGERS) {
 				CAM_ERR(CAM_FLASH, "led count out of limit");
+				cam_common_mem_free(flash_operation_info);
 				rc = -EINVAL;
 				goto rel_cmd_buf;
 			}
@@ -1443,6 +1465,7 @@ int cam_flash_pmic_pkt_parser(struct cam_flash_ctrl *fctrl, void *arg)
 					rc);
 
 			fctrl->flash_state = CAM_FLASH_STATE_CONFIG;
+			cam_common_mem_free(flash_operation_info);
 			break;
 		}
 		default:
@@ -1517,17 +1540,36 @@ int cam_flash_pmic_pkt_parser(struct cam_flash_ctrl *fctrl, void *arg)
 				goto rel_cmd_buf;
 			}
 
-			flash_operation_info =
+			flash_operation_info_u =
 				(struct cam_flash_set_on_off *) cmd_buf;
-			if (!flash_operation_info) {
+			if (!flash_operation_info_u) {
 				CAM_ERR(CAM_FLASH,
 					"flash_operation_info Null");
 				rc = -EINVAL;
 				goto rel_cmd_buf;
 			}
+
+			count = flash_operation_info_u->count;
+			rc = cam_common_mem_kdup((void**)&flash_operation_info,
+					flash_operation_info_u,
+					sizeof(struct cam_flash_set_on_off));
+			if (rc) {
+				CAM_ERR(CAM_FLASH, "Alloc and copy flash operation info failed");
+				break;
+			}
+
+			if (count != flash_operation_info->count) {
+				CAM_ERR(CAM_FLASH, "Count changed: userspace: %d, kernel: %d",
+					count, flash_operation_info->count);
+				rc = -EINVAL;
+				cam_common_mem_free(flash_operation_info);
+				break;
+			}
+
 			if (flash_operation_info->count >
 				CAM_FLASH_MAX_LED_TRIGGERS) {
 				CAM_ERR(CAM_FLASH, "led count out of limit");
+				cam_common_mem_free(flash_operation_info);
 				rc = -EINVAL;
 				goto rel_cmd_buf;
 			}
@@ -1541,8 +1583,9 @@ int cam_flash_pmic_pkt_parser(struct cam_flash_ctrl *fctrl, void *arg)
 
 			if (flash_data->opcode == CAMERA_SENSOR_FLASH_OP_OFF)
 				add_req.skip_before_applying |= SKIP_NEXT_FRAME;
+			cam_common_mem_free(flash_operation_info);
+			break;
 		}
-		break;
 		default:
 			CAM_ERR(CAM_FLASH, "Wrong cmd_type = %d",
 				cmn_hdr->cmd_type);
@@ -1586,17 +1629,37 @@ int cam_flash_pmic_pkt_parser(struct cam_flash_ctrl *fctrl, void *arg)
 				rc = -EINVAL;
 				goto rel_pkt_buf;
 			}
-			flash_operation_info =
+
+			flash_operation_info_u =
 				(struct cam_flash_set_on_off *) cmd_buf;
-			if (!flash_operation_info) {
+			if (!flash_operation_info_u) {
 				CAM_ERR(CAM_FLASH,
 					"flash_operation_info Null");
 				rc = -EINVAL;
 				goto rel_cmd_buf;
 			}
+
+			count = flash_operation_info_u->count;
+			rc = cam_common_mem_kdup((void**)&flash_operation_info,
+					flash_operation_info_u,
+					sizeof(struct cam_flash_set_on_off));
+			if (rc) {
+				CAM_ERR(CAM_FLASH, "Alloc and copy flash operation info failed");
+				break;
+			}
+
+			if (count != flash_operation_info->count) {
+				CAM_ERR(CAM_FLASH, "Count changed: userspace: %d, kernel: %d",
+					count, flash_operation_info->count);
+				rc = -EINVAL;
+				cam_common_mem_free(flash_operation_info);
+				break;
+			}
+
 			if (flash_operation_info->count >
 				CAM_FLASH_MAX_LED_TRIGGERS) {
 				CAM_ERR(CAM_FLASH, "led count out of limit");
+				cam_common_mem_free(flash_operation_info);
 				rc = -EINVAL;
 				goto rel_cmd_buf;
 			}
@@ -1617,6 +1680,8 @@ int cam_flash_pmic_pkt_parser(struct cam_flash_ctrl *fctrl, void *arg)
 			if (rc)
 				CAM_ERR(CAM_FLASH, "Apply setting failed: %d",
 					rc);
+
+			cam_common_mem_free(flash_operation_info);
 			goto rel_cmd_buf;
 		}
 		case CAMERA_SENSOR_FLASH_CMD_TYPE_QUERYCURR: {
@@ -1658,18 +1723,44 @@ int cam_flash_pmic_pkt_parser(struct cam_flash_ctrl *fctrl, void *arg)
 				rc = -EINVAL;
 				goto rel_cmd_buf;
 			}
-			flash_rer_info = (struct cam_flash_set_rer *)cmd_buf;
-			if (!flash_rer_info) {
+			flash_rer_info_u = (struct cam_flash_set_rer *)cmd_buf;
+			if (!flash_rer_info_u) {
 				CAM_ERR(CAM_FLASH,
 					"flash_rer_info Null");
 				rc = -EINVAL;
 				goto rel_cmd_buf;
 			}
+
+			count = flash_rer_info_u->count;
+			rc = cam_common_mem_kdup((void**)&flash_rer_info,
+				flash_rer_info_u,
+				sizeof(struct cam_flash_set_rer));
+
+			if(rc) {
+				CAM_ERR(CAM_FLASH, "Alloc and copy flash operation info failed");
+				break;
+			}
+
+			if (!flash_rer_info) {
+				CAM_ERR(CAM_FLASH, "Memory allocation for flash_rer_info failed");
+				rc = -ENOMEM;
+				break;
+			}
+
+			if (count != flash_rer_info->count) {
+				CAM_ERR(CAM_FLASH, "Count changed: userspace: %d, kernel: %d",
+					count, flash_rer_info->count);
+				rc = -EINVAL;
+				cam_common_mem_free(flash_rer_info);
+				break;
+			}
+
 			if (flash_rer_info->count >
 				CAM_FLASH_MAX_LED_TRIGGERS) {
 				CAM_ERR(CAM_FLASH, "led count out of limit");
 				rc = -EINVAL;
-				goto rel_cmd_buf;
+				cam_common_mem_free(flash_rer_info);
+				break;
 			}
 
 			fctrl->nrt_info.cmn_attr.cmd_type =
@@ -1692,7 +1783,8 @@ int cam_flash_pmic_pkt_parser(struct cam_flash_ctrl *fctrl, void *arg)
 			if (rc)
 				CAM_ERR(CAM_FLASH, "apply_setting failed: %d",
 					rc);
-			goto rel_cmd_buf;
+			cam_common_mem_free(flash_rer_info);
+			break;
 		}
 		default:
 			CAM_ERR(CAM_FLASH, "Wrong cmd_type : %d",

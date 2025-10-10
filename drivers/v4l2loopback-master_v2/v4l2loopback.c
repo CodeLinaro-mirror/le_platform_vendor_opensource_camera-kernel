@@ -513,6 +513,24 @@ static void send_v4l2_event_ex2(struct v4l2_loopback_opener *opener, unsigned in
 	}
 }
 
+static void send_v4l2_event_ex3(struct v4l2_loopback_opener *opener, unsigned int type,
+	enum AIS_V4L2_NOTIFY_CMD cmd, pid_t pid)
+{
+	struct v4l2_event event;
+
+	event.id = cmd;
+	event.type = type;
+	event.u.data[0] = (u8)pid;
+	event.u.data[1] = (u8)(pid >> 8);
+	event.u.data[2] = (u8)(pid >> 16);
+	event.u.data[3] = (u8)(pid >> 24);
+
+	if (opener)
+		v4l2_event_queue_fh(&opener->fh, &event);
+	CAM_DBG(CAM_V4L2, "send v4l2 event for ais_v4l2loopback :%d",
+		cmd);
+}
+
 static const struct v4l2l_format *format_by_fourcc(int fourcc)
 {
 	unsigned int i;
@@ -2651,6 +2669,29 @@ static int process_output_cmd(struct v4l2_loopback_device *dev,
 		rc = process_set_frame_drop_event(kcmd, opener);
 		break;
 	}
+	case AIS_V4L2_OUTPUT_PRIV_FORCE_RELEASE: {
+		mutex_lock(&dev->dev_mutex);
+		if (opener->data) {
+			if (dev->open_count.counter > 0) {
+				atomic_dec(&dev->open_count);
+				if (dev->open_count.counter < max_openers)
+					dev->state = V4L2L_READY_FOR_CAPTURE;
+			} else {
+				CAM_WARN(CAM_V4L2, "opener counter is aleady 0!");
+			}
+			free_stream_data(opener->data);
+			opener->data = NULL;
+			opener->connected_opener->data = NULL;
+		}
+		if (opener->connected_opener)
+		{
+			kfree(opener->connected_opener);
+			opener->connected_opener = NULL;
+		}
+		mutex_unlock(&dev->dev_mutex);
+		CAM_INFO(CAM_V4L2, "AIS_V4L2_OUTPUT_PRIV_FORCE_RELEASE finish");
+		break;
+	}
 	default:
 	break;
 	}
@@ -2784,7 +2825,7 @@ static int v4l2_loopback_open(struct file *file)
 	struct v4l2_streamdata *data = NULL;
 	int rc = 0;
 	enum v4l2_loopback_opener_type etype;
-
+	pid_t pid = task_pid_nr(current);
 	MARK();
 
 	dev = v4l2loopback_getdevice(file);
@@ -2838,8 +2879,8 @@ static int v4l2_loopback_open(struct file *file)
 			CAM_INFO(CAM_V4L2, "app open dev=%s", dev->vdev->name);
 			mutex_lock(&dev->dev_mutex);
 			etype = V4L2L_READER;
-			send_v4l2_event(dev->main_opener, AIS_V4L2_CLIENT_OUTPUT,
-				AIS_V4L2_OPEN_INPUT);
+			send_v4l2_event_ex3(dev->main_opener, AIS_V4L2_CLIENT_OUTPUT,
+				AIS_V4L2_OPEN_INPUT, pid);
 			rc = wait_for_completion_timeout(&dev->open_complete,
 					msecs_to_jiffies(OPEN_TIMEOUT));
 			if (rc) {
@@ -2988,6 +3029,9 @@ static int v4l2_loopback_close(struct file *file)
 			if (opener->data) {
 				free_stream_data(opener->data);
 				opener->data = NULL;
+				if (opener->connected_opener) {
+					opener->connected_opener->data = NULL;
+				}
 			}
 			opener->connected_opener = NULL;
 		} else {

@@ -158,7 +158,7 @@ static int __cam_icp_config_dev_in_ready(struct cam_context *ctx,
 		rc = -EINVAL;
 		return rc;
 	}
-
+	remain_len = len;
 	if ((len < sizeof(struct cam_packet)) ||
 		(cmd->offset >= (len - sizeof(struct cam_packet)))) {
 		CAM_ERR(CAM_CTXT, "Not enough buf");

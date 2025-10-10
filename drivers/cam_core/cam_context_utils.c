@@ -122,10 +122,6 @@ int cam_context_buf_done_from_hw(struct cam_context *ctx,
 	 * another thread may be adding/removing from free list,
 	 * so hold the lock
 	 */
-	if (req->packet) {
-		cam_common_mem_free(req->packet);
-		req->packet = NULL;
-	}
 	spin_lock(&ctx->lock);
 	list_add_tail(&req->list, &ctx->free_req_list);
 	req->ctx = NULL;
@@ -168,10 +164,6 @@ static int cam_context_apply_req_to_hw(struct cam_ctx_request *req,
 
 	rc = ctx->hw_mgr_intf->hw_config(ctx->hw_mgr_intf->hw_mgr_priv, &cfg);
 	if (rc) {
-		if (req->packet) {
-			cam_common_mem_free(req->packet);
-			req->packet = NULL;
-		}
 		spin_lock(&ctx->lock);
 		list_del_init(&req->list);
 		list_add_tail(&req->list, &ctx->free_req_list);
@@ -235,10 +227,6 @@ static void cam_context_sync_callback(int32_t sync_obj, int status, void *data)
 			mutex_unlock(&ctx->sync_mutex);
 			spin_lock(&ctx->lock);
 			list_del_init(&req->list);
-		    if (req->packet) {
-			    cam_common_mem_free(req->packet);
-			    req->packet = NULL;
-		    }
 			list_add_tail(&req->list, &ctx->free_req_list);
 			spin_unlock(&ctx->lock);
 
@@ -396,13 +384,6 @@ int32_t cam_context_prepare_dev_to_hw(struct cam_context *ctx,
 		CAM_ERR(CAM_CTXT, "[%s][%d] No more request obj free",
 			ctx->dev_name, ctx->ctx_id);
 		return -ENOMEM;
-	}
-
-        if (req->packet) {
-		CAM_WARN(CAM_CTXT, "[%s][%d] Missing free request local packet",
-			ctx->dev_name, ctx->ctx_id);
-		cam_common_mem_free(req->packet);
-		req->packet = NULL;
 	}
 
 	memset(req, 0, sizeof(*req));
@@ -733,10 +714,6 @@ int32_t cam_context_flush_ctx_to_hw(struct cam_context *ctx)
 		 */
 		if (free_req) {
 			req->ctx = NULL;
-			if (req->packet) {
-				cam_common_mem_free(req->packet);
-				req->packet = NULL;
-			}
 			spin_lock(&ctx->lock);
 			list_add_tail(&req->list, &ctx->free_req_list);
 			spin_unlock(&ctx->lock);
@@ -803,10 +780,6 @@ int32_t cam_context_flush_ctx_to_hw(struct cam_context *ctx)
 					break;
 				}
 			}
-		}
-		if (req->packet) {
-			cam_common_mem_free(req->packet);
-			req->packet = NULL;
 		}
 		spin_lock(&ctx->lock);
 		list_add_tail(&req->list, &ctx->free_req_list);
@@ -919,10 +892,6 @@ int32_t cam_context_flush_req_to_hw(struct cam_context *ctx,
 			}
 			if (flush_args.num_req_active || free_req) {
 				req->ctx = NULL;
-				if (req->packet) {
-					cam_common_mem_free(req->packet);
-					req->packet = NULL;
-				}
 				spin_lock(&ctx->lock);
 				list_add_tail(&req->list, &ctx->free_req_list);
 				spin_unlock(&ctx->lock);
