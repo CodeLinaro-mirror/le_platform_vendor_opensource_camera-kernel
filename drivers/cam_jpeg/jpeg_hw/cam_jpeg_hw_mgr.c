@@ -2098,7 +2098,7 @@ iodump:
 					"getting io port for mid resource id failed  req id:%lld res id:0x%x",
 					packet->header.request_id,
 					jpeg_pid_mid_args.match_res);
-				return;
+				goto regdump;
 			}
 		}
 
@@ -2140,7 +2140,19 @@ iodump:
 		}
 
 		if (hw_pid_support)
-			return;
+			break;
+	}
+
+regdump:
+	/* Dump JPEG registers for debug purpose */
+	if (dev_type == CAM_JPEG_RES_TYPE_DMA ||
+		dev_type == CAM_JPEG_RES_TYPE_ENC) {
+		rc = hw_mgr->devices[dev_type][CAM_JPEG_MEM_BASE_INDEX]->hw_ops.process_cmd(
+			hw_mgr->devices[dev_type][CAM_JPEG_MEM_BASE_INDEX]->hw_priv,
+			CAM_JPEG_CMD_DUMP_DEBUG_REGS,
+			NULL, 0);
+	} else {
+		CAM_ERR(CAM_JPEG, "Invalid dev_type %d", dev_type);
 	}
 }
 

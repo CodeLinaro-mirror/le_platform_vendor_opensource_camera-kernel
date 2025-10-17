@@ -49,6 +49,30 @@ int32_t cam_actuator_establish_link(
 	struct cam_req_mgr_core_dev_link_setup *link);
 
 /**
+ * @notify: anchor driver structure for applying request
+ *
+ * This API applies the request that is mentioned
+ */
+int32_t cam_actuator_no_crm_apply_req(
+        struct cam_req_mgr_no_crm_apply_request *notify);
+
+/**
+ * @info: sub device handshake with anchor driver(isp)
+ *
+ * publish the subdevice info
+ */
+int32_t cam_actuator_no_crm_handshake(
+        struct cam_req_mgr_no_crm_handshake_data *info);
+
+/**
+ * @apply_req_lock:apply request with lock
+ *
+ * This API applies the request that is mentioned
+ */
+int32_t cam_actuator_no_crm_apply_req_lock(
+        struct cam_actuator_ctrl_t *a_ctrl,
+        struct cam_req_mgr_no_crm_apply_request *apply);
+/**
  * @a_ctrl: Actuator ctrl structure
  * @arg:    Camera control command argument
  *

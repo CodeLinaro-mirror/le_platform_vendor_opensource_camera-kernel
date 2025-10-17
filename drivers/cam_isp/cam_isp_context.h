@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #ifndef _CAM_ISP_CONTEXT_H_
@@ -366,7 +366,7 @@ struct cam_isp_context_ul_fp_handling_params {
 };
 
 /**
- * struct cam_isp_ctx_sensor_fov_info - Sensor Foveation info
+ * struct cam_isp_ctx_setting_buffer_info - Setting id buffer info
  *
  * @setting_size:              Size of setting variable ie: 32bit, 64 bit
  * @settingbuf_res_id:         Resource ID of Setting ID buffer
@@ -379,7 +379,7 @@ struct cam_isp_context_ul_fp_handling_params {
  * @sensor_count:              counter to increment when maximum possible Sensor
  *                             setting ID value is crossed.
  */
-struct cam_isp_ctx_sensor_fov_info {
+struct cam_isp_ctx_setting_buf_info {
 	uint32_t                               settingbuf_res_id;
 	uint32_t                               setting_size;
 	uintptr_t                              scratch_buf_kmdvaddr;
@@ -495,8 +495,9 @@ struct cam_isp_context_prev_req_info {
  *                             for trigger case it is same as path_irq mask
  * @path_irq_mask:             mask created from requested ports, out param
  * @frame_drop_cnt             Count of continuous frame drops
- * @is_foveation_en:           flag to indicate if sensor foveation is enabled
- * @foveation_info:            sensor foveation data
+ * @is_foveation_enable:       flag to indicate if sensor foveation is enabled
+ * @is_settingbuf_enable:      flag to indicate if setting id buffer is enabled
+ * @setting_buf_info:          setting id buffer info
  * @num_primary_ports:         Number of primary port configurations
  * @primary_port_info:         Primary port info array
  * @ul_fp_params:              Parameters to maintain the ul fastpath result queue
@@ -590,7 +591,8 @@ struct cam_isp_context {
 	uint64_t                               path_irq_mask;
 	uint32_t                               frame_drop_cnt;
 	bool                                   is_foveation_enable;
-	struct cam_isp_ctx_sensor_fov_info     foveation_info;
+	bool                                   is_settingbuf_enable;
+	struct cam_isp_ctx_setting_buf_info    setting_buf_info;
 	struct cam_isp_context_ul_setting_data setting_data[MAX_SETTING_PACKETS];
 	struct cam_isp_ctx_ul_data             ul_data;
 	uint32_t                               num_primary_ports;

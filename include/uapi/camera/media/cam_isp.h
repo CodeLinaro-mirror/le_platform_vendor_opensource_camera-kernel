@@ -142,6 +142,7 @@
 #define CAM_ISP_GENERIC_BLOB_TYPE_PRIMARY_SCRATCH_BUF_CFG   32
 #define CAM_ISP_GENERIC_BLOB_TYPE_HWFENCE_MODE_CONFIG       33
 #define CAM_ISP_GENERIC_BLOB_TYPE_FAST_CROP_CFG             34
+#define CAM_ISP_GENERIC_BLOB_TYPE_SETTINGID_STREAM_CFG_V2   35
 
 #define CAM_ISP_VC_DT_CFG    4
 
@@ -1376,6 +1377,24 @@ struct cam_isp_setting_id_stream_info {
 	__u32 res_id;
 	__u32 offset;
 	__u32 setting_size;
+};
+
+/**
+ * struct cam_isp_setting_id_stream_info_v2 - Setting ID stream
+ *                    Information
+ *
+ * @version:          Struct version
+ * @res_id:           Resource ID of setting ID buffer
+ * @offset:           Offset of setting ID in buffer
+ * @setting_size:     Size of setting variable ie: 32bit, 64 bit
+ * @foveation_enable: Flag to indicate if foveation is enabled
+ */
+struct cam_isp_setting_id_stream_info_v2 {
+	__u32 version;
+	__u32 res_id;
+	__u32 offset;
+	__u32 setting_size;
+	__u32 foveation_enable;
 };
 
 /**

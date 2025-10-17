@@ -235,6 +235,12 @@ static int cam_actuator_i2c_component_bind(struct device *dev,
 		cam_actuator_establish_link;
 	a_ctrl->bridge_intf.ops.apply_req =
 		cam_actuator_apply_request;
+
+	a_ctrl->bridge_intf.no_crm_ops.handshake = cam_actuator_no_crm_handshake;
+	a_ctrl->bridge_intf.no_crm_ops.apply_req = cam_actuator_no_crm_apply_req;
+	a_ctrl->bridge_intf.no_crm_ops.pause_cb  = NULL;
+	a_ctrl->bridge_intf.no_crm_ops.resume_cb = NULL;
+
 	a_ctrl->last_flush_req = 0;
 	a_ctrl->cam_act_state = CAM_ACTUATOR_INIT;
 
@@ -398,6 +404,11 @@ static int cam_actuator_platform_component_bind(struct device *dev,
 	a_ctrl->bridge_intf.ops.flush_req =
 		cam_actuator_flush_request;
 	a_ctrl->last_flush_req = 0;
+
+	a_ctrl->bridge_intf.no_crm_ops.handshake = cam_actuator_no_crm_handshake;
+	a_ctrl->bridge_intf.no_crm_ops.apply_req = cam_actuator_no_crm_apply_req;
+	a_ctrl->bridge_intf.no_crm_ops.pause_cb  = NULL;
+	a_ctrl->bridge_intf.no_crm_ops.resume_cb = NULL;
 
 	platform_set_drvdata(pdev, a_ctrl);
 	a_ctrl->cam_act_state = CAM_ACTUATOR_INIT;

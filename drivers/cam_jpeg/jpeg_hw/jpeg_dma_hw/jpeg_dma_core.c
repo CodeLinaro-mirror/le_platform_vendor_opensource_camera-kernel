@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #include <linux/of.h>
@@ -627,6 +627,42 @@ int cam_jpeg_dma_config_cmanoc_hw_misr(struct cam_jpeg_dma_device_hw_info *hw_in
 	return 0;
 }
 
+int cam_jpeg_dma_dump_debug_regs(struct cam_hw_info *jpeg_dma_dev)
+{
+	struct cam_hw_soc_info *soc_info = NULL;
+	struct cam_jpeg_dma_device_core_info *core_info = NULL;
+
+	soc_info = &jpeg_dma_dev->soc_info;
+	core_info = (struct cam_jpeg_dma_device_core_info *)jpeg_dma_dev->core_info;
+
+	CAM_INFO(CAM_JPEG, "************ JPEG DMA REGISTER DUMP ************");
+
+	/* JPEG DMA TOP, Interrupt, core config, command registers & Fetch Engine Registers */
+	cam_soc_util_reg_dump(soc_info, CAM_JPEG_MEM_BASE_INDEX,
+		core_info->jpeg_dma_hw_info->debug_reg_offset.top_offset,
+		core_info->jpeg_dma_hw_info->debug_reg_offset.top_range);
+
+	/* Write Engine */
+	cam_soc_util_reg_dump(soc_info, CAM_JPEG_MEM_BASE_INDEX,
+		core_info->jpeg_dma_hw_info->debug_reg_offset.we_offset,
+		core_info->jpeg_dma_hw_info->debug_reg_offset.we_range);
+
+	/*
+	 * WE qos cfg, test bus and debug regs, spare regs, bus misr, scale reg, core status regs
+	 *	 & MMU prefetch regs
+	 */
+	cam_soc_util_reg_dump(soc_info, CAM_JPEG_MEM_BASE_INDEX,
+		core_info->jpeg_dma_hw_info->debug_reg_offset.we_qos_offset,
+		core_info->jpeg_dma_hw_info->debug_reg_offset.we_qos_range);
+
+	/* Perf Registers */
+	cam_soc_util_reg_dump(soc_info, CAM_JPEG_MEM_BASE_INDEX,
+		core_info->jpeg_dma_hw_info->debug_reg_offset.perf_offset,
+		core_info->jpeg_dma_hw_info->debug_reg_offset.perf_range);
+
+	return 0;
+}
+
 int cam_jpeg_dma_process_cmd(void *device_priv, uint32_t cmd_type,
 	void *cmd_args, uint32_t arg_size)
 {
@@ -739,6 +775,9 @@ int cam_jpeg_dma_process_cmd(void *device_priv, uint32_t cmd_type,
 		rc = cam_jpeg_dma_dump_camnoc_misr_val(hw_info, soc_info, cmd_args);
 		break;
 	}
+	case CAM_JPEG_CMD_DUMP_DEBUG_REGS:
+		rc = cam_jpeg_dma_dump_debug_regs(jpeg_dma_dev);
+		break;
 	default:
 		rc = -EINVAL;
 		break;

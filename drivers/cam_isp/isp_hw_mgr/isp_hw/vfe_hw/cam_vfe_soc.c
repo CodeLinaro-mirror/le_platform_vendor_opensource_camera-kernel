@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2023-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #include <linux/slab.h>
@@ -37,7 +37,7 @@ static bool cam_vfe_cpas_cb(uint32_t client_handle, void *userdata,
 
 static int cam_vfe_get_dt_properties(struct cam_hw_soc_info *soc_info)
 {
-	int rc = 0, num_ubwc_cfg = 0, i = 0, num_pid = 0, num_ipcc_props;
+	int rc = 0, num_ubwc_cfg = 0, i = 0, num_pid = 0, num_ipcc_props = 0;
 	struct device_node *of_node = NULL;
 	struct platform_device *pdev = NULL;
 	struct cam_vfe_soc_private *vfe_soc_private;
@@ -78,7 +78,9 @@ static int cam_vfe_get_dt_properties(struct cam_hw_soc_info *soc_info)
 	}
 
 	/* Check for ipcc info */
+#ifdef CONFIG_CAM_ENABLE_SOCCP
 	num_ipcc_props = of_property_count_u32_elems(pdev->dev.of_node, "ipcc_info");
+#endif
 	vfe_soc_private->ipcc_info.ipcc_en = false;
 
 	vfe_soc_private->is_grp_support = false;

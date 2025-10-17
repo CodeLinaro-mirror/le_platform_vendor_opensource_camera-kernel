@@ -76,7 +76,9 @@ struct actuator_intf_params {
 	int32_t session_hdl;
 	int32_t link_hdl;
 	struct cam_req_mgr_kmd_ops ops;
+	struct cam_req_mgr_no_crm_kmd_ops no_crm_ops;
 	struct cam_req_mgr_crm_cb *crm_cb;
+	uint32_t enable_crm;
 };
 
 /**
@@ -116,6 +118,7 @@ struct cam_actuator_ctrl_t {
 	struct cam_actuator_query_cap act_info;
 	struct actuator_intf_params bridge_intf;
 	uint32_t last_flush_req;
+	uint32_t anchor_pd;
 };
 
 /**

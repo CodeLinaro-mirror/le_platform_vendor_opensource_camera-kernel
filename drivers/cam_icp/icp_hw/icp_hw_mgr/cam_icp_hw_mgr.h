@@ -390,11 +390,14 @@ struct cam_icp_clk_info {
  * @disable_ubwc_comp: Disable UBWC compression
  * @recovery: Flag to validate if in previous session FW
  *            reported a fatal error or wdt. If set FW is
- *            re-downloaded for new camera session.
+ *            re-downloaded for new camera session.This
+ *            would be set only if SSR also failed to reload ICP.
+ * @load_in_process: To indicate if FW is being loaded (cold boot)
  * @synx_signaling_en: core to core fencing is enabled
  *                     using synx
  * @enable_ipe_qos: flag to indicate whether ipe qos is enabled
  * @icp_clock_cfg_cnt: count for icp clock config
+ * @hfi_init_done: hfi initialisation is done
  */
 struct cam_icp_hw_mgr {
 	struct mutex hw_mgr_mutex;
@@ -447,9 +450,11 @@ struct cam_icp_hw_mgr {
 	bool bps_clk_state;
 	bool disable_ubwc_comp;
 	atomic_t recovery;
+	atomic_t load_in_process;
 	bool synx_signaling_en;
 	bool enable_ipe_qos;
 	uint32_t icp_clock_cfg_cnt;
+	bool hfi_init_done;
 };
 
 /**

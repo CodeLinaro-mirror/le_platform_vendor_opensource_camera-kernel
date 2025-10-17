@@ -77,13 +77,15 @@ static const struct hfi_ops hfi_lx7_ops = {
 static struct cam_icp_hw_mgr icp_hw_mgr;
 
 static void cam_icp_mgr_process_dbg_buf(unsigned int debug_lvl);
+static int cam_icp_mgr_restart_icp(struct cam_icp_hw_mgr *hw_mgr);
 
 /*
  * If synx fencing is enabled, send FW memory mapping
- * for synx hw_mutex, ipc hw_mutex, synx global mem
- * and global cntr for qtimer
+ * for synx hw_mutex, ipc hw_mutex, synx global mem for qtimer
  */
-#define ICP_NUM_MEM_REGIONS_FOR_SYNX 5
+#define ICP_NUM_MEM_REGIONS_FOR_SYNX 4
+
+#define ICP_NUM_MEM_REGIONS_FOR_GLOBAL_CNTR 1
 
 static int cam_icp_dump_io_cfg(struct cam_icp_hw_ctx_data *ctx_data,
 	int32_t buf_handle, uint32_t size)
@@ -2140,6 +2142,10 @@ static int cam_icp_mgr_process_cmd(void *priv, void *data)
 	}
 
 	hw_mgr = priv;
+
+	if (atomic_read(&hw_mgr->recovery))
+		return -EAGAIN;
+
 	task_data = (struct hfi_cmd_work_data *)data;
 
 	rc = hfi_write_cmd(task_data->data);
@@ -2589,47 +2595,6 @@ static int cam_icp_mgr_process_direct_ack_msg(uint32_t *msg_ptr)
 	return rc;
 }
 
-static int cam_icp_ipebps_reset(struct cam_icp_hw_mgr *hw_mgr)
-{
-	int rc = 0;
-	struct cam_hw_intf *ipe0_dev_intf;
-	struct cam_hw_intf *ipe1_dev_intf;
-	struct cam_hw_intf *bps_dev_intf;
-
-	ipe0_dev_intf = hw_mgr->ipe0_dev_intf;
-	ipe1_dev_intf = hw_mgr->ipe1_dev_intf;
-	bps_dev_intf = hw_mgr->bps_dev_intf;
-
-	if (hw_mgr->bps_ctxt_cnt) {
-		rc = bps_dev_intf->hw_ops.process_cmd(
-			bps_dev_intf->hw_priv,
-			CAM_ICP_BPS_CMD_RESET,
-			NULL, 0);
-		if (rc)
-			CAM_ERR(CAM_ICP, "bps reset failed");
-	}
-
-	if (hw_mgr->ipe_ctxt_cnt) {
-		rc = ipe0_dev_intf->hw_ops.process_cmd(
-			ipe0_dev_intf->hw_priv,
-			CAM_ICP_IPE_CMD_RESET,
-			NULL, 0);
-		if (rc)
-			CAM_ERR(CAM_ICP, "ipe0 reset failed");
-
-		if (ipe1_dev_intf) {
-			rc = ipe1_dev_intf->hw_ops.process_cmd(
-				ipe1_dev_intf->hw_priv,
-				CAM_ICP_IPE_CMD_RESET,
-				NULL, 0);
-			if (rc)
-				CAM_ERR(CAM_ICP, "ipe1 reset failed");
-		}
-	}
-
-	return 0;
-}
-
 static int cam_icp_mgr_trigger_recovery(struct cam_icp_hw_mgr *hw_mgr)
 {
 	int rc = 0;
@@ -2638,20 +2603,34 @@ static int cam_icp_mgr_trigger_recovery(struct cam_icp_hw_mgr *hw_mgr)
 	CAM_DBG(CAM_ICP, "Enter");
 
 	if (atomic_read(&hw_mgr->recovery)) {
-		CAM_ERR(CAM_ICP, "Recovery is set");
+		CAM_ERR(CAM_ICP, "SSR is set");
 		return rc;
 	}
+
+	atomic_set(&hw_mgr->recovery, 1);
+	cam_icp_mgr_ipe_bps_get_gdsc_control(hw_mgr);
 
 	sfr_buffer = (struct sfr_buf *)icp_hw_mgr.hfi_mem.sfr_buf.kva;
 	CAM_WARN(CAM_ICP, "SFR:%s", sfr_buffer->msg);
 
-	cam_icp_mgr_ipe_bps_get_gdsc_control(hw_mgr);
-	cam_icp_ipebps_reset(hw_mgr);
+	/*
+	 * Restart only if ICP has been booted up successfully
+	 * If the cold boot is failing, retrying loading is futile
+	 */
+	if (!atomic_read(&hw_mgr->load_in_process) &&
+		atomic_read(&hw_mgr->recovery)) {
+		rc = cam_icp_mgr_restart_icp(hw_mgr);
+		if (!rc)
+			atomic_set(&hw_mgr->recovery, 0);
 
-	atomic_set(&hw_mgr->recovery, 1);
+		CAM_DBG(CAM_ICP, "recovery success: %s",
+			CAM_BOOL_TO_YESNO(!atomic_read(&hw_mgr->recovery)));
+	}
+
 	CAM_DBG(CAM_ICP, "Done");
 	return rc;
 }
+
 static int cam_icp_mgr_process_fatal_error(
 	struct cam_icp_hw_mgr *hw_mgr, uint32_t *msg_ptr)
 {
@@ -3002,10 +2981,11 @@ static void cam_icp_free_hfi_mem(void)
 		cam_smmu_unmap_phy_mem_region(icp_hw_mgr.iommu_hdl, CAM_SMMU_REGION_DEVICE,
 			CAM_SMMU_SUBREGION_IPC_HWMUTEX);
 		cam_smmu_unmap_phy_mem_region(icp_hw_mgr.iommu_hdl, CAM_SMMU_REGION_DEVICE,
-			CAM_SMMU_SUBREGION_GLOBAL_CNTR);
-		cam_smmu_unmap_phy_mem_region(icp_hw_mgr.iommu_hdl, CAM_SMMU_REGION_DEVICE,
 			CAM_SMMU_SUBREGION_SOC_HW_VERSION);
 	}
+
+	cam_smmu_unmap_phy_mem_region(icp_hw_mgr.iommu_hdl, CAM_SMMU_REGION_DEVICE,
+		CAM_SMMU_SUBREGION_GLOBAL_CNTR);
 }
 
 static int cam_icp_alloc_secheap_mem(struct cam_mem_mgr_memory_desc *secheap)
@@ -3264,14 +3244,6 @@ static int cam_icp_allocate_mem_for_fence_signaling(void)
 {
 	int rc;
 
-	rc = cam_smmu_get_region_info(icp_hw_mgr.iommu_hdl,
-		CAM_SMMU_REGION_DEVICE, &icp_hw_mgr.hfi_mem.device);
-	if (rc) {
-		CAM_ERR(CAM_ICP,
-			"Unable to get device memory info rc %d", rc);
-		return rc;
-	}
-
 	rc = cam_icp_allocate_global_sync_mem();
 	if (rc)
 		return rc;
@@ -3284,21 +3256,12 @@ static int cam_icp_allocate_mem_for_fence_signaling(void)
 	if (rc)
 		goto unmap_synx_hwmutex;
 
-	rc = cam_icp_allocate_device_global_cnt_mem();
+	rc = cam_icp_allocate_device_soc_version_mem();
 	if (rc)
 		goto unmap_ipc_mutex;
 
-	rc = cam_icp_allocate_device_soc_version_mem();
-	if (rc)
-		goto unmap_global_cnt;
-
 	return 0;
 
-
-unmap_global_cnt:
-	cam_smmu_unmap_phy_mem_region(icp_hw_mgr.iommu_hdl,
-		CAM_SMMU_REGION_DEVICE,
-		CAM_SMMU_SUBREGION_GLOBAL_CNTR);
 unmap_ipc_mutex:
 	cam_smmu_unmap_phy_mem_region(icp_hw_mgr.iommu_hdl,
 		CAM_SMMU_REGION_DEVICE,
@@ -3544,10 +3507,40 @@ static int cam_icp_allocate_hfi_mem(void)
 		}
 	}
 
-	/* Allocate sync global mem & hwmutex for IPC */
-	if (icp_hw_mgr.synx_signaling_en) {
-		rc = cam_icp_allocate_mem_for_fence_signaling();
+	rc = cam_smmu_get_region_info(icp_hw_mgr.iommu_hdl,
+		CAM_SMMU_REGION_DEVICE, &icp_hw_mgr.hfi_mem.device);
+	if (!rc) {
+		/* Allocate sync global mem & hwmutex for IPC */
+		if (icp_hw_mgr.synx_signaling_en) {
+			rc = cam_icp_allocate_mem_for_fence_signaling();
+			if (rc) {
+				if (fwuncached_region_exists) {
+					cam_mem_mgr_free_memory_region(
+						&icp_hw_mgr.hfi_mem.fw_uncached_generic);
+					goto qtbl_alloc_failed;
+				} else {
+					goto get_io_mem_failed;
+				}
+			}
+		}
+
+		/* Allocate global cntr mem */
+		rc = cam_icp_allocate_device_global_cnt_mem();
 		if (rc) {
+			if (icp_hw_mgr.synx_signaling_en) {
+				cam_smmu_unmap_phy_mem_region(icp_hw_mgr.iommu_hdl,
+					CAM_SMMU_REGION_DEVICE,
+					CAM_SMMU_SUBREGION_IPC_HWMUTEX);
+				cam_smmu_unmap_phy_mem_region(icp_hw_mgr.iommu_hdl,
+					CAM_SMMU_REGION_DEVICE,
+					CAM_SMMU_SUBREGION_SYNX_HWMUTEX);
+				cam_smmu_unmap_phy_mem_region(icp_hw_mgr.iommu_hdl,
+					CAM_SMMU_REGION_DEVICE,
+					CAM_SMMU_SUBREGION_GLOBAL_SYNC_MEM);
+				cam_smmu_unmap_phy_mem_region(icp_hw_mgr.iommu_hdl,
+					CAM_SMMU_REGION_DEVICE,
+					CAM_SMMU_SUBREGION_SOC_HW_VERSION);
+			}
 			if (fwuncached_region_exists) {
 				cam_mem_mgr_free_memory_region(
 					&icp_hw_mgr.hfi_mem.fw_uncached_generic);
@@ -3555,6 +3548,14 @@ static int cam_icp_allocate_hfi_mem(void)
 			} else {
 				goto get_io_mem_failed;
 			}
+		}
+	} else {
+		CAM_ERR(CAM_ICP, "Unable to get device memory info rc %d", rc);
+		if (fwuncached_region_exists) {
+			cam_mem_mgr_free_memory_region(&icp_hw_mgr.hfi_mem.fw_uncached_generic);
+			goto qtbl_alloc_failed;
+		} else {
+			goto get_io_mem_failed;
 		}
 	}
 
@@ -3676,6 +3677,7 @@ static int cam_icp_mgr_hw_close_u(void *hw_priv, void *hw_close_args)
 
 	mutex_lock(&hw_mgr->hw_mgr_mutex);
 	rc = cam_icp_mgr_hw_close(hw_mgr, NULL);
+	atomic_set(&hw_mgr->recovery, 0);
 	mutex_unlock(&hw_mgr->hw_mgr_mutex);
 
 	return rc;
@@ -3717,8 +3719,11 @@ static void cam_icp_mgr_proc_suspend(struct cam_icp_hw_mgr *hw_mgr)
 {
 	struct cam_hw_intf *icp_dev_intf = hw_mgr->icp_dev_intf;
 
-	if (!icp_dev_intf)
+	if (!icp_dev_intf || !hw_mgr->icp_resumed) {
+		CAM_INFO(CAM_PERF, "icp_dev_intf is %pK or icp_resumed is %d",
+			icp_dev_intf, hw_mgr->icp_resumed);
 		return;
+	}
 
 	icp_dev_intf->hw_ops.process_cmd(icp_dev_intf->hw_priv,
 					CAM_ICP_CMD_POWER_COLLAPSE,
@@ -4009,6 +4014,9 @@ static int cam_icp_mgr_abort_handle(
 	int timeout = 1000;
 	struct hfi_cmd_ipebps_async *abort_cmd;
 
+	if (atomic_read(&icp_hw_mgr.recovery))
+		return 0;
+
 	packet_size =
 		sizeof(struct hfi_cmd_ipebps_async) +
 		sizeof(struct hfi_cmd_abort) -
@@ -4066,6 +4074,9 @@ static int cam_icp_mgr_destroy_handle(
 	unsigned long rem_jiffies;
 	size_t packet_size;
 	struct hfi_cmd_ipebps_async *destroy_cmd;
+
+	if (atomic_read(&icp_hw_mgr.recovery))
+		return 0;
 
 	packet_size =
 		sizeof(struct hfi_cmd_ipebps_async) +
@@ -4335,6 +4346,7 @@ static int cam_icp_mgr_hw_close(void *hw_priv, void *hw_close_args)
 	cam_hfi_deinit();
 	cam_icp_free_hfi_mem();
 
+	hw_mgr->hfi_init_done = false;
 	hw_mgr->icp_booted = false;
 
 	CAM_DBG(CAM_ICP, "Exit");
@@ -4438,13 +4450,11 @@ static int cam_icp_mgr_hfi_init(struct cam_icp_hw_mgr *hw_mgr)
 	hfi_mem.qdss.iova = icp_hw_mgr.hfi_mem.qdss_buf.iova;
 	hfi_mem.qdss.len = icp_hw_mgr.hfi_mem.qdss_buf.len;
 
-	if (icp_hw_mgr.synx_signaling_en) {
-		hfi_mem.device_mem.iova = icp_hw_mgr.hfi_mem.device.iova_start;
-		hfi_mem.device_mem.len = icp_hw_mgr.hfi_mem.device.iova_len;
-		CAM_DBG(CAM_ICP,
-			"device memory [iova = 0x%llx len = 0x%llx]",
-			hfi_mem.device_mem.iova, hfi_mem.device_mem.len);
-	}
+	hfi_mem.device_mem.iova = icp_hw_mgr.hfi_mem.device.iova_start;
+	hfi_mem.device_mem.len = icp_hw_mgr.hfi_mem.device.iova_len;
+	CAM_DBG(CAM_ICP,
+		"device memory [iova = 0x%llx len = 0x%llx]",
+		hfi_mem.device_mem.iova, hfi_mem.device_mem.len);
 
 	if (icp_hw_mgr.hfi_mem.io_mem.discard_iova_start &&
 		icp_hw_mgr.hfi_mem.io_mem.discard_iova_len) {
@@ -4542,14 +4552,11 @@ static int cam_icp_mgr_send_memory_region_info(
 {
 	struct hfi_cmd_prop *set_prop = NULL;
 	struct hfi_cmd_config_mem_regions *region_info = NULL;
-	uint32_t num_regions = 0;
+	uint32_t num_regions = ICP_NUM_MEM_REGIONS_FOR_GLOBAL_CNTR;
 	size_t payload_size;
 
 	if (hw_mgr->synx_signaling_en)
 		num_regions += ICP_NUM_MEM_REGIONS_FOR_SYNX;
-
-	if (!num_regions)
-		return 0;
 
 	payload_size = sizeof(struct hfi_cmd_prop) +
 		(sizeof(struct hfi_cmd_config_mem_regions)) +
@@ -4602,18 +4609,6 @@ static int cam_icp_mgr_send_memory_region_info(
 
 		region_info->num_valid_regions++;
 
-		/* Update global cntr mem */
-		region_info->region_info[region_info->num_valid_regions].region_id =
-			HFI_MEM_REGION_ID_GLOBAL_CNTR;
-		region_info->region_info[region_info->num_valid_regions].region_type =
-			HFI_MEM_REGION_TYPE_DEVICE;
-		region_info->region_info[region_info->num_valid_regions].start_addr =
-			hw_mgr->hfi_mem.global_cntr.iova;
-		region_info->region_info[region_info->num_valid_regions].size =
-			hw_mgr->hfi_mem.global_cntr.len;
-
-		region_info->num_valid_regions++;
-
 		/* Update soc hw version mem */
 		region_info->region_info[region_info->num_valid_regions].region_id =
 			HFI_MEM_REGION_ID_SOC_HW_VERSION;
@@ -4627,14 +4622,28 @@ static int cam_icp_mgr_send_memory_region_info(
 		region_info->num_valid_regions++;
 
 		CAM_DBG(CAM_ICP,
-			"Synx mem regions global_sync[0x%x:0x%x] synx_hw_mutex[0x%x:0x%x] ipc_hw_mutex[0x%x:0x%x] global_cntr[0x%x:0x%x] soc_hw_version[0x%x:0x%x]",
+			"Synx mem regions global_sync[0x%x:0x%x] synx_hw_mutex[0x%x:0x%x] ipc_hw_mutex[0x%x:0x%x] soc_hw_version[0x%x:0x%x]",
 			hw_mgr->hfi_mem.fw_uncached_global_sync.iova,
 			hw_mgr->hfi_mem.fw_uncached_global_sync.len,
 			hw_mgr->hfi_mem.synx_hwmutex.iova, hw_mgr->hfi_mem.synx_hwmutex.len,
 			hw_mgr->hfi_mem.ipc_hwmutex.iova, hw_mgr->hfi_mem.ipc_hwmutex.len,
-			hw_mgr->hfi_mem.global_cntr.iova, hw_mgr->hfi_mem.global_cntr.len,
 			hw_mgr->hfi_mem.soc_hw_version.iova, hw_mgr->hfi_mem.soc_hw_version.len);
 	}
+
+	/* Update global cntr mem */
+	region_info->region_info[region_info->num_valid_regions].region_id =
+		HFI_MEM_REGION_ID_GLOBAL_CNTR;
+	region_info->region_info[region_info->num_valid_regions].region_type =
+		HFI_MEM_REGION_TYPE_DEVICE;
+	region_info->region_info[region_info->num_valid_regions].start_addr =
+		hw_mgr->hfi_mem.global_cntr.iova;
+	region_info->region_info[region_info->num_valid_regions].size =
+		hw_mgr->hfi_mem.global_cntr.len;
+
+	region_info->num_valid_regions++;
+
+	CAM_DBG(CAM_ICP, "Global_cntr[0x%x:0x%x]",
+		hw_mgr->hfi_mem.global_cntr.iova, hw_mgr->hfi_mem.global_cntr.len);
 
 	CAM_DBG(CAM_ICP,
 		"Mem region property payload size: %zu num_regions: %u",
@@ -4737,6 +4746,12 @@ static int cam_icp_mgr_hw_open(void *hw_mgr_priv, void *download_fw_args)
 		return -EINVAL;
 	}
 
+	if (atomic_read(&hw_mgr->recovery)) {
+		CAM_WARN(CAM_ICP, "recovery in progress");
+		return -EAGAIN;
+	}
+	atomic_set(&hw_mgr->load_in_process, 1);
+
 	rc = cam_icp_allocate_hfi_mem();
 	if (rc)
 		goto alloc_hfi_mem_failed;
@@ -4767,7 +4782,9 @@ static int cam_icp_mgr_hw_open(void *hw_mgr_priv, void *download_fw_args)
 
 	hw_mgr->ctxt_cnt = 0;
 	hw_mgr->icp_booted = true;
+	hw_mgr->hfi_init_done = true;
 	atomic_set(&hw_mgr->recovery, 0);
+	atomic_set(&hw_mgr->load_in_process, 0);
 
 	CAM_INFO(CAM_ICP, "FW download done successfully");
 
@@ -4791,6 +4808,7 @@ static int cam_icp_mgr_hw_open(void *hw_mgr_priv, void *download_fw_args)
 
 fw_init_failed:
 	cam_hfi_deinit();
+	hw_mgr->hfi_init_done = false;
 hfi_init_failed:
 	cam_icp_mgr_proc_shutdown(hw_mgr);
 boot_failed:
@@ -4798,6 +4816,80 @@ boot_failed:
 dev_init_fail:
 	cam_icp_free_hfi_mem();
 alloc_hfi_mem_failed:
+	atomic_set(&hw_mgr->load_in_process, 0);
+	return rc;
+}
+
+static int cam_icp_mgr_hfi_init_util(struct cam_icp_hw_mgr *hw_mgr)
+{
+	int rc;
+
+	rc = cam_icp_mgr_hfi_init(hw_mgr);
+	if (rc) {
+		CAM_ERR(CAM_ICP, "Failed in hfi init, rc %d", rc);
+		goto end;
+	}
+
+	rc = cam_icp_mgr_send_memory_region_info(hw_mgr);
+	if (rc) {
+		CAM_ERR(CAM_ICP, "Failed in sending mem region info, rc %d", rc);
+		goto end;
+	}
+
+	hw_mgr->hfi_init_done = true;
+end:
+	return rc;
+}
+
+static int cam_icp_mgr_restart_icp(struct cam_icp_hw_mgr *hw_mgr)
+{
+	int rc;
+
+	/* Shutdown processor */
+	if (hw_mgr->icp_booted)
+		cam_icp_mgr_proc_shutdown(hw_mgr);
+
+	/* power on all cores */
+	rc = cam_icp_mgr_device_init(hw_mgr);
+	if (rc) {
+		CAM_ERR(CAM_ICP, "Failed in device init, rc %d", rc);
+		return rc;
+	}
+
+	/* reload and reset ICP */
+	rc = cam_icp_mgr_proc_boot(hw_mgr);
+	if (rc) {
+		CAM_ERR(CAM_ICP, "Failed in proc boot, rc %d", rc);
+		goto end;
+	}
+
+
+	/* initialize HFI */
+	if (hw_mgr->hfi_init_done) {
+		cam_hfi_deinit();
+
+		rc = cam_icp_mgr_hfi_init_util(hw_mgr);
+		if (rc)
+			goto end;
+	} else {
+		rc = cam_icp_allocate_hfi_mem();
+		if (rc) {
+			CAM_ERR(CAM_ICP, "Failed in alloc hfi mem, rc %d", rc);
+			goto end;
+		}
+
+		rc = cam_icp_mgr_hfi_init_util(hw_mgr);
+		if (rc) {
+			cam_icp_free_hfi_mem();
+			goto end;
+		}
+	}
+
+	hw_mgr->icp_booted = true;
+	CAM_INFO(CAM_ICP, "FW download done successfully");
+end:
+	/* power down cores */
+	cam_icp_mgr_device_deinit(hw_mgr);
 	return rc;
 }
 
@@ -7446,6 +7538,7 @@ int cam_icp_hw_mgr_init(struct device_node *of_node, uint64_t *hw_mgr_hdl,
 	hw_mgr_intf->hw_cmd = cam_icp_mgr_cmd;
 	hw_mgr_intf->hw_dump = cam_icp_mgr_hw_dump;
 	hw_mgr_intf->synx_trigger = cam_icp_mgr_service_synx_test_cmds;
+	icp_hw_mgr.hfi_init_done = false;
 
 	icp_hw_mgr.secure_mode = CAM_SECURE_MODE_NON_SECURE;
 	icp_hw_mgr.mini_dump_cb = mini_dump_cb;

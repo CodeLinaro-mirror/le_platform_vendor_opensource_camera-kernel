@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #ifndef CAM_JPEG_HW_INTF_H
@@ -25,7 +25,7 @@
 #define CAM_JPEG_ENC_MISR_VAL_NUM    3
 #define CAM_JPEG_MISR_ID_LOW_RD      1
 #define CAM_JPEG_MISR_ID_LOW_WR      2
-
+#define CAM_JPEG_MEM_BASE_INDEX      0
 
 /**
  * struct cam_jpeg_irq_cb_data - Data that gets passed from IRQ when the cb function is called
@@ -93,6 +93,7 @@ enum cam_jpeg_cmd_type {
 	CAM_JPEG_CMD_MINI_DUMP,
 	CAM_JPEG_CMD_CONFIG_HW_MISR,
 	CAM_JPEG_CMD_DUMP_HW_MISR_VAL,
+	CAM_JPEG_CMD_DUMP_DEBUG_REGS,
 	CAM_JPEG_CMD_MAX,
 };
 

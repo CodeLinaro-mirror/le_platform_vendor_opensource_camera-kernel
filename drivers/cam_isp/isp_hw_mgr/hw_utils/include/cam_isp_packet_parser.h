@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #ifndef _CAM_ISP_HW_PARSER_H_
@@ -52,17 +52,19 @@ struct cam_isp_frame_header_info {
 };
 
 /*
- * struct cam_isp_foveation_info
+ * struct cam_isp_setting_buffer_info
  *
- * @settingbuffer_offset:    Offset of setting ID in buffer
- * @settingbuffer_res_id:    Resource ID of setting ID buffer
- * @setting_size:            Size of setting variable ie: 32bit, 64 bit
- * @foveation_en:            flag to indicate if foveation is enabled
+ * @offset:               Offset of setting ID in buffer
+ * @res_id:               Resource ID of setting ID buffer
+ * @size:                 Size of setting variable ie: 32bit, 64 bit
+ * @setting_buffer_en:    flag to indicate if setting buffer is enabled
+ * @foveation_en:         flag to indicate if foveation is enabled
  */
-struct cam_isp_foveation_info {
-	uint32_t                 settingbuffer_offset;
-	uint32_t                 settingbuffer_res_id;
-	uint32_t                 setting_size;
+struct cam_isp_setting_buffer_info {
+	uint32_t                 offset;
+	uint32_t                 res_id;
+	uint32_t                 size;
+	bool                     setting_buffer_en;
 	bool                     foveation_en;
 };
 
@@ -276,7 +278,7 @@ int cam_isp_add_io_buffers(
 	struct cam_isp_frame_header_info        *frame_header_info,
 	struct cam_isp_check_io_cfg_for_scratch *scratch_check_cfg,
 	bool                                     need_cpu_addr,
-	struct cam_isp_foveation_info           *foveation_info,
+	struct cam_isp_setting_buffer_info      *setting_buffer_info,
 	struct cam_hw_intf                      *hw_intf);
 
 int cam_isp_ul_parse_io_config(struct cam_isp_ctx_ul_data *ul_data,

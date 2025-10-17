@@ -1105,7 +1105,7 @@ int cam_isp_add_io_buffers(
 	struct cam_isp_frame_header_info        *frame_header_info,
 	struct cam_isp_check_io_cfg_for_scratch *scratch_check_cfg,
 	bool                                     need_cpu_addr,
-	struct cam_isp_foveation_info           *foveation_info,
+	struct cam_isp_setting_buffer_info      *setting_buffer_info,
 	struct cam_hw_intf                      *hw_intf)
 {
 	int                                 rc = 0;
@@ -1387,21 +1387,21 @@ int cam_isp_add_io_buffers(
 				} else if (out_map_entries) {
 					out_map_entries->kernel_map_buf_addr[plane_id] = NULL;
 				}
-				if (foveation_info->foveation_en &&
-					(res->res_id == foveation_info->settingbuffer_res_id)) {
+				if (setting_buffer_info->setting_buffer_en &&
+					(res->res_id == setting_buffer_info->res_id)) {
 					rc = cam_mem_get_cpu_buf(io_cfg[i].mem_handle[plane_id],
 						&prepare_hw_data->settingbuffer_kmdvaddr, &len);
 					if (rc) {
 						CAM_ERR(CAM_ISP,
 							"Getting KMD addr for settingId buffer failed, mem_hdl=0x%x, wm res id:%d",
 							io_cfg[i].mem_handle[plane_id],
-							foveation_info->settingbuffer_res_id);
+							setting_buffer_info->res_id);
 						return -EINVAL;
 					}
 					out_map_entries->buf_handle[plane_id] =
 						io_cfg[i].mem_handle[plane_id];
 					prepare_hw_data->settingbuffer_kmdvaddr +=
-						foveation_info->settingbuffer_offset;
+						setting_buffer_info->offset;
 				}
 				if (out_map_entries)
 					out_map_entries->buf_handle[plane_id] =

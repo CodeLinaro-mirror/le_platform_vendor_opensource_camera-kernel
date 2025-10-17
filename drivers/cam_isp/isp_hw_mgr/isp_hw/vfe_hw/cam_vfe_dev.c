@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 
@@ -233,7 +233,7 @@ int cam_vfe_hw_init(struct cam_isp_hw_intf_data **vfe_hw_intf,
 		*vfe_hw_intf = &cam_vfe_hw_list[hw_idx];
 		rc = 0;
 	} else {
-		CAM_ERR(CAM_ISP, "inval param");
+		CAM_DBG(CAM_ISP, "inval param %d", hw_idx);
 		*vfe_hw_intf = NULL;
 		rc = -ENODEV;
 	}

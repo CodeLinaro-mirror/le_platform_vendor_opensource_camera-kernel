@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #include <linux/module.h>
@@ -45,6 +45,7 @@ struct g_csiphy_data {
 	void __iomem *base_address;
 	uint8_t is_3phase;
 	uint32_t cpas_handle;
+	enum cam_csiphy_cpas_state cpas_state;
 	uint64_t data_rate_aux_mask;
 	uint32_t computed_cdr_value;
 	bool is_configured_for_main;
@@ -100,6 +101,23 @@ int32_t cam_csiphy_get_instance_offset(
 	}
 
 	return i;
+}
+
+static int cam_csiphy_cpas_state_set(
+	enum cam_csiphy_cpas_state new_state, uint32_t phy_idx)
+{
+	g_phy_data[phy_idx].cpas_state = new_state;
+	return 0;
+}
+
+static bool cam_csiphy_cpas_state(
+	enum cam_csiphy_cpas_state state, uint32_t phy_idx)
+{
+	bool rc = false;
+
+	if (state == g_phy_data[phy_idx].cpas_state)
+		rc = true;
+	return rc;
 }
 
 static int cam_csiphy_cpas_ops(
@@ -1653,6 +1671,7 @@ void cam_csiphy_shutdown(struct csiphy_device *csiphy_dev)
 		cam_soc_util_disable_platform_resource(soc_info, true, true);
 
 		cam_cpas_stop(csiphy_dev->cpas_handle);
+		cam_csiphy_cpas_state_set(CAM_CSIPHY_CPAS_STOPPED, soc_info->index);
 		csiphy_dev->csiphy_state = CAM_CSIPHY_ACQUIRE;
 	}
 
@@ -1837,6 +1856,7 @@ static int __csiphy_cpas_configure_for_main_or_aon(
 	int rc = 0;
 	uint32_t aon_config = 0;
 	uint32_t cpas_handle = g_phy_data[phy_idx].cpas_handle;
+	bool cam_cpas_started = false;
 
 	if (g_phy_data[phy_idx].aon_cam_id == NOT_AON_CAM) {
 		CAM_ERR(CAM_CSIPHY, "Not an AON Camera");
@@ -1855,10 +1875,15 @@ static int __csiphy_cpas_configure_for_main_or_aon(
 		return 0;
 	}
 
-	rc = cam_csiphy_cpas_ops(cpas_handle, true);
-	if (rc) {
-		CAM_ERR(CAM_CSIPHY, "voting CPAS: %d failed", rc);
-		return rc;
+	if (cam_csiphy_cpas_state(CAM_CSIPHY_CPAS_STOPPED, phy_idx) ||
+		cam_csiphy_cpas_state(CAM_CSIPHY_CPAS_REGISTERED, phy_idx)) {
+		rc = cam_csiphy_cpas_ops(cpas_handle, true);
+		if (rc) {
+			CAM_ERR(CAM_CSIPHY, "voting CPAS: %d failed", rc);
+			return rc;
+		}
+		cam_csiphy_cpas_state_set(CAM_CSIPHY_CPAS_STARTED, phy_idx);
+		cam_cpas_started = true;
 	}
 
 	cam_cpas_reg_read(cpas_handle, CAM_CPAS_REG_CPASTOP,
@@ -1886,7 +1911,10 @@ static int __csiphy_cpas_configure_for_main_or_aon(
 	if (rc)
 		CAM_ERR(CAM_CSIPHY, "CPAS AON sel register write failed");
 
-	cam_csiphy_cpas_ops(cpas_handle, false);
+	if (cam_cpas_started) {
+		cam_csiphy_cpas_ops(cpas_handle, false);
+		cam_csiphy_cpas_state_set(CAM_CSIPHY_CPAS_STOPPED, phy_idx);
+	}
 
 	return rc;
 }
@@ -2534,6 +2562,7 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 			CAM_ERR(CAM_CSIPHY, "Failed in de-voting CPAS");
 			rc = -EFAULT;
 		}
+		cam_csiphy_cpas_state_set(CAM_CSIPHY_CPAS_STOPPED, soc_info->index);
 
 		csiphy_dev->csiphy_state = CAM_CSIPHY_ACQUIRE;
 
@@ -2719,6 +2748,13 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 				rc = 0;
 			}
 
+			rc = cam_csiphy_update_lane(csiphy_dev, offset, true);
+			if (rc) {
+				CAM_ERR(CAM_CSIPHY,
+					"Update enable lane failed, rc: %d", rc);
+				goto release_mutex;
+			}
+
 			if (csiphy_dev->csiphy_info[offset].csiphy_3phase) {
 				rc = cam_csiphy_cphy_data_rate_config(
 					csiphy_dev, offset);
@@ -2728,13 +2764,6 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 						rc);
 					goto release_mutex;
 				}
-			}
-
-			rc = cam_csiphy_update_lane(csiphy_dev, offset, true);
-			if (rc) {
-				CAM_ERR(CAM_CSIPHY,
-					"Update enable lane failed, rc: %d", rc);
-				goto release_mutex;
 			}
 
 			if (csiphy_dev->en_full_phy_reg_dump)
@@ -2764,6 +2793,7 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 			CAM_ERR(CAM_CSIPHY, "voting CPAS: %d", rc);
 			goto release_mutex;
 		}
+		cam_csiphy_cpas_state_set(CAM_CSIPHY_CPAS_STARTED, soc_info->index);
 
 		if (csiphy_dev->csiphy_info[offset].secure_mode == 1) {
 			if (!cam_cpas_is_feature_supported(
@@ -2938,6 +2968,7 @@ hw_cnt_decrement:
 cpas_stop:
 	if (cam_csiphy_cpas_ops(csiphy_dev->cpas_handle, false))
 		CAM_ERR(CAM_CSIPHY, "cpas stop failed");
+	cam_csiphy_cpas_state_set(CAM_CSIPHY_CPAS_STOPPED, soc_info->index);
 release_mutex:
 	mutex_unlock(&csiphy_dev->mutex);
 
@@ -2964,6 +2995,7 @@ int cam_csiphy_register_baseaddress(struct csiphy_device *csiphy_dev)
 		csiphy_dev->soc_info.reg_map[0].mem_base;
 	g_phy_data[phy_idx].cpas_handle =
 		csiphy_dev->cpas_handle;
+	g_phy_data[phy_idx].cpas_state = CAM_CSIPHY_CPAS_REGISTERED;
 	g_phy_data[phy_idx].aon_sel_param =
 		csiphy_dev->ctrl_reg->csiphy_reg.aon_sel_params;
 	g_phy_data[phy_idx].aon_cam_id = NOT_AON_CAM;

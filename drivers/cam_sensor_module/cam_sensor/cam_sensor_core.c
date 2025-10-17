@@ -223,12 +223,27 @@ static int cam_sensor_handle_event_info(
 			CAM_IS_NULL_TO_STR(s_ctrl));
 		return -EINVAL;
 	}
+
+	if (event_info->version > 1) {
+		CAM_ERR(CAM_SENSOR, "Invalid event_info version %d", event_info->version);
+		return -EINVAL;
+	}
 	offset = req_id % MAX_PER_FRAME_ARRAY;
 	/* preparing event list, need to send it to cci */
 	event_list = &s_ctrl->i2c_data.per_frame_event_settings[offset].event_list;
 	event_list->event_count = event_info->event_count;
 
 	for (i = 0; i < event_list->event_count; i++) {
+		uint32_t version = *(uint32_t *)((uint8_t *)event_info + event_offset);
+
+		CAM_DBG(CAM_SENSOR, "offset version: %u", version);
+
+		if (version > 1) {
+			CAM_ERR(CAM_SENSOR, "Invalid params: version %d",
+					version);
+			return -EINVAL;
+		}
+
 		event_sequence = (struct cam_sensor_events *)((uint8_t*)event_info + event_offset);
 		event_list->event_info[i].event = event_sequence->event_name;
 		event_list->event_info[i].cmd_count = event_sequence->cmd_count;
@@ -277,6 +292,11 @@ static int cam_sensor_handle_timer_info(
 			CAM_IS_NULL_TO_STR(event_data));
 		return -EINVAL;
 	}
+
+	if (timer_info->version > 1) {
+		CAM_ERR(CAM_SENSOR, "Invalid timer_info version %d", timer_info->version);
+		return -EINVAL;
+	}
 	event_data->trigger_sensor_cmd_buf_info.wait_time_us = timer_info->wait_time_us;
 	event_data->cmd_type = CAM_SENSOR_CMD_TYPE_TIMER;
 	CAM_DBG(CAM_SENSOR,
@@ -300,6 +320,11 @@ static int cam_sensor_handle_sync_cmd_info(
 			CAM_IS_NULL_TO_STR(sync_cmd_info),
 			CAM_IS_NULL_TO_STR(s_ctrl),
 			CAM_IS_NULL_TO_STR(event_data));
+		return -EINVAL;
+	}
+
+	if (sync_cmd_info->version > 1) {
+		CAM_ERR(CAM_SENSOR, "Invalid sync_cmd_info version %d", sync_cmd_info->version);
 		return -EINVAL;
 	}
 	event_data->trigger_sensor_cmd_buf_info.is_sync_cmd_enable =
@@ -326,6 +351,11 @@ static int cam_sensor_handle_fsin_info(
 			CAM_IS_NULL_TO_STR(fsin_info),
 			CAM_IS_NULL_TO_STR(s_ctrl),
 			CAM_IS_NULL_TO_STR(event_data));
+		return -EINVAL;
+	}
+
+	if (fsin_info->version > 1) {
+		CAM_ERR(CAM_SENSOR, "Invalid fsin_info version %d", fsin_info->version);
 		return -EINVAL;
 	}
 
@@ -366,6 +396,11 @@ static int cam_sensor_handle_frame_event_info(
 		return -EINVAL;
 	}
 
+	if (frame_event_info->version > 1) {
+		CAM_ERR(CAM_SENSOR, "Invalid frame_event_info version %d",
+						frame_event_info->version);
+		return -EINVAL;
+	}
 	event_data->trigger_sensor_cmd_buf_info.frame_event_info.streamId =
 		frame_event_info->stream_id;
 	event_data->trigger_sensor_cmd_buf_info.frame_event_info.vc =
@@ -397,6 +432,11 @@ static int cam_sensor_handle_qtimer_info(
 			CAM_IS_NULL_TO_STR(qtimer_info),
 			CAM_IS_NULL_TO_STR(s_ctrl),
 			CAM_IS_NULL_TO_STR(event_data));
+		return -EINVAL;
+	}
+
+	if (qtimer_info->version > 1) {
+		CAM_ERR(CAM_SENSOR, "Invalid qtimer_info version %d", qtimer_info->version);
 		return -EINVAL;
 	}
 

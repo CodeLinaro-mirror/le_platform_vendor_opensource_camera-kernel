@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #include "cam_irq_controller.h"
@@ -189,24 +189,31 @@ inline void cam_req_mgr_kthread_destroy(struct cam_req_mgr_core_worker *worker)
 {
 	struct kthread_worker   *kthread_worker;
 	unsigned long flags = 0;
-	struct cam_kthread_data *kthread_data;
+	struct cam_kthread_data *kthread_data, *temp_kthread, *free_kthread = NULL;
 
-	if (worker->job) {
-		kthread_worker = worker->job;
-		worker->job = NULL;
-		WORKER_RELEASE_LOCK(worker, flags);
-		kthread_destroy_worker(kthread_worker);
-		WORKER_ACQUIRE_LOCK(worker, flags);
-	}
-	list_for_each_entry(kthread_data, &g_cam_kthread_info.kthread_list, list) {
+	if (!worker->job)
+		return;
+
+	kthread_worker = worker->job;
+	worker->job = NULL;
+	WORKER_RELEASE_LOCK(worker, flags);
+	kthread_destroy_worker(kthread_worker);
+
+	mutex_lock(&g_cam_kthread_info.kthread_list_mutex);
+	list_for_each_entry_safe(kthread_data, temp_kthread, &g_cam_kthread_info.kthread_list,
+		list) {
 		if (kthread_data->kthread_worker == kthread_worker) {
 			list_del_init(&kthread_data->list);
-			WORKER_RELEASE_LOCK(worker, flags);
-			vfree(kthread_data);
-			WORKER_ACQUIRE_LOCK(worker, flags);
+			free_kthread = kthread_data;
 			break;
 		}
 	}
+	mutex_unlock(&g_cam_kthread_info.kthread_list_mutex);
+
+	if (free_kthread)
+		vfree(free_kthread);
+
+	WORKER_ACQUIRE_LOCK(worker, flags);
 }
 
 #define CREATE_WORKER(crm_worker, name, num_tasks, flags) \
@@ -351,19 +358,25 @@ inline int cam_req_mgr_worker_create(char *name, int32_t num_tasks,
 #ifdef CONFIG_CAM_KTHREAD_WORKER
 		kthread_data = vzalloc(sizeof(struct cam_kthread_data));
 		kthread_data->kthread_worker = crm_worker->job;
+
 		if (!g_cam_kthread_info.is_list_initalized) {
 			INIT_LIST_HEAD(&g_cam_kthread_info.kthread_list);
+			mutex_init(&g_cam_kthread_info.kthread_list_mutex);
 			g_cam_kthread_info.is_list_initalized = true;
 		}
+
+		mutex_lock(&g_cam_kthread_info.kthread_list_mutex);
 		INIT_LIST_HEAD(&kthread_data->list);
 		list_add_tail(&kthread_data->list,
 			&g_cam_kthread_info.kthread_list);
+		mutex_unlock(&g_cam_kthread_info.kthread_list_mutex);
 
 		if (g_cam_kthread_info.is_prop_valid) {
 			g_cam_kthread_info.result = -1;
 			init_completion(&crm_worker->worker_completion);
 			task = cam_req_mgr_worker_get_task(*worker);
 			if (IS_ERR_OR_NULL(task)) {
+				vfree(kthread_data);
 				CAM_ERR(CAM_CRM, "No empty task = %d", PTR_ERR(task));
 				return -EINVAL;
 			}
@@ -548,10 +561,12 @@ inline int cam_req_mgr_set_kthread_prop_internal(void *priv, void *data)
 
 	if (priv) {
 		crm_worker = (struct cam_req_mgr_core_worker *)priv;
+		mutex_lock(&g_cam_kthread_info.kthread_list_mutex);
 		list_for_each_entry(kthread_data, &g_cam_kthread_info.kthread_list, list) {
 			if (kthread_data->kthread_worker == crm_worker->job) {
 				rc = cam_req_mgr_kthread_set_thread_prop(kthread_data);
 				if (rc) {
+					mutex_unlock(&g_cam_kthread_info.kthread_list_mutex);
 					CAM_ERR(CAM_CRM, "Failed to set properties");
 					g_cam_kthread_info.result = rc;
 					complete(&crm_worker->worker_completion);
@@ -560,18 +575,22 @@ inline int cam_req_mgr_set_kthread_prop_internal(void *priv, void *data)
 				break;
 			}
 		}
+		mutex_unlock(&g_cam_kthread_info.kthread_list_mutex);
 		g_cam_kthread_info.result = 0;
 		complete(&crm_worker->worker_completion);
 	} else {
+		mutex_lock(&g_cam_kthread_info.kthread_list_mutex);
 		list_for_each_entry(kthread_data, &g_cam_kthread_info.kthread_list, list) {
 			rc = cam_req_mgr_kthread_set_thread_prop(kthread_data);
 			if (rc) {
+				mutex_unlock(&g_cam_kthread_info.kthread_list_mutex);
 				CAM_ERR(CAM_CRM, "Failed to set properties");
 				g_cam_kthread_info.result = rc;
 				complete(&g_kt_worker->worker_completion);
 				return rc;
 			}
 		}
+		mutex_unlock(&g_cam_kthread_info.kthread_list_mutex);
 		g_cam_kthread_info.result = 0;
 		complete(&g_kt_worker->worker_completion);
 	}

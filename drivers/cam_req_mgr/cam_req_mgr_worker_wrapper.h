@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 #ifndef _CAM_REQ_MGR_WORKER_WRAPPER_H_
 #define _CAM_REQ_MGR_WORKER_WRAPPER_H_
@@ -153,7 +153,7 @@ struct cam_kthread_data {
 };
 
 /**
- * struct cam_kthread_info - Kthread scheduling information *
+ * struct cam_kthread_info - Kthread scheduling information
  * @policy               : Scheduling policy
  * @priority             : Scheduling priority
  * @nice                 : Nice value
@@ -165,6 +165,7 @@ struct cam_kthread_data {
  */
 struct cam_kthread_info {
 	uint32_t              policy;
+	struct mutex          kthread_list_mutex;
 	int32_t               priority;
 	int32_t               nice;
 	uint32_t              affinity;

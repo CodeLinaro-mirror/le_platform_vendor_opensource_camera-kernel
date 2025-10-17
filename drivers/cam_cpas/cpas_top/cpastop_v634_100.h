@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2024-2025, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #ifndef _CPASTOP_V634_100_H_
@@ -407,7 +407,7 @@ static struct cam_camnoc_specific
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
 			.offset = 0x9E38, /* IPE_WR_NIU_URGENCY_LOW */
-			.value = 0x1003,
+			.value = 0x1030,
 		},
 		.danger_lut = {
 			.enable = false,

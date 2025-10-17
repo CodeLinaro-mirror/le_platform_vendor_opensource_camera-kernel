@@ -4385,7 +4385,7 @@ int cam_req_mgr_fast_crop_sync_cmd(struct cam_req_mgr_fast_crop_sync *fast_crop_
 	}
 
 	cam_session->fast_crop_shared_buf_kmdvaddr = shared_buf_kmdvaddr;
-	CAM_DBG(CAM_CRM,
+	CAM_INFO(CAM_CRM,
 		"Fast crop sync session_hdl: %x, mem_hdl: %x, offset: %d, size: %d shared_buf: %pK",
 		cam_session->fast_crop_sync.session_hdl, cam_session->fast_crop_sync.mem_hdl,
 		cam_session->fast_crop_sync.offset, cam_session->fast_crop_sync.size,
@@ -4522,7 +4522,7 @@ static int cam_req_mgr_cb_fast_crop_sync_utility(int32_t session_hdl,
 	uint64_t req_id, uint64_t *crop_settings_id)
 {
 	int rc = 0, new_slot, slot_idx;
-	uintptr_t shared_buf_kmdvaddr;
+	uintptr_t shared_buf_kmdvaddr = 0;
 	struct cam_req_mgr_core_session     *cam_session = NULL;
 	struct cam_req_mgr_fast_crop_settings_slot *slot = NULL;
 	struct cam_req_mgr_sync_shared_buf *sync_shared_buf = NULL;
@@ -4564,26 +4564,31 @@ static int cam_req_mgr_cb_fast_crop_sync_utility(int32_t session_hdl,
 	slot->req_id = req_id;
 
 	shared_buf_kmdvaddr = cam_session->fast_crop_shared_buf_kmdvaddr;
-	sync_shared_buf = (struct cam_req_mgr_sync_shared_buf *)(shared_buf_kmdvaddr +
-		cam_session->fast_crop_sync.offset);
-
-	/* Get the latest crop settings */
-	if (sync_shared_buf->latest_setting_id < INVALID_CROP_SETTINGS_ID) {
-		slot->crop_settings_id = sync_shared_buf->latest_setting_id;
-		*crop_settings_id = slot->crop_settings_id;
-		if (cam_session->crop_settings_num_slots < MAX_REQ_SLOTS)
-			cam_session->crop_settings_num_slots++;
-		cam_session->crop_settings_slot_wr_index++;
-		if (cam_session->crop_settings_slot_wr_index == MAX_REQ_SLOTS)
-			cam_session->crop_settings_slot_wr_index = 0;
-		CAM_DBG(CAM_CRM,
-			"session_hdl: %x, slot idx: %d, req: %lld, crop_setting_id: %lld, crop_settings_num_slots: %d crop_settings_slot_wr_index: %d",
-			session_hdl, new_slot, slot->req_id, slot->crop_settings_id,
-			cam_session->crop_settings_num_slots,
-			cam_session->crop_settings_slot_wr_index);
+	if (!shared_buf_kmdvaddr) {
+		CAM_WARN(CAM_CRM, "Session_hdl: %x no sync shared buf", session_hdl);
 	} else {
-		CAM_WARN(CAM_CRM, "Session_hdl: %x no valid crop settings in sync shared buf",
-			session_hdl);
+		sync_shared_buf = (struct cam_req_mgr_sync_shared_buf *)(shared_buf_kmdvaddr +
+			cam_session->fast_crop_sync.offset);
+
+		/* Get the latest crop settings */
+		if (sync_shared_buf->latest_setting_id < INVALID_CROP_SETTINGS_ID) {
+			slot->crop_settings_id = sync_shared_buf->latest_setting_id;
+			*crop_settings_id = slot->crop_settings_id;
+			if (cam_session->crop_settings_num_slots < MAX_REQ_SLOTS)
+				cam_session->crop_settings_num_slots++;
+			cam_session->crop_settings_slot_wr_index++;
+			if (cam_session->crop_settings_slot_wr_index == MAX_REQ_SLOTS)
+				cam_session->crop_settings_slot_wr_index = 0;
+			CAM_DBG(CAM_CRM,
+				"session_hdl: %x, slot idx: %d, req: %lld, crop_setting_id: %lld, crop_settings_num_slots: %d crop_settings_slot_wr_index: %d",
+				session_hdl, new_slot, slot->req_id, slot->crop_settings_id,
+				cam_session->crop_settings_num_slots,
+				cam_session->crop_settings_slot_wr_index);
+		} else {
+			CAM_WARN(CAM_CRM,
+				"Session_hdl: %x no valid crop settings in sync shared buf",
+				session_hdl);
+		}
 	}
 
 end:

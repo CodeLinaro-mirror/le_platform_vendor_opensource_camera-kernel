@@ -2514,7 +2514,8 @@ static int32_t cam_cci_trigger_cmd_queue(struct cci_device *cci_dev,
 			reg_offset);
 		get_ctx->i2c_queue_cmd_size++;
 	} else if (current_cmd_queue == CCI_GPIO_QUEUE) {
-		val = CCI_GPIO_TRIG_EVENT_CMD;
+		val = CCI_GPIO_TRIG_EVENT_CMD | (1 << (4 + (get_ctx->master << 1) +
+			(get_ctx->i2cqueue)));
 		cam_io_w_mb(val, base + CCI_GPIO_Q0_LOAD_DATA_ADDR +
 			reg_gpio_offset);
 		get_ctx->gpio_queue_cmd_size++;

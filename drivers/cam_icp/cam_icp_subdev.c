@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, 2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #include <linux/delay.h>
@@ -31,6 +31,10 @@
 #include "cam_debug_util.h"
 #include "cam_smmu_api.h"
 #include "camera_main.h"
+
+#ifdef CONFIG_DEEPSLEEP
+#include <linux/suspend.h>
+#endif
 
 #define CAM_ICP_DEV_NAME        "cam-icp"
 
@@ -302,7 +306,7 @@ static int cam_icp_remove(struct platform_device *pdev)
 	return 0;
 }
 
-#if defined(CONFIG_HIBERNATION)
+#if defined(CONFIG_HIBERNATION) || defined(CONFIG_DEEPSLEEP)
 static int cam_icp_pm_freeze(struct device *dev)
 {
 	int rc = 0;
@@ -363,10 +367,25 @@ static int cam_icp_pm_restore(struct device *dev)
 }
 #endif
 
+#if defined(CONFIG_DEEPSLEEP)
+static int cam_icp_pm_suspend(struct device *dev)
+{
+	CAM_DBG(CAM_ICP, "ICP pm suspend enter");
+	if (pm_suspend_target_state != PM_SUSPEND_MEM)
+		return 0;
+
+	return cam_icp_pm_freeze(dev);
+}
+#endif
+
 static const struct dev_pm_ops cam_icp_pm_ops = {
 #if defined(CONFIG_HIBERNATION)
 	.freeze = cam_icp_pm_freeze,
-	.restore = cam_icp_pm_restore
+	.restore = cam_icp_pm_restore,
+#endif
+#if defined(CONFIG_DEEPSLEEP)
+	.suspend = cam_icp_pm_suspend,
+	.resume = cam_icp_pm_restore
 #endif
 };
 

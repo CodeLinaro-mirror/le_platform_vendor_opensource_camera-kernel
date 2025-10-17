@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #ifndef _CAM_IFE_HW_MGR_H_
@@ -271,7 +271,7 @@ struct cam_ife_virtual_rdi_mapping {
 /*
  * struct cam_isp_scratch_buf_mem:
  *
- * @Brief:                   Scratch buf mem info for sensor foveation
+ * @Brief:                   Setting id scratch buf mem info
  *
  * @kmdvaddr:                KMD virtual address of scratch buffer
  * @iova:                    IOVA address of scratch buffer
@@ -374,7 +374,8 @@ struct cam_isp_res_scratch_buf_info {
  * @settingbuf_offset:      Offset of setting ID in res buffer
  * @setting_size:           Size of setting variable ie: 32bit, 64 bit
  * @settingid_check:        flag to indicate if settingid based check is enabled
- * @scratch_buf_info       holds scratch buffer info for foveation usecase
+ * @foveation_enable:       flag to indicate if sensor foveation is enabled
+ * @scratch_buf_info        holds setting id scratch buffer info
  * @num_primary_ports:      Number of primary port configs
  * @primary_port_info:      Primary port configs array
  * @primary_port_cfg_done:  Primary port config exists for this stream
@@ -457,6 +458,7 @@ struct cam_ife_hw_mgr_ctx {
 	uint32_t                                    settingbuf_offset;
 	uint32_t                                    setting_size;
 	bool                                        settingid_check;
+	bool                                        foveation_enable;
 	struct cam_isp_scratch_buf_mem              scratch_buf_info;
 	uint32_t                                    num_primary_ports;
 	struct cam_isp_primary_port_info           *primary_port_info[CAM_IFE_HW_PRIMARY_PORT_MAX];

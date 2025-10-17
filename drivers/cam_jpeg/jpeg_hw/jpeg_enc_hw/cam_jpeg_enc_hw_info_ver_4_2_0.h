@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #ifndef CAM_JPEG_ENC_HW_INFO_TITAN170_H
@@ -52,6 +53,16 @@ static struct cam_jpeg_enc_device_hw_info cam_jpeg_enc_hw_info = {
 		.hw_cmd = 0x10,
 		.reset_cmd = 0x8,
 		.encode_size = 0x180,
+	},
+	.debug_reg_offset = {
+		.top_offset = 0x0,
+		.top_range = 0x24,
+		.we_offset = 0xC0,
+		.we_range = 0x31,
+		.scale_offset = 0x26C,
+		.scale_range = 0x35,
+		.perf_offset = 0xFEC,
+		.perf_range = 0x5,
 	},
 	.reg_val = {
 		.int_clr_clearall = 0xFFFFFFFF,

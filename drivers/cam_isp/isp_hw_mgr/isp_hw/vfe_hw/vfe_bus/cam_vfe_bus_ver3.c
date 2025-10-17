@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 
@@ -3834,7 +3834,7 @@ static int cam_vfe_bus_ver3_update_wm(void *priv, void *cmd_args,
 
 		/* Update hw fence registers */
 		if (!wm_data->hwfence_mode) {
-			CAM_ERR(CAM_ISP, "HW fencing not enabled for this WM : %d",
+			CAM_DBG(CAM_ISP, "HW fencing not enabled for this WM : %d",
 					wm_data->index);
 
 			CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, j,

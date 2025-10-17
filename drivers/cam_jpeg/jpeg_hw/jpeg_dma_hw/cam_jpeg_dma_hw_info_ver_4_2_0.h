@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #ifndef CAM_JPEG_DMA_HW_INFO_VER_4_2_0_H
@@ -26,6 +27,16 @@ static struct cam_jpeg_dma_device_hw_info cam_jpeg_dma_hw_info = {
 		.hw_cmd = 0x1C,
 		.reset_cmd = 0x08,
 		.encode_size = 0x180,
+	},
+	.debug_reg_offset = {
+		.top_offset = 0x0,
+		.top_range = 0x19,
+		.we_offset = 0xB8,
+		.we_range = 0x9,
+		.we_qos_offset = 0x144,
+		.we_qos_range = 0x1C,
+		.perf_offset = 0xFEC,
+		.perf_range = 0x5,
 	},
 	.reg_val = {
 		.int_clr_clearall = 0xFFFFFFFF,

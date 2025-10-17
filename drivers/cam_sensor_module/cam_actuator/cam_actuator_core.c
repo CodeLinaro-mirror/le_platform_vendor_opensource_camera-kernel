@@ -12,6 +12,8 @@
 #include "cam_common_util.h"
 #include "cam_packet_util.h"
 
+#define WITH_NO_CRM_MASK BIT(0)
+
 int32_t cam_actuator_construct_default_power_setting(
 	struct cam_sensor_power_ctrl_t *power_info)
 {
@@ -374,6 +376,10 @@ static int cam_actuator_update_req_mgr(
 {
 	int rc = 0;
 	struct cam_req_mgr_add_request add_req;
+
+	if (a_ctrl->bridge_intf.enable_crm != 1) {
+		return rc;
+	}
 
 	memset(&add_req, 0, sizeof(add_req));
 	add_req.link_hdl = a_ctrl->bridge_intf.link_hdl;
@@ -813,6 +819,115 @@ void cam_actuator_shutdown(struct cam_actuator_ctrl_t *a_ctrl)
 	a_ctrl->cam_act_state = CAM_ACTUATOR_INIT;
 }
 
+int32_t cam_actuator_no_crm_handshake(
+	struct cam_req_mgr_no_crm_handshake_data *info)
+{
+	int32_t rc = 0;
+	struct cam_actuator_ctrl_t *a_ctrl = NULL;
+
+	if (!info) {
+		CAM_ERR(CAM_ACTUATOR, "handshake data: NULL");
+		return -EINVAL;
+	}
+
+	a_ctrl = (struct cam_actuator_ctrl_t *)
+				cam_get_device_no_crm_priv(info->dev_hdl);
+
+	if (!a_ctrl) {
+		CAM_ERR(CAM_ACTUATOR, "Device data is NULL");
+		return -EINVAL;
+	}
+	info->trigger = CAM_TRIGGER_POINT_SOF;
+	a_ctrl->anchor_pd = info->anchor_pd;
+	info->pipeline_delay = CAM_PIPELINE_DELAY_1;
+
+	return rc;
+}
+
+int32_t cam_actuator_no_crm_apply_req_lock(
+	struct cam_actuator_ctrl_t *a_ctrl,
+	struct cam_req_mgr_no_crm_apply_request *apply)
+{
+	int32_t  rc = 0, request_id, del_req_id;
+	uint64_t isp_req_id = 0;
+	uint32_t isp_pd = 0;
+	uint64_t actuator_req_id = 0;
+	int      actuator_pd = 0;
+
+	isp_req_id = apply->anchor_req_id;
+	actuator_pd = 1;
+	isp_pd = a_ctrl->anchor_pd;
+	if (actuator_pd < isp_pd)
+	{
+		actuator_pd = isp_pd;
+	}
+	actuator_req_id = isp_req_id + (actuator_pd - isp_pd);
+
+	request_id = actuator_req_id % MAX_PER_FRAME_ARRAY;
+
+	trace_cam_apply_req("Actuator", a_ctrl->soc_info.index, actuator_req_id, apply->link_hdl);
+
+	CAM_DBG(CAM_ACTUATOR, "Request: %lld index %d recved %lld  valid %d", actuator_req_id, request_id,
+		  	a_ctrl->i2c_data.per_frame[request_id].request_id,
+		   	a_ctrl->i2c_data.per_frame[request_id].is_settings_valid);
+	if ((actuator_req_id ==
+		a_ctrl->i2c_data.per_frame[request_id].request_id) &&
+		(a_ctrl->i2c_data.per_frame[request_id].is_settings_valid)
+		== 1) {
+		rc = cam_actuator_apply_settings(a_ctrl,
+			&a_ctrl->i2c_data.per_frame[request_id]);
+		if (rc < 0) {
+			CAM_ERR(CAM_ACTUATOR,
+				"Failed in applying the request: %lld\n",
+				actuator_req_id);
+		}
+	}
+	del_req_id = (request_id +
+		MAX_PER_FRAME_ARRAY - MAX_SYSTEM_PIPELINE_DELAY) %
+		MAX_PER_FRAME_ARRAY;
+
+	if (actuator_req_id >
+		a_ctrl->i2c_data.per_frame[del_req_id].request_id) {
+		a_ctrl->i2c_data.per_frame[del_req_id].request_id = 0;
+		rc = delete_request(&a_ctrl->i2c_data.per_frame[del_req_id]);
+		if (rc < 0) {
+			CAM_ERR(CAM_ACTUATOR,
+				"Fail deleting the req: %d err: %d\n",
+				del_req_id, rc);
+		}
+	} else {
+		CAM_DBG(CAM_ACTUATOR, "No Valid Req to clean Up");
+	}
+
+	return rc;
+}
+
+
+int cam_actuator_no_crm_apply_req(
+	struct cam_req_mgr_no_crm_apply_request *apply)
+{
+	int32_t rc = 0;
+	struct cam_actuator_ctrl_t *a_ctrl = NULL;
+
+	if (!apply) {
+		CAM_ERR(CAM_ACTUATOR, "Invalid Input Args");
+		return -EINVAL;
+	}
+
+	a_ctrl = cam_get_device_no_crm_priv(apply->dev_hdl);
+
+	if (!a_ctrl)
+	{
+		CAM_ERR(CAM_ACTUATOR, "Invalid private data req[%llu]", apply->anchor_req_id);
+		return -EINVAL;
+	}
+
+	mutex_lock(&(a_ctrl->actuator_mutex));
+	rc = cam_actuator_no_crm_apply_req_lock(a_ctrl, apply);
+	mutex_unlock(&(a_ctrl->actuator_mutex));
+	return rc;
+}
+
 int32_t cam_actuator_driver_cmd(struct cam_actuator_ctrl_t *a_ctrl,
 	void *arg)
 {
@@ -860,10 +975,19 @@ int32_t cam_actuator_driver_cmd(struct cam_actuator_ctrl_t *a_ctrl,
 
 		bridge_params.session_hdl = actuator_acq_dev.session_handle;
 		bridge_params.ops = &a_ctrl->bridge_intf.ops;
+		bridge_params.no_crm_ops = NULL;
+		bridge_params.no_crm_priv = NULL;
 		bridge_params.v4l2_sub_dev_flag = 0;
 		bridge_params.media_entity_flag = 0;
 		bridge_params.priv = a_ctrl;
 		bridge_params.dev_id = CAM_ACTUATOR;
+		a_ctrl->bridge_intf.enable_crm = 1;
+
+		if (actuator_acq_dev.info_handle & WITH_NO_CRM_MASK) {
+			a_ctrl->bridge_intf.enable_crm = 0;
+			bridge_params.no_crm_ops  = &a_ctrl->bridge_intf.no_crm_ops;
+			bridge_params.no_crm_priv = a_ctrl;
+		}
 
 		actuator_acq_dev.device_handle =
 			cam_create_device_hdl(&bridge_params);

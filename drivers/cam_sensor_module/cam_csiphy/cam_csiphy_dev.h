@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #ifndef _CAM_CSIPHY_DEV_H_
@@ -92,6 +92,13 @@ enum cam_csiphy_state {
 	CAM_CSIPHY_INIT,
 	CAM_CSIPHY_ACQUIRE,
 	CAM_CSIPHY_START,
+};
+
+enum cam_csiphy_cpas_state {
+	CAM_CSIPHY_CPAS_NOT_REGISTERED,
+	CAM_CSIPHY_CPAS_REGISTERED,
+	CAM_CSIPHY_CPAS_STARTED,
+	CAM_CSIPHY_CPAS_STOPPED,
 };
 
 /**
