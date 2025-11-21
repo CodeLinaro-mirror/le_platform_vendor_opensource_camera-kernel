@@ -434,7 +434,6 @@ inline void cam_req_mgr_worker_destroy(struct cam_req_mgr_core_worker **crm_work
 		mutex_destroy(&worker->mutex_lock);
 
 		/* Destroy worker payload data */
-		kfree(worker->task.pool[0].payload);
 		vfree(worker->task.pool);
 		vfree(worker);
 	}

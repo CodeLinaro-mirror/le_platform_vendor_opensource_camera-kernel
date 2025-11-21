@@ -36,7 +36,8 @@
 #define MAX_SYSTEM_PIPELINE_DELAY 2
 
 #define CAM_PKT_NOP_OPCODE 127
-#define MAX_CMD_BUFFER 10
+#define MAX_CMD_BUFFER 20
+#define CAM_SENSOR_DEBUG_STRING_SIZE 128
 
 enum camera_flash_opcode {
 	CAMERA_SENSOR_FLASH_OP_INVALID,
@@ -255,6 +256,12 @@ struct cam_sensor_fsin_data {
 	uint32_t config;
 };
 
+struct cam_sensor_debug_data {
+	uint32_t debug_id;
+	uint32_t debug_string_size;
+	char     debug_string[CAM_SENSOR_DEBUG_STRING_SIZE];
+};
+
 enum cam_sensor_cmd_buffer_type {
 	CAM_SENSOR_CMD_TYPE_I2C_SETTING,
 	CAM_SENSOR_CMD_TYPE_QTIMER,
@@ -262,6 +269,7 @@ enum cam_sensor_cmd_buffer_type {
 	CAM_SENSOR_CMD_TYPE_TIMER,
 	CAM_SENSOR_CMD_TYPE_FRAME_EVENT,
 	CAM_SENSOR_CMD_TYPE_SYNC_CMD,
+	CAM_SENSOR_CMD_TYPE_DEBUG_CMD,
 	CAM_SENSOR_CMD_TYPE_EVENT,
 	CAM_SENSOR_CMD_TYPE_INVALID,
 };
@@ -321,6 +329,7 @@ struct cam_sensor_per_frame_event_data {
 		uint32_t is_sync_cmd_enable;
 		struct   cam_sensor_frame_event_data frame_event_info;
 		struct   cam_sensor_fsin_data fsin_info;
+		struct   cam_sensor_debug_data debug_info;
 		struct   i2c_settings_array i2c_settings;
 	} trigger_sensor_cmd_buf_info;
 };

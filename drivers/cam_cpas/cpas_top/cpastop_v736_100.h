@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #ifndef _CPASTOP_V736_100_H_
@@ -819,7 +819,7 @@ static struct cam_camnoc_specific
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
 			.offset = 0x9E38, /* IPE_WR_NIU_URGENCY_LOW */
-			.value = 0x20,
+			.value = 0x1000,
 		},
 		.danger_lut = {
 			.enable = false,
@@ -839,11 +839,11 @@ static struct cam_camnoc_specific
 			.enable = false,
 		},
 		.qosgen_mainctl = {
-			.enable = false,
+			.enable = true,
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
 			.offset = 0xA788, /* IPE_WR_QOSGEN_MAINCTL */
-			.value = 0x0,
+			.value = 0x20,
 		},
 		.qosgen_shaping_low = {
 			.enable = false,
@@ -865,6 +865,39 @@ static struct cam_camnoc_specific
 			.masked_value = 0,
 			.offset = 0x9E20, /* IPE_WR_NIU_MAXWR_LOW */
 			.value = 0x0,
+		},
+	},
+	{
+		.port_type = CAM_CAMNOC_IPE0_RD,
+		.port_name = "IPE_RD_0",
+		.enable = true,
+		.priority_lut_low = {
+			.enable = true,
+			.access_type = CAM_REG_TYPE_READ_WRITE,
+			.masked_value = 0,
+			.offset = 0xB830, /* IPE_RD_0_NIU_PRIORITYLUT_LOW */
+			.value = 0x33332222,
+		},
+		.priority_lut_high = {
+			.enable = true,
+			.access_type = CAM_REG_TYPE_READ_WRITE,
+			.masked_value = 0,
+			.offset = 0xB834, /* IPE_RD_0_NIU_PRIORITYLUT_HIGH */
+			.value = 0x44444444,
+		},
+		.urgency = {
+			.enable = true,
+			.access_type = CAM_REG_TYPE_READ_WRITE,
+			.masked_value = 0,
+			.offset = 0xB838, /* IPE_RD_0_NIU_URGENCY_LOW */
+			.value = 0x1000,
+		},
+		.qosgen_mainctl = {
+			.enable = true,
+			.access_type = CAM_REG_TYPE_READ_WRITE,
+			.masked_value = 0,
+			.offset = 0xBD08, /* IPE_RD_0_QOSGEN_MAINCTL */
+			.value = 0x20,
 		},
 	},
 	{
@@ -890,7 +923,7 @@ static struct cam_camnoc_specific
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
 			.offset = 0x9C38, /* IPE_RD_1_NIU_URGENCY_LOW */
-			.value = 0x2,
+			.value = 0x1000,
 		},
 		.danger_lut = {
 			.enable = false,
@@ -914,11 +947,11 @@ static struct cam_camnoc_specific
 			.value = 1,
 		},
 		.qosgen_mainctl = {
-			.enable = false,
+			.enable = true,
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
 			.offset = 0xA708, /* IPE_RD_1_QOSGEN_MAINCTL */
-			.value = 0x0,
+			.value = 0x20,
 		},
 		.qosgen_shaping_low = {
 			.enable = false,

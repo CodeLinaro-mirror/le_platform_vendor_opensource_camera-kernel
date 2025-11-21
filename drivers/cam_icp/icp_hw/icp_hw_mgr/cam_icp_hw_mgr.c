@@ -6941,6 +6941,11 @@ static int cam_icp_mgr_hw_stop(void *hw_mgr_priv, void *hw_stop_args)
 	if (!hw_mgr->icp_clock_cfg_cnt && core_info->cpas_start)
 		cam_icp_mgr_icp_power_collapse(hw_mgr);
 
+	if (!hw_mgr->bps_ctxt_cnt)
+		hw_mgr->clk_info[ICP_CLK_HW_BPS].curr_clk = 0;
+	if (!hw_mgr->ipe_ctxt_cnt)
+		hw_mgr->clk_info[ICP_CLK_HW_IPE].curr_clk = 0;
+
 	mutex_unlock(&hw_mgr->hw_mgr_mutex);
 	return rc;
 }

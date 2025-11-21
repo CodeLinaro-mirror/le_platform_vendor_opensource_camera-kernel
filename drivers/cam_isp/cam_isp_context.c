@@ -10271,7 +10271,8 @@ static int __cam_isp_ctx_link_in_acquired(struct cam_context *ctx,
 		trace_cam_context_state("ISP", ctx);
 	}
 
-	CAM_DBG(CAM_ISP, "next state %d ctx:%d", ctx->state, ctx->ctx_id);
+	CAM_DBG(CAM_ISP, "next state %d ctx:%d, sensor_pd: %d, stream_type: %d", ctx->state,
+		ctx->ctx_id, ctx_isp->sensor_pd, ctx_isp->stream_type);
 
 	return rc;
 }
@@ -11300,7 +11301,17 @@ static int cam_context_prepare_ul_request(struct cam_isp_context *ctx_isp)
 	}
 	req = list_first_entry(&cam_ctx->free_req_list, struct cam_ctx_request, list);
 
-	setting_id = ctx_isp->ul_data.sensor_applied_setting_id;
+	if (ctx_isp->sensor_pd == 1)
+		setting_id = cam_req_mgr_get_setting_id(cam_ctx->link_hdl);
+	else
+		setting_id = ctx_isp->ul_data.sensor_applied_setting_id;
+
+	if(!ctx_isp->setting_data[setting_id % MAX_SETTING_PACKETS].is_setting_valid) {
+		CAM_ERR(CAM_ISP, "No valid settings available to apply, setting_id: %d",
+			setting_id);
+		return -1;
+	}
+
 	req->request_id = setting_id;
 	req->status = 1;
 
@@ -11536,8 +11547,9 @@ static int cam_context_prepare_ul_request(struct cam_isp_context *ctx_isp)
 	atomic_set(&req->num_in_acked, 0);
 
 	mutex_lock(&ctx_isp->isp_mutex);
-		list_del_init(&req->list);
-		list_add_tail(&req->list, &cam_ctx->pending_req_list);
+	list_del_init(&req->list);
+	list_add_tail(&req->list, &cam_ctx->pending_req_list);
+	CAM_DBG(CAM_ISP, "Moving req: %u to pending list", req->request_id);
 	mutex_unlock(&ctx_isp->isp_mutex);
 	return 0;
 }

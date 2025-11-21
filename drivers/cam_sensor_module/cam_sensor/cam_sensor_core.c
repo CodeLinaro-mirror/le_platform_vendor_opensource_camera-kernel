@@ -214,7 +214,6 @@ static int cam_sensor_handle_event_info(
 {
 	int rc = 0, offset, i = 0, j = 0, k = 0;
 	struct cam_sensor_event_list *event_list = NULL;
-	struct cam_sensor_events *event_sequence;
 	uint32_t event_offset = event_info->event_offset;
 
 	if (!s_ctrl || !event_info) {
@@ -238,41 +237,85 @@ static int cam_sensor_handle_event_info(
 
 		CAM_DBG(CAM_SENSOR, "offset version: %u", version);
 
-		if (version > 1) {
+		if (version == 1) {
+			struct cam_sensor_events *event_sequence;
+			event_sequence = (struct cam_sensor_events *)((uint8_t*)event_info + event_offset);
+			event_list->event_info[i].event = event_sequence->event_name;
+			event_list->event_info[i].cmd_count = event_sequence->cmd_count;
+			event_list->event_info[i].event_arg_count = event_sequence->event_arg_count;
+			event_list->event_info[i].event_flag = event_sequence->event_flag &
+							CAM_SENSOR_CCI_CMD_EXEC_PARALLEL;
+
+			CAM_DBG(CAM_SENSOR, "event_name %d event_arg_count %d cmd count %d",
+						event_sequence->event_name,
+						event_sequence->event_arg_count,
+						event_sequence->cmd_count);
+
+			for (j = 0; j < event_sequence->event_arg_count; j++) {
+				event_list->event_info[i].event_arg_sequence[j].index =
+					event_sequence->event_arg_sequence[j];
+				CAM_DBG(CAM_SENSOR, "event_arg_sequence %d",
+					event_sequence->event_arg_sequence[j]);
+			}
+
+			for (k = 0; k < event_sequence->cmd_count; k++) {
+				event_list->event_info[i].cmd_sequence[k].index =
+					event_sequence->cmd_sequence[k];
+				event_list->event_info[i].cmd_sequence[k].cmd_flag =
+					event_sequence->cmd_flag[k] &
+					CAM_SENSOR_CCI_CMD_EXEC_PARALLEL;
+				CAM_DBG(CAM_SENSOR, "cmd_sequence %d",
+					event_sequence->cmd_sequence[k]);
+			}
+		        event_offset += sizeof(struct cam_sensor_events);
+		} else if (version == 2) {
+			struct cam_sensor_events_v2 *event_sequence;
+			event_sequence = (struct cam_sensor_events_v2 *)((uint8_t*)event_info + event_offset);
+			event_list->event_info[i].event = event_sequence->event_name;
+			event_list->event_info[i].cmd_count = event_sequence->cmd_count;
+			event_list->event_info[i].event_arg_count = event_sequence->event_arg_count;
+			event_list->event_info[i].event_flag = event_sequence->event_flag &
+							CAM_SENSOR_CCI_CMD_EXEC_PARALLEL;
+
+			CAM_DBG(CAM_SENSOR, "event_name %d event_arg_count %d cmd count %d",
+						event_sequence->event_name,
+						event_sequence->event_arg_count,
+						event_sequence->cmd_count);
+
+			uint32_t *event_arg_sequence = (uint32_t *)((uint8_t *)event_sequence +
+								event_sequence->event_arg_offset);
+
+			for (j = 0; j < event_sequence->event_arg_count; j++) {
+				event_list->event_info[i].event_arg_sequence[j].index =
+					event_arg_sequence[j];
+				CAM_DBG(CAM_SENSOR, "event_arg_sequence %d",
+					event_arg_sequence[j]);
+			}
+
+
+			uint32_t *cmd_flag = (uint32_t *)((uint8_t *)event_sequence +
+							event_sequence->cmd_flag_offset);
+			uint32_t *cmd_sequence = (uint32_t *)((uint8_t *)event_sequence +
+							event_sequence->cmd_sequence_offset);
+
+			for (k = 0; k < event_sequence->cmd_count; k++) {
+				event_list->event_info[i].cmd_sequence[k].index =
+					cmd_sequence[k];
+				event_list->event_info[i].cmd_sequence[k].cmd_flag =
+					cmd_flag[k] &
+					CAM_SENSOR_CCI_CMD_EXEC_PARALLEL;
+				CAM_DBG(CAM_SENSOR, "cmd_sequence %d",
+					cmd_sequence[k]);
+			}
+			event_offset += sizeof(struct cam_sensor_events_v2) +
+				(event_sequence->event_arg_count * sizeof(uint32_t)) +
+				(event_sequence->cmd_count * sizeof(uint32_t)) * 2;
+		} else {
 			CAM_ERR(CAM_SENSOR, "Invalid params: version %d",
 					version);
 			return -EINVAL;
 		}
 
-		event_sequence = (struct cam_sensor_events *)((uint8_t*)event_info + event_offset);
-		event_list->event_info[i].event = event_sequence->event_name;
-		event_list->event_info[i].cmd_count = event_sequence->cmd_count;
-		event_list->event_info[i].event_arg_count = event_sequence->event_arg_count;
-		event_list->event_info[i].event_flag = event_sequence->event_flag &
-						CAM_SENSOR_CCI_CMD_EXEC_PARALLEL;
-
-		CAM_DBG(CAM_SENSOR, "event_name %d event_arg_count %d cmd count %d",
-					event_sequence->event_name,
-					event_sequence->event_arg_count,
-					event_sequence->cmd_count);
-
-		for (j = 0; j < event_sequence->event_arg_count; j++) {
-			event_list->event_info[i].event_arg_sequence[j].index =
-				event_sequence->event_arg_sequence[j];
-			CAM_DBG(CAM_SENSOR, "event_arg_sequence %d",
-				event_sequence->event_arg_sequence[j]);
-		}
-
-		for (k = 0; k < event_sequence->cmd_count; k++) {
-			event_list->event_info[i].cmd_sequence[k].index =
-				event_sequence->cmd_sequence[k];
-			event_list->event_info[i].cmd_sequence[k].cmd_flag =
-				event_sequence->cmd_flag[k] &
-				CAM_SENSOR_CCI_CMD_EXEC_PARALLEL;
-			CAM_DBG(CAM_SENSOR, "cmd_sequence %d",
-				event_sequence->cmd_sequence[k]);
-		}
-	        event_offset += sizeof(struct cam_sensor_events);
 	}
 
 	return rc;
@@ -335,6 +378,53 @@ static int cam_sensor_handle_sync_cmd_info(
 		s_ctrl->sensor_name,
 		req_id,
 		sync_cmd_info->is_sync_cmd_enable);
+
+	return rc;
+}
+
+static int cam_sensor_handle_debug_event_info(
+	struct cam_sensor_debug_event_info *debug_info,
+	struct cam_sensor_ctrl_t *s_ctrl, uint64_t req_id,
+	struct cam_sensor_per_frame_event_data *event_data)
+{
+	int rc = 0;
+	char *debug_string;
+
+	if (!s_ctrl || !debug_info || !event_data) {
+		CAM_ERR(CAM_SENSOR, "Invalid params: debug_info: %s, s_ctrl: %s event_data: %s",
+			CAM_IS_NULL_TO_STR(debug_info),
+			CAM_IS_NULL_TO_STR(s_ctrl),
+			CAM_IS_NULL_TO_STR(event_data));
+		return -EINVAL;
+	}
+
+	if (debug_info->version > 1) {
+		CAM_ERR(CAM_SENSOR, "Invalid debug_info version %d", debug_info->version);
+		return -EINVAL;
+	}
+	/* Validate debug string offset and size */
+	if (debug_info->debug_string_offset == 0 ||
+		debug_info->debug_string_size == 0 ||
+		debug_info->debug_string_size > CAM_SENSOR_DEBUG_STRING_SIZE) {
+		CAM_ERR(CAM_SENSOR, "Invalid debug string parameters: offset=%u, size=%u",
+				debug_info->debug_string_offset, debug_info->debug_string_size);
+		return -EINVAL;
+	}
+
+	debug_string = (char *)((uint8_t*)debug_info + debug_info->debug_string_offset);
+
+	event_data->trigger_sensor_cmd_buf_info.debug_info.debug_id = debug_info->debug_id;
+	event_data->trigger_sensor_cmd_buf_info.debug_info.debug_string_size = debug_info->debug_string_size;
+	snprintf(event_data->trigger_sensor_cmd_buf_info.debug_info.debug_string,
+					debug_info->debug_string_size, "%s", debug_string);
+	event_data->cmd_type = CAM_SENSOR_CMD_TYPE_DEBUG_CMD;
+	CAM_DBG(CAM_SENSOR,
+		"Sensor[%s] reqId: %llu debugid %d size %d debug string %s",
+		s_ctrl->sensor_name,
+		req_id,
+		debug_info->debug_id,
+		debug_info->debug_string_size,
+		debug_string);
 
 	return rc;
 }
@@ -640,6 +730,21 @@ static int32_t cam_sensor_generic_blob_handler(void *user_data,
 		rc = cam_sensor_handle_sync_cmd_info(sync_cmd_info, s_ctrl, req_id, event_data);
 		break;
 	}
+	case CAM_SENSOR_GENERIC_BLOB_DEBUG_CMD_INFO: {
+		// Debug info blob type cmd buffer
+		struct cam_sensor_debug_event_info *debug_cmd_info =
+			(struct cam_sensor_debug_event_info *) blob_data;
+		event_data = s_userdata->event_data;
+
+		if (blob_size < sizeof(struct cam_sensor_debug_event_info)) {
+			CAM_ERR(CAM_SENSOR, "Invalid blob size expected: 0x%x actual: 0x%x",
+				sizeof(struct cam_sensor_debug_event_info), blob_size);
+			return -EINVAL;
+		}
+
+		rc = cam_sensor_handle_debug_event_info(debug_cmd_info, s_ctrl, req_id, event_data);
+		break;
+	}
 	case CAM_SENSOR_GENERIC_BLOB_EVENT_INFO: {
 		// Event data blob type cmd buffer
 		struct cam_sensor_event_info *event_info =
@@ -649,6 +754,7 @@ static int32_t cam_sensor_generic_blob_handler(void *user_data,
 				sizeof(struct cam_sensor_event_info), blob_size);
 			return -EINVAL;
 		}
+
 		rc = cam_sensor_handle_event_info(event_info, s_ctrl, req_id);
 		break;
 	}

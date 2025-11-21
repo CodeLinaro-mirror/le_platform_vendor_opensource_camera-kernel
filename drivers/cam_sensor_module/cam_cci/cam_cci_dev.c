@@ -28,6 +28,102 @@ struct v4l2_subdev *cam_cci_get_subdev(int cci_dev_index)
 	return sub_device;
 }
 
+static int32_t cam_cci_event_workq_cb(void *priv, void *data)
+{
+	struct cci_event_wq_payload *payload = (struct cci_event_wq_payload *)data;
+
+	if (!payload) {
+		CAM_ERR(CAM_CCI, "Invalid payload for kfree worker");
+		return -EINVAL;
+	}
+
+	/* Free the copied debug string */
+	if (payload->debug_string) {
+		CAM_DBG(CAM_CCI, "Ctx:%u Timestamp:%llu string: %s size: %d report_id: %d",
+			payload->context_id, payload->timestamp, payload->debug_string,
+			payload->debug_string_size, payload->report_id);
+		kfree(payload->debug_string);
+	}
+
+	/* Free the original entry structure*/
+	if (payload->entry) {
+		if (payload->entry->debug_string) {
+			kfree(payload->entry->debug_string);
+		} else {
+			CAM_ERR(CAM_CCI, "debug string not exist");
+		}
+		kfree(payload->entry);
+	}
+
+	kfree(payload);
+	return 0;
+}
+
+
+static void cam_cci_schedule_event_wq(struct cci_device *cci_dev, char *debug_string,
+	uint32_t debug_string_size, uint32_t context_id, uint32_t report_id,
+        uint64_t timestamp, struct cam_cci_debug_entry *entry)
+{
+	struct cci_event_wq_payload *payload;
+	struct crm_worker_task *task;
+	int rc;
+
+	if (!debug_string || !debug_string_size || !cci_dev || !cci_dev->cci_event_worker)
+		return;
+
+	payload = kzalloc(sizeof(*payload), GFP_ATOMIC);
+	if (!payload) {
+		/* Fallback: log the issue but don't free in interrupt context */
+		CAM_ERR(CAM_CCI, "CCI%d Failed to allocate kfree payload, memory leak in path",
+			cci_dev->soc_info.index);
+		kfree(debug_string);
+		return;
+	}
+
+	payload->debug_string = debug_string;
+	payload->debug_string_size = debug_string_size;
+	payload->context_id = context_id;
+	payload->report_id = report_id;
+	payload->timestamp = timestamp;
+	payload->entry = entry;
+	task = cam_req_mgr_worker_get_task(cci_dev->cci_event_worker);
+	if (!task) {
+		CAM_ERR(CAM_CCI, "CCI%d Failed to get worker task, memory leak in path",
+			cci_dev->soc_info.index);
+		if (payload->debug_string)
+			kfree(payload->debug_string);
+		if (payload->entry) {
+			if (payload->entry->debug_string) {
+				kfree(payload->entry->debug_string);
+			} else {
+				CAM_ERR(CAM_CCI, "debug string not exist");
+			}
+			kfree(payload->entry);
+		}
+		kfree(payload);
+		return;
+	}
+	task->process_cb = cam_cci_event_workq_cb;
+	task->payload = payload;
+
+	rc = cam_req_mgr_worker_enqueue_task(task, cci_dev, CRM_TASK_PRIORITY_0);
+	if (rc) {
+		CAM_ERR(CAM_CCI, "CCI%d Failed to enqueue kfree task, memory leak in path",
+			cci_dev->soc_info.index);
+		if (payload->debug_string)
+			kfree(payload->debug_string);
+		if (payload->entry) {
+			if (payload->entry->debug_string) {
+				kfree(payload->entry->debug_string);
+			} else {
+				CAM_ERR(CAM_CCI, "debug string not exist");
+			}
+			kfree(payload->entry);
+		}
+		kfree(payload);
+	}
+}
+
 static long cam_cci_subdev_ioctl(struct v4l2_subdev *sd,
 	unsigned int cmd, void *arg)
 {
@@ -205,6 +301,30 @@ irqreturn_t cam_cci_irq(int irq_num, void *data)
 	}
 	if (irq_status0 & CCI_IRQ_STATUS_0_I2C_M0_Q0_REPORT_BMSK) {
 		struct cam_cci_master_info *cci_master_info;
+		if (cci_dev->en_cci_event_debug && cci_dev->cci_event_worker) {
+			uint32_t report_id = 0xF & ((cam_io_r_mb(base + CCI_I2C_M0_Q0_REPORT_STATUS_ADDR)) >> 28);
+			char *debug_string = NULL;
+			uint32_t debug_string_size = 0;
+			uint32_t context_id = cam_cci_find_context_for_i2c_queue(cci_dev, MASTER_0, QUEUE_0);
+
+			if (context_id < CONTEXT_ID_MAX) {
+				/* Pop debug string from I2C list queue with dynamic allocation */
+				struct cam_cci_debug_entry *entry = NULL;
+				int ret = cam_cci_debug_cmd_pop(&cci_dev->context_debug_info[context_id].i2c_debug_list[MASTER_0][QUEUE_0],
+						&debug_string, &debug_string_size, &entry);
+				uint64_t curr_timestamp = arch_timer_read_counter();
+
+				if (ret == 0 && debug_string_size > 0 && debug_string) {
+					cam_cci_schedule_event_wq(cci_dev, debug_string, debug_string_size, context_id,
+									report_id, curr_timestamp, entry);
+				} else if (ret == -ENOMEM) {
+					CAM_ERR(CAM_CCI, "CCI_IRQ_STATUS_I2C_M0_Q0_REPORT_BMSK Ctx:%u Memory allocation failed", context_id);
+				} else {
+					CAM_ERR(CAM_CCI, "CCI_IRQ_STATUS_I2C_M0_Q0_REPORT_BMSK Ctx:%u report_id %u no string",
+								context_id, report_id);
+				}
+			}
+		}
 
 		cci_master_info = &cci_dev->cci_master_info[MASTER_0];
 		spin_lock_irqsave(
@@ -222,6 +342,31 @@ irqreturn_t cam_cci_irq(int irq_num, void *data)
 	}
 	if (irq_status0 & CCI_IRQ_STATUS_0_I2C_M0_Q1_REPORT_BMSK) {
 		struct cam_cci_master_info *cci_master_info;
+		if (cci_dev->en_cci_event_debug && cci_dev->cci_event_worker) {
+			uint32_t reg_offset = MASTER_0 * 0x200 + QUEUE_1 * 0x100;
+			uint32_t report_id = 0xF & ((cam_io_r_mb(base + CCI_I2C_M0_Q0_REPORT_STATUS_ADDR + reg_offset)) >> 28);
+			char *debug_string = NULL;
+			uint32_t debug_string_size = 0;
+			uint32_t context_id = cam_cci_find_context_for_i2c_queue(cci_dev, MASTER_0, QUEUE_1);
+
+			if (context_id < CONTEXT_ID_MAX) {
+				/* Pop debug string from I2C list queue with dynamic allocation */
+				struct cam_cci_debug_entry *entry = NULL;
+				int ret = cam_cci_debug_cmd_pop(&cci_dev->context_debug_info[context_id].i2c_debug_list[MASTER_0][QUEUE_1],
+						&debug_string, &debug_string_size, &entry);
+				uint64_t curr_timestamp = arch_timer_read_counter();
+
+				if (ret == 0 && debug_string_size > 0 && debug_string) {
+					cam_cci_schedule_event_wq(cci_dev, debug_string, debug_string_size, context_id,
+									report_id, curr_timestamp, entry);
+				} else if (ret == -ENOMEM) {
+					CAM_ERR(CAM_CCI, "CCI_IRQ_STATUS_I2C_M0_Q1_REPORT_BMSK Ctx:%u Memory allocation failed", context_id);
+				} else {
+					CAM_ERR(CAM_CCI, "CCI_IRQ_STATUS_I2C_M0_Q1_REPORT_BMSK Ctx:%u report_id %u no string",
+								context_id, report_id);
+				}
+			}
+		}
 
 		cci_master_info = &cci_dev->cci_master_info[MASTER_0];
 		spin_lock_irqsave(
@@ -239,8 +384,30 @@ irqreturn_t cam_cci_irq(int irq_num, void *data)
 	}
 	if (irq_status1 & CCI_IRQ_STATUS_1_GPIO_Q0_REPORT_BMSK) {
 		struct cam_cci_gpio_info *cci_gpio_info;
+		if (cci_dev->en_cci_event_debug && cci_dev->cci_event_worker) {
+			uint32_t report_id = 0xF & ((cam_io_r_mb(base + CCI_GPIO_Q0_REPORT_STATUS_ADDR)) >> 28);
+			char *debug_string = NULL;
+			uint32_t debug_string_size = 0;
+			uint32_t context_id = cam_cci_find_context_for_gpio_queue(cci_dev, GPIOQUEUE_0);
 
-		CAM_DBG(CAM_CCI, "CCI_IRQ_STATUS_1_GPIO_Q0_REPORT_BMSK");
+			if (context_id < CONTEXT_ID_MAX) {
+				/* Pop debug string from list queue with dynamic allocation */
+				struct cam_cci_debug_entry *entry = NULL;
+				int ret = cam_cci_debug_cmd_pop(&cci_dev->context_debug_info[context_id].gpio_debug_list[GPIOQUEUE_0],
+						&debug_string, &debug_string_size, &entry);
+				uint64_t curr_timestamp = arch_timer_read_counter();
+
+				if (ret == 0 && debug_string_size > 0 && debug_string) {
+					cam_cci_schedule_event_wq(cci_dev, debug_string, debug_string_size, context_id,
+									report_id, curr_timestamp, entry);
+				} else if (ret == -ENOMEM) {
+					CAM_ERR(CAM_CCI, "CCI_IRQ_STATUS_GPIO_Q0_REPORT_BMSK Ctx:%u Memory allocation failed", context_id);
+				} else {
+					CAM_ERR(CAM_CCI, "CCI_IRQ_STATUS_GPIO_Q0_REPORT_BMSK Ctx:%u report_id %u no string",
+								context_id, report_id);
+				}
+			}
+		}
 
 		cci_gpio_info = &cci_dev->cci_gpio_info;
 		spin_lock_irqsave(
@@ -254,8 +421,31 @@ irqreturn_t cam_cci_irq(int irq_num, void *data)
 	}
 	if (irq_status1 & CCI_IRQ_STATUS_1_GPIO_Q1_REPORT_BMSK) {
 		struct cam_cci_gpio_info *cci_gpio_info;
+		if (cci_dev->en_cci_event_debug && cci_dev->cci_event_worker) {
+			uint32_t reg_offset = GPIOQUEUE_1 * 0x100;
+			uint32_t report_id = 0xF & ((cam_io_r_mb(base + CCI_GPIO_Q0_REPORT_STATUS_ADDR + reg_offset)) >> 28);
+			char *debug_string = NULL;
+			uint32_t debug_string_size = 0;
+			uint32_t context_id = cam_cci_find_context_for_gpio_queue(cci_dev, GPIOQUEUE_1);
 
-		CAM_DBG(CAM_CCI, "CCI_IRQ_STATUS_1_GPIO_Q1_REPORT_BMSK");
+			if (context_id < CONTEXT_ID_MAX) {
+				/* Pop debug string from list queue with dynamic allocation */
+				struct cam_cci_debug_entry *entry = NULL;
+				int ret = cam_cci_debug_cmd_pop(&cci_dev->context_debug_info[context_id].gpio_debug_list[GPIOQUEUE_1],
+						&debug_string, &debug_string_size, &entry);
+				uint64_t curr_timestamp = arch_timer_read_counter();
+
+				if (ret == 0 && debug_string_size > 0 && debug_string) {
+					cam_cci_schedule_event_wq(cci_dev, debug_string, debug_string_size, context_id,
+									report_id, curr_timestamp, entry);
+				} else if (ret == -ENOMEM) {
+					CAM_ERR(CAM_CCI, "CCI_IRQ_STATUS_GPIO_Q1_REPORT_BMSK Ctx:%u Memory allocation failed", context_id);
+				} else {
+					CAM_ERR(CAM_CCI, "CCI_IRQ_STATUS_GPIO_Q1_REPORT_BMSK Ctx:%u report_id %u no string",
+								context_id, report_id);
+				}
+			}
+		}
 
 		cci_gpio_info = &cci_dev->cci_gpio_info;
 		spin_lock_irqsave(
@@ -269,8 +459,31 @@ irqreturn_t cam_cci_irq(int irq_num, void *data)
 	}
 	if (irq_status1 & CCI_IRQ_STATUS_1_GPIO_Q2_REPORT_BMSK) {
 		struct cam_cci_gpio_info *cci_gpio_info;
+		if (cci_dev->en_cci_event_debug && cci_dev->cci_event_worker) {
+			uint32_t reg_offset = GPIOQUEUE_2 * 0x100;
+			uint32_t report_id = 0xF & ((cam_io_r_mb(base + CCI_GPIO_Q0_REPORT_STATUS_ADDR + reg_offset)) >> 28);
+			char *debug_string = NULL;
+			uint32_t debug_string_size = 0;
+			uint32_t context_id = cam_cci_find_context_for_gpio_queue(cci_dev, GPIOQUEUE_2);
 
-		CAM_DBG(CAM_CCI, "CCI_IRQ_STATUS_1_GPIO_Q2_REPORT_BMSK");
+			if (context_id < CONTEXT_ID_MAX) {
+				/* Pop debug string from list queue with dynamic allocation */
+				struct cam_cci_debug_entry *entry = NULL;
+				int ret = cam_cci_debug_cmd_pop(&cci_dev->context_debug_info[context_id].gpio_debug_list[GPIOQUEUE_2],
+						&debug_string, &debug_string_size, &entry);
+				uint64_t curr_timestamp = arch_timer_read_counter();
+
+				if (ret == 0 && debug_string_size > 0 && debug_string) {
+					cam_cci_schedule_event_wq(cci_dev, debug_string, debug_string_size, context_id,
+									report_id, curr_timestamp, entry);
+				} else if (ret == -ENOMEM) {
+					CAM_ERR(CAM_CCI, "CCI_IRQ_STATUS_GPIO_Q2_REPORT_BMSK Ctx:%u Memory allocation failed", context_id);
+				} else {
+					CAM_ERR(CAM_CCI, "CCI_IRQ_STATUS_GPIO_Q2_REPORT_BMSK Ctx:%u report_id %u no string",
+								context_id, report_id);
+				}
+			}
+		}
 
 		cci_gpio_info = &cci_dev->cci_gpio_info;
 		spin_lock_irqsave(
@@ -307,7 +520,31 @@ irqreturn_t cam_cci_irq(int irq_num, void *data)
 	}
 	if (irq_status0 & CCI_IRQ_STATUS_0_I2C_M1_Q0_REPORT_BMSK) {
 		struct cam_cci_master_info *cci_master_info;
+		if (cci_dev->en_cci_event_debug && cci_dev->cci_event_worker) {
+			uint32_t reg_offset = MASTER_1 * 0x200 + QUEUE_0 * 0x100;
+			uint32_t report_id = 0xF & ((cam_io_r_mb(base + CCI_I2C_M0_Q0_REPORT_STATUS_ADDR + reg_offset)) >> 28);
+			char *debug_string = NULL;
+			uint32_t debug_string_size = 0;
+			uint32_t context_id = cam_cci_find_context_for_i2c_queue(cci_dev, MASTER_1, QUEUE_0);
 
+			if (context_id < CONTEXT_ID_MAX) {
+				/* Pop debug string from I2C list queue with dynamic allocation */
+				struct cam_cci_debug_entry *entry = NULL;
+				int ret = cam_cci_debug_cmd_pop(&cci_dev->context_debug_info[context_id].i2c_debug_list[MASTER_1][QUEUE_0],
+						&debug_string, &debug_string_size, &entry);
+				uint64_t curr_timestamp = arch_timer_read_counter();
+
+				if (ret == 0 && debug_string_size > 0 && debug_string) {
+					cam_cci_schedule_event_wq(cci_dev, debug_string, debug_string_size, context_id,
+									report_id, curr_timestamp, entry);
+				} else if (ret == -ENOMEM) {
+					CAM_ERR(CAM_CCI, "CCI_IRQ_STATUS_I2C_M1_Q0_REPORT_BMSK Ctx:%u Memory allocation failed", context_id);
+				} else {
+					CAM_ERR(CAM_CCI, "CCI_IRQ_STATUS_I2C_M1_Q0_REPORT_BMSK Ctx:%u report_id %u no string",
+							context_id, report_id);
+				}
+			}
+		}
 		cci_master_info = &cci_dev->cci_master_info[MASTER_1];
 		spin_lock_irqsave(
 			&cci_dev->cci_master_info[MASTER_1].lock_q[QUEUE_0],
@@ -324,6 +561,31 @@ irqreturn_t cam_cci_irq(int irq_num, void *data)
 	}
 	if (irq_status0 & CCI_IRQ_STATUS_0_I2C_M1_Q1_REPORT_BMSK) {
 		struct cam_cci_master_info *cci_master_info;
+		if (cci_dev->en_cci_event_debug && cci_dev->cci_event_worker) {
+			uint32_t reg_offset = MASTER_1 * 0x200 + QUEUE_1 * 0x100;
+			uint32_t report_id = 0xF & ((cam_io_r_mb(base + CCI_I2C_M0_Q0_REPORT_STATUS_ADDR + reg_offset)) >> 28);
+			char *debug_string = NULL;
+			uint32_t debug_string_size = 0;
+			uint32_t context_id = cam_cci_find_context_for_i2c_queue(cci_dev, MASTER_1, QUEUE_1);
+
+			if (context_id < CONTEXT_ID_MAX) {
+				/* Pop debug string from I2C list queue with dynamic allocation */
+				struct cam_cci_debug_entry *entry = NULL;
+				int ret = cam_cci_debug_cmd_pop(&cci_dev->context_debug_info[context_id].i2c_debug_list[MASTER_1][QUEUE_1],
+						&debug_string, &debug_string_size, &entry);
+				uint64_t curr_timestamp = arch_timer_read_counter();
+
+				if (ret == 0 && debug_string_size > 0 && debug_string) {
+					cam_cci_schedule_event_wq(cci_dev, debug_string, debug_string_size, context_id,
+									report_id, curr_timestamp, entry);
+				} else if (ret == -ENOMEM) {
+					CAM_ERR(CAM_CCI, "CCI_IRQ_STATUS_I2C_M1_Q1_REPORT_BMSK Ctx:%u Memory allocation failed", context_id);
+				} else {
+					CAM_ERR(CAM_CCI, "CCI_IRQ_STATUS_I2C_M1_Q1_REPORT_BMSK Ctx:%u report_id %u no string",
+							context_id, report_id);
+				}
+			}
+		}
 
 		cci_master_info = &cci_dev->cci_master_info[MASTER_1];
 		spin_lock_irqsave(

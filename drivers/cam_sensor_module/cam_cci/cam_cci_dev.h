@@ -83,6 +83,10 @@
 #define CCI_VERSION_1_2_9 0x10020009
 #define CCI_VERSION_1_11_0 0x100B0000
 #define REPORT_IDSIZE 16
+
+/* GPIO Debug list Queue Configuration */
+#define CCI_DEBUG_LIST_MAX_SIZE 50
+
 enum cci_i2c_sync {
 	MSM_SYNC_DISABLE,
 	MSM_SYNC_ENABLE,
@@ -163,6 +167,42 @@ struct cam_cci_queue_info {
 struct cam_cci_initialize_queue_status {
 	bool is_i2c_queue_initialize;
 	bool is_gpio_queue_initialize;
+};
+
+/**
+ * struct cam_cci_debug_entry - Single debug string entry in list
+ * @debug_string: Debug string content
+ * @debug_string_size: Size of the debug string
+ * @list: List node for list queue
+ */
+struct cam_cci_debug_entry {
+    char *debug_string;
+    uint32_t debug_string_size;
+    struct list_head list;
+};
+
+/**
+ * struct cam_cci_debug_list- list queue for debug strings
+ * @debug_list: List head for list queue
+ * @dbg_lock: Spinlock for thread-safe access (IRQ context safe)
+ * @entry_count: Current number of entries in list
+ * @max_entries: Maximum allowed entries
+ */
+struct cam_cci_debug_list {
+    struct list_head debug_list;
+    spinlock_t dbg_lock;
+    uint32_t entry_count;
+    uint32_t max_entries;
+};
+
+/**
+ * struct cam_cci_context_debug_info - Debug information per context ID
+ * @gpio_debug_list: GPIO debug list for each GPIO queue
+ * @i2c_debug_list: I2C debug list for each master and queue combination
+ */
+struct cam_cci_context_debug_info {
+    struct cam_cci_debug_list gpio_debug_list[NUM_GPIO_QUEUES];
+    struct cam_cci_debug_list i2c_debug_list[MASTER_MAX][NUM_QUEUES];
 };
 
 struct cam_cci_read_cfg {
@@ -250,6 +290,15 @@ struct cam_cci_slave_context_data {
 	struct list_head list;
 };
 
+struct cci_event_wq_payload {
+	char     *debug_string;
+	uint32_t debug_string_size;
+	uint32_t context_id;
+	uint32_t report_id;
+	uint64_t timestamp;
+	struct   cam_cci_debug_entry *entry;
+};
+
 /**
  * struct cci_device
  * @pdev:                       Platform device
@@ -284,7 +333,7 @@ struct cam_cci_slave_context_data {
  * @cycles_per_us:              Cycles per micro sec
  * @payload_size:               CCI packet payload size
  * @irq_status1:                Store irq_status1 to be cleared after
- *                              draining FIFO buffer for burst read
+ *                              draining  FIFO buffer for burst read
  * @lock_status:                to protect changes to irq_status1
  * @is_burst_read:              Flag to determine if we are performing
  *                              a burst read operation or not
@@ -340,7 +389,9 @@ struct cci_device {
 	uint32_t gpio_offset;
 	bool is_contextid_acquire[CONTEXT_ID_MAX];
 	bool en_cci_event_debug;
+	struct cam_cci_context_debug_info context_debug_info[CONTEXT_ID_MAX];
 	struct list_head trigger_ctx_array[CONTEXT_ID_MAX];
+	struct cam_req_mgr_core_worker *cci_event_worker;
 };
 
 enum cam_cci_i2c_cmd_type {
@@ -419,6 +470,15 @@ struct v4l2_subdev *cam_cci_get_subdev(int cci_dev_index);
 void cam_cci_dump_registers(struct cci_device *cci_dev,
 		enum cci_i2c_master_t master, enum cci_i2c_queue_t queue);
 
+int cam_cci_debug_cmd_pop(struct cam_cci_debug_list *list,
+		char **debug_string, uint32_t *debug_string_size,
+		struct cam_cci_debug_entry **entry_out);
+
+uint32_t cam_cci_find_context_for_gpio_queue(struct cci_device *cci_dev,
+		enum cci_gpio_queue_t queue);
+
+uint32_t cam_cci_find_context_for_i2c_queue(struct cci_device *cci_dev,
+		enum cci_i2c_master_t master, enum cci_i2c_queue_t queue);
 /**
  * @brief : API to register CCI hw to platform framework.
  * @return struct platform_device pointer on on success, or ERR_PTR() on error.

@@ -195,6 +195,174 @@ static int cam_gpio_init(
 	return rc;
 }
 
+/**
+ * cam_cci_push_debug_string - Add debug string to list tail
+ * @list: Pointer to list structure
+ * @debug_string: Debug string to add
+ * @debug_string_size: Size of debug string
+ */
+static int cam_cci_push_debug_string(struct cam_cci_debug_list *list,
+	const char *debug_string,
+	uint32_t debug_string_size)
+{
+	struct cam_cci_debug_entry *entry;
+	unsigned long flags;
+
+	if (!list || !debug_string) {
+		CAM_ERR(CAM_CCI, "Invalid parameters");
+		return -EINVAL;
+	}
+
+	/* Allocate new entry */
+	entry = kzalloc(sizeof(*entry), GFP_ATOMIC);
+	if (!entry) {
+		CAM_ERR(CAM_CCI, "Failed to allocate debug entry");
+		return -ENOMEM;
+	}
+
+	/* Initialize entry */
+	entry->debug_string_size = debug_string_size;
+	entry->debug_string = kzalloc(debug_string_size, GFP_ATOMIC);
+	if (!entry->debug_string) {
+		kfree(entry);
+		CAM_ERR(CAM_CCI, "Failed to allocate debug string");
+		return -ENOMEM;
+	}
+	snprintf(entry->debug_string, debug_string_size, "%s", debug_string);
+	INIT_LIST_HEAD(&entry->list);
+
+	spin_lock_irqsave(&list->dbg_lock, flags);
+
+	/* Check if list is full - remove oldest entry (head) */
+	if (list->entry_count >= list->max_entries) {
+		struct cam_cci_debug_entry *oldest_entry;
+
+		if (!list_empty(&list->debug_list)) {
+			oldest_entry = list_first_entry(&list->debug_list,
+				struct cam_cci_debug_entry, list);
+			list_del(&oldest_entry->list);
+			kfree(oldest_entry->debug_string);
+			kfree(oldest_entry);
+			list->entry_count--;
+			CAM_DBG(CAM_CCI, "list full, removed oldest entry");
+		}
+	}
+
+	/* Add new entry to tail (list behavior) */
+	list_add_tail(&entry->list, &list->debug_list);
+	list->entry_count++;
+
+	spin_unlock_irqrestore(&list->dbg_lock, flags);
+
+	CAM_DBG(CAM_CCI, "Added debug string to list: %s (count: %u)",
+			debug_string, list->entry_count);
+
+	return 0;
+}
+
+/**
+ * cam_cci_release_debug_cmd - Clean up list and free all entries
+ * @list: Pointer to list structure
+ */
+static void cam_cci_release_debug_cmd(
+	struct cam_cci_debug_list *list)
+{
+	struct cam_cci_debug_entry *entry, *temp;
+	unsigned long flags;
+	uint32_t count = 0;
+
+	if (!list) {
+		CAM_ERR(CAM_CCI, "Invalid list pointer");
+		return;
+	}
+
+	spin_lock_irqsave(&list->dbg_lock, flags);
+
+	/* Check if list is empty before attempting to iterate */
+	if (list_empty(&list->debug_list)) {
+		spin_unlock_irqrestore(&list->dbg_lock, flags);
+		CAM_DBG(CAM_CCI, "Debug list is already empty");
+		return;
+	}
+
+	list_for_each_entry_safe(entry, temp, &list->debug_list, list) {
+		list_del(&entry->list);
+		kfree(entry->debug_string);
+		kfree(entry);
+		count++;
+	}
+
+	list->entry_count = 0;
+
+	spin_unlock_irqrestore(&list->dbg_lock, flags);
+
+	if (count > 0) {
+		CAM_DBG(CAM_CCI, "Cleaned up %u debug entries from list", count);
+	}
+}
+
+/**
+ * cam_cci_debug_cmd_pop - Remove and return oldest debug string from list
+ * @list: Pointer to list structure
+ * @debug_string: Pointer to store dynamically allocated debug string
+ * @debug_string_size: Pointer to store actual debug string size
+ */
+int cam_cci_debug_cmd_pop(struct cam_cci_debug_list *list,
+	char **debug_string, uint32_t *debug_string_size,
+	struct cam_cci_debug_entry **entry_out)
+{
+	struct cam_cci_debug_entry *entry;
+	unsigned long flags;
+	int ret = -ENOENT;
+
+	if (!list || !debug_string || !debug_string_size || !entry_out) {
+		CAM_ERR(CAM_CCI, "Invalid parameters");
+		return -EINVAL;
+	}
+
+	*debug_string = NULL;
+	*debug_string_size = 0;
+	*entry_out = NULL;
+
+	spin_lock_irqsave(&list->dbg_lock, flags);
+
+	if (!list_empty(&list->debug_list)) {
+		/* Get oldest entry (head of list) */
+		entry = list_first_entry(&list->debug_list,
+				struct cam_cci_debug_entry, list);
+
+		/* Allocate memory for debug string with exact size */
+		*debug_string_size = entry->debug_string_size;
+		*debug_string = kzalloc(*debug_string_size, GFP_ATOMIC);
+
+		if (*debug_string) {
+			/* Copy debug string */
+			snprintf(*debug_string, *debug_string_size, "%s", entry->debug_string);
+			ret = 0;
+		} else {
+			CAM_ERR(CAM_CCI, "Failed to allocate memory for debug string (size: %u)",
+					*debug_string_size);
+			*debug_string_size = 0;
+			ret = -ENOMEM;
+		}
+
+		/* Remove entry from list */
+		list_del(&entry->list);
+		list->entry_count--;
+
+		/*
+		 * CRITICAL: Do NOT call kfree here - we're in interrupt context!
+		 * Return the entry pointer so it can be freed in process context
+		 * by the worker thread.
+		 */
+		*entry_out = entry;
+	}
+
+	spin_unlock_irqrestore(&list->dbg_lock, flags);
+
+	return ret;
+}
+
 static int cam_cci_create_context_id(
 	struct cci_device *cci_dev,
 	struct cam_cci_ctrl *c_ctrl,
@@ -338,6 +506,48 @@ static struct cam_cci_slave_context_data *cam_cci_get_context(
 	return matched_entry;
 }
 
+uint32_t cam_cci_find_context_for_i2c_queue(struct cci_device *cci_dev,
+	enum cci_i2c_master_t master, enum cci_i2c_queue_t queue)
+{
+	int i;
+	struct list_head *pos = NULL;
+	struct cam_cci_slave_context_data *entry = NULL;
+
+	for (i = 0; i < CONTEXT_ID_MAX; i++) {
+		if (!cci_dev->is_contextid_acquire[i])
+			continue;
+
+		list_for_each(pos, &cci_dev->trigger_ctx_array[i]) {
+			entry = list_entry(pos, struct cam_cci_slave_context_data, list);
+			if (entry->master == master && entry->i2cqueue == queue) {
+				return i;
+			}
+		}
+	}
+	return CONTEXT_ID_MAX; // Invalid context
+}
+
+uint32_t cam_cci_find_context_for_gpio_queue(struct cci_device *cci_dev,
+	enum cci_gpio_queue_t gpioqueue)
+{
+	int i;
+	struct list_head *pos = NULL;
+	struct cam_cci_slave_context_data *entry = NULL;
+
+	for (i = 0; i < CONTEXT_ID_MAX; i++) {
+		if (!cci_dev->is_contextid_acquire[i])
+			continue;
+
+		list_for_each(pos, &cci_dev->trigger_ctx_array[i]) {
+			entry = list_entry(pos, struct cam_cci_slave_context_data, list);
+			if (entry->gpioqueue == gpioqueue) {
+				return i;
+			}
+		}
+	}
+	return CONTEXT_ID_MAX; // Invalid context
+}
+
 static void cam_cci_gpio_flush_queue(struct cci_device *cci_dev,
 	uint32_t context_id)
 {
@@ -455,57 +665,79 @@ static int cam_cci_release_context_data(
 {
 	struct list_head *pos = NULL, *pos_next = NULL;
 	struct cam_cci_slave_context_data *entry = NULL;
-	struct cam_cci_slave_context_data *get_ctx = cam_cci_get_context(cci_dev, contextId);
-	enum cci_i2c_queue_t i2cqueue = get_ctx->i2cqueue;
+	struct cam_cci_master_info *cci_master_info;
+	struct cam_cci_gpio_info *cci_gpio_info;
+	int i, j;
 	struct cam_hw_soc_info *soc_info =
 		&cci_dev->soc_info;
 	void __iomem *base = soc_info->reg_map[0].mem_base;
-	uint32_t reg_offset = master * 0x200 + i2cqueue * 0x100, read_val = 0;
-	uint32_t reg_gpio_offset = get_ctx->gpioqueue * 0x100;
-	struct cam_cci_master_info *cci_master_info;
-	struct cam_cci_gpio_info *cci_gpio_info;
 
-	if (!get_ctx) {
-		CAM_ERR(CAM_CCI, "Invalid contextId");
-		return -EINVAL;
-	}
+	struct cam_cci_slave_context_data *get_ctx = cam_cci_get_context(cci_dev, contextId);
 
 	CAM_DBG(CAM_CCI, "contextId: %d", contextId);
 
 	cci_master_info = &cci_dev->cci_master_info[master];
 	cci_gpio_info = &cci_dev->cci_gpio_info;
 
-	mutex_lock(&cci_master_info->mutex_q[i2cqueue]);
-	read_val = cam_io_r_mb(base +
-		CCI_I2C_M0_Q0_CUR_WORD_CNT_ADDR + reg_offset);
-	CAM_DBG(CAM_CCI, "i2c cmd cnt %d during contextid release", read_val);
-	if (read_val > 0)
-		cam_cci_flush_queue(cci_dev, master);
-	mutex_unlock(&cci_master_info->mutex_q[i2cqueue]);
+	/* If get_ctx is NULL, we still need to clean up the context data structures */
+	if (get_ctx) {
+		enum cci_i2c_queue_t i2cqueue = get_ctx->i2cqueue;
+		uint32_t reg_offset = master * 0x200 + i2cqueue * 0x100, read_val = 0;
+		uint32_t reg_gpio_offset = get_ctx->gpioqueue * 0x100;
 
-	mutex_lock(&cci_gpio_info->mutex_q[get_ctx->gpioqueue]);
-	read_val = cam_io_r_mb(base +
-		CCI_GPIO_Q0_CUR_WORD_CNT_ADDR + reg_gpio_offset);
-	CAM_DBG(CAM_CCI, "gpio cmd cnt %d during contextid release", read_val);
-	if (read_val > 0)
-		cam_cci_gpio_flush_queue(cci_dev, contextId);
-	mutex_unlock(&cci_gpio_info->mutex_q[get_ctx->gpioqueue]);
+		mutex_lock(&cci_master_info->mutex_q[i2cqueue]);
+		read_val = cam_io_r_mb(base +
+			CCI_I2C_M0_Q0_CUR_WORD_CNT_ADDR + reg_offset);
+		CAM_DBG(CAM_CCI, "i2c cmd cnt %d during contextid release", read_val);
+		if (read_val > 0)
+			cam_cci_flush_queue(cci_dev, master);
+		mutex_unlock(&cci_master_info->mutex_q[i2cqueue]);
 
-	get_ctx->gpio_queue_cmd_size = 0;
-	get_ctx->i2c_queue_cmd_size = 0;
+		mutex_lock(&cci_gpio_info->mutex_q[get_ctx->gpioqueue]);
+		read_val = cam_io_r_mb(base +
+			CCI_GPIO_Q0_CUR_WORD_CNT_ADDR + reg_gpio_offset);
+		CAM_DBG(CAM_CCI, "gpio cmd cnt %d during contextid release", read_val);
+		if (read_val > 0)
+			cam_cci_gpio_flush_queue(cci_dev, contextId);
+		mutex_unlock(&cci_gpio_info->mutex_q[get_ctx->gpioqueue]);
 
+		get_ctx->gpio_queue_cmd_size = 0;
+		get_ctx->i2c_queue_cmd_size = 0;
+	} else {
+		CAM_WARN(CAM_CCI, "Context %d not found, performing cleanup anyway", contextId);
+	}
+
+	/* Always perform context cleanup regardless of get_ctx validity */
 	mutex_lock(&cci_dev->ctx_mutex);
 	list_for_each_safe(pos,
 	pos_next, &cci_dev->trigger_ctx_array[contextId]) {
 		entry = list_entry(pos, struct cam_cci_slave_context_data, list);
 		if (entry->contextId == contextId) {
 			cci_dev->is_contextid_acquire[contextId] = false;
-			cci_dev->cci_i2c_queue_info[master][i2cqueue].queue_status =
+			cci_dev->cci_i2c_queue_info[master][entry->i2cqueue].queue_status =
 				QUEUE_STATE_FREE;
-			cci_dev->cci_gpio_queue_info[get_ctx->gpioqueue].queue_status =
+			cci_dev->cci_gpio_queue_info[entry->gpioqueue].queue_status =
 				QUEUE_STATE_FREE;
 			list_del(&entry->list);
 			kfree(entry);
+		}
+	}
+
+	/* Ensure context ID is marked as free even if no list entry was found */
+	if (contextId < CONTEXT_ID_MAX) {
+		cci_dev->is_contextid_acquire[contextId] = false;
+	}
+
+	if (cci_dev->en_cci_event_debug) {
+		/* Cleanup I2C debug list queues for this context */
+		for (i = 0; i < MASTER_MAX; i++) {
+			for (j = 0; j < NUM_QUEUES; j++) {
+				cam_cci_release_debug_cmd(&cci_dev->context_debug_info[contextId].i2c_debug_list[i][j]);
+			}
+		}
+		/* Cleanup GPIO debug list queues for this context */
+		for (i = 0; i < NUM_GPIO_QUEUES; i++) {
+			cam_cci_release_debug_cmd(&cci_dev->context_debug_info[contextId].gpio_debug_list[i]);
 		}
 	}
 	mutex_unlock(&cci_dev->ctx_mutex);
@@ -842,13 +1074,60 @@ static uint32_t cam_cci_wait(struct cci_device *cci_dev,
 	return 0;
 }
 
+static void cam_cci_i2c_load_report_cmd(struct cci_device *cci_dev,
+       struct cam_cci_slave_context_data *get_ctx, struct cam_sensor_debug_data *debug_info)
+{
+	struct cam_hw_soc_info *soc_info =
+		&cci_dev->soc_info;
+	void __iomem *base = soc_info->reg_map[0].mem_base;
+	enum cci_i2c_master_t master = get_ctx->master;
+	enum cci_i2c_queue_t queue = get_ctx->i2cqueue;
+	int32_t rc = 0;
+
+	uint32_t reg_offset = master * 0x200 + queue * 0x100;
+	uint32_t read_val = cam_io_r_mb(base +
+		CCI_I2C_M0_Q0_CUR_WORD_CNT_ADDR + reg_offset);
+	uint32_t report_id =
+		cci_dev->cci_i2c_queue_info[master][queue].report_id;
+	uint32_t report_val = CCI_I2C_REPORT_CMD | (1 << 8) |
+		(1 << 9) | (report_id << 4);
+
+	CAM_DBG(CAM_CCI,
+		"CCI%d_I2C_M%d_Q%d_REPORT_CMD curr_w_cnt: %d report_id %d",
+		cci_dev->soc_info.index, master, queue, read_val, report_id);
+	cam_io_w_mb(report_val,
+		base + CCI_I2C_M0_Q0_LOAD_DATA_ADDR +
+		reg_offset);
+	get_ctx->i2c_queue_cmd_size++;
+	read_val++;
+	/* Push debug string to I2C list queue */
+	rc = cam_cci_push_debug_string(
+		&cci_dev->context_debug_info[get_ctx->contextId].i2c_debug_list[get_ctx->master][get_ctx->i2cqueue],
+		debug_info->debug_string,
+		debug_info->debug_string_size);
+	if (rc < 0) {
+		CAM_ERR(CAM_CCI, "CCI%d_I2C_M%d_Q%d Failed to push debug string to list, rc: %d",
+			cci_dev->soc_info.index, master, queue, rc);
+	}
+
+	cci_dev->cci_i2c_queue_info[master][queue].report_id++;
+	if (cci_dev->cci_i2c_queue_info[master][queue].report_id == REPORT_IDSIZE)
+		cci_dev->cci_i2c_queue_info[master][queue].report_id = 0;
+
+	CAM_DBG(CAM_CCI, "CCI%d_I2C_M%d_Q%d_EXEC_WORD_CNT_ADDR %d",
+		cci_dev->soc_info.index, master, queue, read_val);
+	cam_io_w_mb(get_ctx->i2c_queue_cmd_size, base +
+		CCI_I2C_M0_Q0_EXEC_WORD_CNT_ADDR + reg_offset);
+}
+
 static void cam_cci_gpio_load_report_cmd(struct cci_device *cci_dev,
-	struct cam_cci_slave_context_data *get_ctx)
+	struct cam_cci_slave_context_data *get_ctx, struct cam_sensor_debug_data *debug_info)
 {
 	struct cam_hw_soc_info *soc_info =
 		&cci_dev->soc_info;
 	void __iomem *base = soc_info->reg_map[0].mem_base;
 	enum cci_gpio_queue_t queue = get_ctx->gpioqueue;
+	int32_t rc = 0;
 
 	uint32_t reg_offset = queue * 0x100;
 	uint32_t read_val = cam_io_r_mb(base +
@@ -866,6 +1145,14 @@ static void cam_cci_gpio_load_report_cmd(struct cci_device *cci_dev,
 		reg_offset);
 	read_val++;
 	get_ctx->gpio_queue_cmd_size++;
+	rc = cam_cci_push_debug_string(
+		&cci_dev->context_debug_info[get_ctx->contextId].gpio_debug_list[get_ctx->gpioqueue],
+		debug_info->debug_string,
+		debug_info->debug_string_size);
+	if (rc < 0) {
+		CAM_ERR(CAM_CCI, "CCI%d_GPIO_Q%d Failed to push debug string to list, rc: %d",
+			cci_dev->soc_info.index, queue, rc);
+	}
 
 	cci_dev->cci_gpio_queue_info[queue].report_id++;
 	if (cci_dev->cci_gpio_queue_info[queue].report_id == REPORT_IDSIZE)
@@ -2609,8 +2896,6 @@ static enum cam_cci_cmd_state cam_cci_push_fsin_trigger_cmd(struct cci_device *c
 		cam_io_w_mb(val, base + CCI_GPIO_Q0_LOAD_DATA_ADDR +
 			reg_gpio_offset);
 		get_ctx->gpio_queue_cmd_size++;
-		if (cci_dev->en_cci_event_debug)
-			cam_cci_gpio_load_report_cmd(cci_dev, get_ctx);
 	} else if (fsin_info->level == CAM_SENSOR_GPIO_LEVEL_LOW &&
 			fsin_info->config == CAM_SENSOR_GPIO_CONFIG_OUTPUT) {
 		CAM_DBG(CAM_CCI, "cci gpiomask %d", fsin_info->gpio_mask);
@@ -2639,6 +2924,47 @@ static enum cam_cci_cmd_state cam_cci_push_fsin_trigger_cmd(struct cci_device *c
 		get_ctx->gpio_queue_cmd_size++;
 	}
 	return CCI_GPIO_QUEUE;
+}
+
+static enum cam_cci_cmd_state cam_cci_push_debug_cmd(struct cci_device *cci_dev,
+	struct cam_cci_slave_context_data *get_ctx, void *payload,
+	enum cam_cci_cmd_state current_cmd_queue)
+{
+	struct cam_sensor_debug_data *debug_info = NULL;
+	enum cam_cci_cmd_state queue_state = CCI_INVALID_QUEUE;
+
+	if (!payload) {
+		CAM_ERR(CAM_CCI, "CCI%d Failed: payload is NULL",
+			cci_dev->soc_info.index);
+		return CCI_INVALID_QUEUE;
+	}
+
+	debug_info = (struct cam_sensor_debug_data *)(payload);
+
+	CAM_DBG(CAM_CCI, "CCI%d debug_id %d debug string %s size %d",
+			cci_dev->soc_info.index, debug_info->debug_id,
+				debug_info->debug_string, debug_info->debug_string_size);
+
+	if (current_cmd_queue == CCI_GPIO_QUEUE) {
+		CAM_DBG(CAM_CCI, "CCI%d curr_cmd_queue is gpio queue",
+			cci_dev->soc_info.index);
+			cam_cci_gpio_load_report_cmd(cci_dev, get_ctx,
+					debug_info);
+		queue_state = CCI_GPIO_QUEUE;
+	} else if (current_cmd_queue == CCI_I2C_QUEUE ||
+			current_cmd_queue == CCI_ANY_QUEUE) {
+		CAM_DBG(CAM_CCI, "CCI%d curr_cmd_queue is i2c queue",
+			cci_dev->soc_info.index);
+		cam_cci_i2c_load_report_cmd(cci_dev, get_ctx,
+				debug_info);
+		queue_state = CCI_I2C_QUEUE;
+	} else {
+		CAM_ERR(CAM_CCI, "CCI%d Failed: Invalid curr_cmd_queue",
+			cci_dev->soc_info.index);
+		return CCI_INVALID_QUEUE;
+	}
+
+	return queue_state;
 }
 
 static enum cam_cci_cmd_state cam_cci_push_sync_cmd(struct cci_device *cci_dev,
@@ -2676,6 +3002,7 @@ static enum cam_cci_cmd_state cam_cci_push_sync_cmd(struct cci_device *cci_dev,
 
 	return queue_state;
 }
+
 static enum cam_cci_cmd_state cam_cci_push_frame_event_cmd(struct cci_device *cci_dev,
 	struct cam_cci_slave_context_data *get_ctx, void *payload)
 {
@@ -2732,8 +3059,6 @@ static enum cam_cci_cmd_state cam_cci_push_qtimer_cmd(struct cci_device *cci_dev
 	cam_io_w_mb(val, base + CCI_GPIO_Q0_LOAD_DATA_ADDR +
 		reg_gpio_offset);
 	get_ctx->gpio_queue_cmd_size++;
-	if (cci_dev->en_cci_event_debug)
-		cam_cci_gpio_load_report_cmd(cci_dev, get_ctx);
 
 	return CCI_GPIO_QUEUE;
 }
@@ -2774,8 +3099,6 @@ static enum cam_cci_cmd_state cam_cci_push_timer_cmd(struct cci_device *cci_dev,
 			        reg_gpio_offset);
 			queue_state = CCI_GPIO_QUEUE;
 			get_ctx->gpio_queue_cmd_size++;
-			if (cci_dev->en_cci_event_debug)
-				cam_cci_gpio_load_report_cmd(cci_dev, get_ctx);
 		}
 	} else if (current_cmd_queue == CCI_GPIO_QUEUE) {
 		if (!parallel_exec_cmd_enable) {
@@ -2786,8 +3109,6 @@ static enum cam_cci_cmd_state cam_cci_push_timer_cmd(struct cci_device *cci_dev,
 			        reg_gpio_offset);
 			queue_state = CCI_GPIO_QUEUE;
 			get_ctx->gpio_queue_cmd_size++;
-			if (cci_dev->en_cci_event_debug)
-				cam_cci_gpio_load_report_cmd(cci_dev, get_ctx);
 		} else {
 			CAM_DBG(CAM_CCI, "timer in i2c queue");
 			val = CCI_I2C_WAIT_CMD |
@@ -2854,6 +3175,15 @@ static enum cam_cci_cmd_state cam_cci_process_trigger_queue(struct cci_device *c
 			queue_state = cam_cci_push_sync_cmd(cci_dev, get_ctx, payload, current_cmd_queue);
 			break;
 		}
+		case CAM_SENSOR_CMD_TYPE_DEBUG_CMD: {
+			if (cci_dev->en_cci_event_debug) {
+				queue_state = cam_cci_push_debug_cmd(cci_dev, get_ctx, payload, current_cmd_queue);
+			} else {
+				CAM_DBG(CAM_CCI, "sysfs en_cci_event_debug is not enabled");
+				return current_cmd_queue;
+			}
+			break;
+		}
 		default:
 			CAM_ERR(CAM_CCI, "invalid cmd buffer type %d", cmd_type);
 			return CCI_INVALID_QUEUE;
@@ -2885,6 +3215,9 @@ static enum cam_cci_cmd_state cam_cci_get_current_queue_buf_type(
 			queue = CCI_ANY_QUEUE;
 			break;
 		case CAM_SENSOR_CMD_TYPE_SYNC_CMD:
+			queue = CCI_ANY_QUEUE;
+			break;
+		case CAM_SENSOR_CMD_TYPE_DEBUG_CMD:
 			queue = CCI_ANY_QUEUE;
 			break;
 		default:

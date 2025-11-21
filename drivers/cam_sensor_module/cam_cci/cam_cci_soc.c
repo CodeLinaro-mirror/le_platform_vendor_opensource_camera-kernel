@@ -111,7 +111,7 @@ MASTER_INIT_ERR:
 int cam_cci_init(struct v4l2_subdev *sd,
 	struct cam_cci_ctrl *c_ctrl)
 {
-	uint8_t i = 0;
+	uint8_t i = 0, j = 0;
 	int32_t rc = 0;
 	struct cci_device *cci_dev;
 	enum cci_i2c_master_t master = MASTER_MAX;
@@ -217,6 +217,36 @@ int cam_cci_init(struct v4l2_subdev *sd,
 		cci_dev->i2c_freq_mode[i] = I2C_MAX_MODES;
 	for (i = 0; i < CONTEXT_ID_MAX; i++)
 		INIT_LIST_HEAD(&(cci_dev->trigger_ctx_array[i]));
+
+	/* Initialize debug list queues per context */
+	if (cci_dev->en_cci_event_debug) {
+		for (int ctx = 0; ctx < CONTEXT_ID_MAX; ctx++) {
+			for (i = 0; i < MASTER_MAX; i++) {
+				for (j = 0; j < NUM_QUEUES; j++) {
+					INIT_LIST_HEAD(&cci_dev->context_debug_info[ctx].i2c_debug_list[i][j].debug_list);
+					spin_lock_init(&cci_dev->context_debug_info[ctx].i2c_debug_list[i][j].dbg_lock);
+					cci_dev->context_debug_info[ctx].i2c_debug_list[i][j].entry_count = 0;
+					cci_dev->context_debug_info[ctx].i2c_debug_list[i][j].max_entries = CCI_DEBUG_LIST_MAX_SIZE;
+				}
+			}
+			for (i = 0; i < NUM_GPIO_QUEUES; i++) {
+				INIT_LIST_HEAD(&cci_dev->context_debug_info[ctx].gpio_debug_list[i].debug_list);
+				spin_lock_init(&cci_dev->context_debug_info[ctx].gpio_debug_list[i].dbg_lock);
+				cci_dev->context_debug_info[ctx].gpio_debug_list[i].entry_count = 0;
+				cci_dev->context_debug_info[ctx].gpio_debug_list[i].max_entries = CCI_DEBUG_LIST_MAX_SIZE;
+			}
+		}
+		/* Create CRM worker*/
+		rc = cam_req_mgr_worker_create("cci_event_wq", 10,
+			&cci_dev->cci_event_worker, CRM_WORKER_USAGE_IRQ, 0);
+		if (rc) {
+			CAM_WARN(CAM_CCI, "CCI%d Failed to create cci_debug_kfree worker: %d",
+				cci_dev->soc_info.index, rc);
+			cci_dev->cci_event_worker = NULL;
+			/* Continue without worker - will fallback to memory leak in debug path */
+			rc = 0;
+		}
+	}
 
 	cam_io_w_mb(CCI_IRQ_MASK_0_RMSK, base + CCI_IRQ_MASK_0_ADDR);
 	cam_io_w_mb(CCI_IRQ_MASK_0_RMSK, base + CCI_IRQ_CLEAR_0_ADDR);
@@ -492,6 +522,12 @@ int cam_cci_soc_release(struct cci_device *cci_dev,
 		return 0;
 	}
 
+	/* Cleanup CRM worker for deferred kfree operations */
+	if (cci_dev->en_cci_event_debug && cci_dev->cci_event_worker) {
+		cam_req_mgr_worker_flush(cci_dev->cci_event_worker);
+		cam_req_mgr_worker_destroy(&cci_dev->cci_event_worker);
+		cci_dev->cci_event_worker = NULL;
+	}
 	for (i = 0; i < MASTER_MAX; i++) {
 		if (cci_dev->write_wq[i])
 			flush_workqueue(cci_dev->write_wq[i]);

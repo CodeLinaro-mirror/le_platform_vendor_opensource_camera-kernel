@@ -22,6 +22,7 @@
 #define PREAMBLE_PATTEN_CAL_MASK  BIT(2)
 
 #define CAM_SENSOR_GET_QUERY_CAP_V2
+#define CAM_SENSOR_TRIGGER_EVENT_V2
 
 /* Sensor Driver cmd buffer meta type */
 #define CAM_SENSOR_PACKET_GENERIC_BLOB             1
@@ -46,6 +47,9 @@
 
 /* Sensor Sync Event Blob Type */
 #define CAM_SENSOR_GENERIC_BLOB_SYNC_CMD_INFO      6
+
+/* Sensor Debug Event Blob Type */
+#define CAM_SENSOR_GENERIC_BLOB_DEBUG_CMD_INFO     7
 
 /* Sensor GPIO Output Configuration */
 #define CAM_SENSOR_GPIO_CONFIG_OUTPUT              0
@@ -1252,6 +1256,27 @@ struct cam_sensor_sync_cmd_info {
 } __attribute__((packed));
 
 /**
+ * struct cam_sensor_debug_event_info - Contains sensor debug event info
+ *
+ * event is the key property, it specifies the
+ * combinations of other properties enclosed in this
+ * structure.
+ *
+ * @version              : version of cmd buffer
+ * @debug_id             : events offset
+ * @debug_string_offset  : debug string offset
+ * @debug_string_size    : debug string size
+ * @reserved             : reserved
+ */
+struct cam_sensor_debug_event_info {
+	__u32 version;
+	__u32 debug_id;
+	__u32 debug_string_offset;
+	__u32 debug_string_size;
+	__u64 reserved;
+} __attribute__((packed));
+
+/**
  * struct cam_sensor_events- Contains events info
  *
  * sequence of events
@@ -1275,6 +1300,33 @@ struct cam_sensor_events {
 	__u32 cmd_count;
 	__u32 cmd_flag[CAMERA_SENSOR_EVENT_MAX];
 	__u32 cmd_sequence[CAMERA_SENSOR_EVENT_MAX];
+	__u64 reserved;
+} __attribute__((packed));
+
+/**
+ * struct cam_sensor_events_v2- Contains events info
+ *
+ * sequence of events
+ *
+ * @version               : version
+ * @event_name		  : event name
+ * @event_flag            : parallel execution of cmd
+ * @event_arg_count       : event argument
+ * @event_arg_offset      : event argument sequence
+ * @cmd_count		  : number of commands
+ * @cmd_flag_offset       : parallel execution of cmd
+ * @cmd_sequence_offset	  : sequence of commands
+ * @reserved              : reserved
+ */
+struct cam_sensor_events_v2 {
+	__u32 version;
+	__u32 event_name;
+	__u32 event_flag;
+	__u32 event_arg_count;
+	__u32 event_arg_offset;
+	__u32 cmd_count;
+	__u32 cmd_flag_offset;
+	__u32 cmd_sequence_offset;
 	__u64 reserved;
 } __attribute__((packed));
 
