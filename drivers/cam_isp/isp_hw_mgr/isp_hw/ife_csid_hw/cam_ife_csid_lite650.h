@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2022,2025 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #ifndef _CAM_IFE_CSID_LITE_650_H_
@@ -240,6 +240,7 @@ static const struct cam_ife_csid_irq_desc cam_ife_csid_lite_650_path_irq_desc[] 
 	},
 	{
 		.bitmask = BIT(29),
+		.err_type = CAM_ISP_HW_ERROR_CSID_CCIF_VIOLATION,
 		.desc = "CCIF_VIOLATION: Bad frame timings",
 	},
 };
@@ -542,7 +543,7 @@ static struct cam_ife_csid_ver2_path_reg_info
 		.min_hbi_shift_val                = 4,
 		.start_master_sel_shift_val       = 4,
 		.fatal_err_mask                   = 0x6004,
-		.non_fatal_err_mask               = 0x10080000,
+		.non_fatal_err_mask               = 0x30080000,
 		.sof_irq_mask                     = 0x10,
 		.rup_irq_mask                     = 0x800000,
 		.epoch0_irq_mask                  = 0x200000,
@@ -635,7 +636,7 @@ static struct cam_ife_csid_ver2_path_reg_info
 		.debug_byte_cntr_rst_shift_val  = 2,
 		.ccif_violation_en              = 1,
 		.fatal_err_mask                 = 0x6004,
-		.non_fatal_err_mask             = 0x10080000,
+		.non_fatal_err_mask             = 0x30080000,
 		.sof_irq_mask                     = 0x10,
 		.rup_irq_mask                     = 0x800000,
 		.epoch0_irq_mask                  = 0x200000,
@@ -729,7 +730,7 @@ static struct cam_ife_csid_ver2_path_reg_info
 		.debug_byte_cntr_rst_shift_val  = 2,
 		.ccif_violation_en              = 1,
 		.fatal_err_mask                 = 0x6004,
-		.non_fatal_err_mask             = 0x10080000,
+		.non_fatal_err_mask             = 0x30080000,
 		.sof_irq_mask                     = 0x10,
 		.rup_irq_mask                     = 0x800000,
 		.epoch0_irq_mask                  = 0x200000,
@@ -823,7 +824,7 @@ static struct cam_ife_csid_ver2_path_reg_info
 		.debug_byte_cntr_rst_shift_val  = 2,
 		.ccif_violation_en              = 1,
 		.fatal_err_mask                 = 0x6004,
-		.non_fatal_err_mask             = 0x10080000,
+		.non_fatal_err_mask             = 0x30080000,
 		.sof_irq_mask                     = 0x10,
 		.rup_irq_mask                     = 0x800000,
 		.epoch0_irq_mask                  = 0x200000,
@@ -917,7 +918,7 @@ static struct cam_ife_csid_ver2_path_reg_info
 		.debug_byte_cntr_rst_shift_val  = 2,
 		.ccif_violation_en              = 1,
 		.fatal_err_mask                 = 0x6004,
-		.non_fatal_err_mask             = 0x10080000,
+		.non_fatal_err_mask             = 0x30080000,
 		.sof_irq_mask                     = 0x10,
 		.rup_irq_mask                     = 0x800000,
 		.epoch0_irq_mask                  = 0x200000,

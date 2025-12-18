@@ -76,12 +76,13 @@ int32_t camera_io_init(struct camera_io_master *io_master_info);
 
 /**
  * @io_master_info: I2C/SPI master information
- * @contextId: contextid
+ * @contextId:     contextid
+ * @is_sensor_ctx: is_sensor_ctx
  *
  * This API releases the I2C/SPI master based on master type
  */
 int32_t camera_io_contextid_release(struct camera_io_master *io_master_info,
-	uint32_t contextId);
+	uint32_t contextId, bool is_sensor_ctx);
 
 /**
  * @io_master_info: I2C/SPI master information

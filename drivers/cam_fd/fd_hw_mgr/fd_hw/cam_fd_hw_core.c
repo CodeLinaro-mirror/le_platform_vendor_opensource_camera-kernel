@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, 2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #include "cam_fd_hw_core.h"
@@ -1004,10 +1004,10 @@ int cam_fd_hw_start(void *hw_priv, void *hw_start_args, uint32_t arg_size)
 
 		for (i = 0 ; i <= start_args->num_hw_update_entries; i++) {
 			cmd = (start_args->hw_update_entries + i);
-			cdm_cmd->cmd[i].bl_addr.mem_handle = cmd->handle;
-			cdm_cmd->cmd[i].offset = cmd->offset;
-			cdm_cmd->cmd[i].len = cmd->len;
-			cdm_cmd->cmd[i].arbitrate = false;
+			cdm_cmd->cmd_flex[i].bl_addr.mem_handle = cmd->handle;
+			cdm_cmd->cmd_flex[i].offset = cmd->offset;
+			cdm_cmd->cmd_flex[i].len = cmd->len;
+			cdm_cmd->cmd_flex[i].arbitrate = false;
 		}
 
 		rc = cam_cdm_submit_bls(ctx_hw_private->cdm_handle, cdm_cmd);
@@ -1124,7 +1124,7 @@ int cam_fd_hw_reserve(void *hw_priv, void *hw_reserve_args, uint32_t arg_size)
 	}
 
 	memset(&cdm_acquire, 0, sizeof(cdm_acquire));
-	strlcpy(cdm_acquire.identifier, "fd", sizeof("fd"));
+	strscpy(cdm_acquire.identifier, "fd", sizeof("fd"));
 	cdm_acquire.cell_index = fd_hw->soc_info.index;
 	cdm_acquire.handle = 0;
 	cdm_acquire.userdata = ctx_hw_private;

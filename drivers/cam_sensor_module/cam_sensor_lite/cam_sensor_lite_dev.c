@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #include <linux/module.h>
@@ -384,17 +384,28 @@ static int32_t cam_sensor_lite_platform_probe(struct platform_device *pdev)
 	int rc = 0;
 
 	CAM_DBG(CAM_SENSOR_LITE, "Adding SENSOR LITE component");
+
+	cam_soc_util_initialize_power_domain(&pdev->dev);
+
 	rc = component_add(&pdev->dev, &cam_sensor_lite_component_ops);
 	if (rc)
 		CAM_ERR(CAM_SENSOR_LITE, "failed to add component rc: %d", rc);
 	return rc;
 }
 
-
+#if KERNEL_VERSION(6, 10, 0) > LINUX_VERSION_CODE
 static int32_t cam_sensor_lite_device_remove(struct platform_device *pdev)
+#else
+static void cam_sensor_lite_device_remove(struct platform_device *pdev)
+#endif
 {
 	component_del(&pdev->dev, &cam_sensor_lite_component_ops);
+
+	cam_soc_util_uninitialize_power_domain(&pdev->dev);
+
+#if KERNEL_VERSION(6, 10, 0) > LINUX_VERSION_CODE
 	return 0;
+#endif
 }
 
 static const struct of_device_id cam_sensor_lite_dt_match[] = {

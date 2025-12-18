@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #include <linux/module.h>
@@ -217,6 +217,9 @@ int cam_ipe_probe(struct platform_device *pdev)
 	int rc = 0;
 
 	CAM_DBG(CAM_ICP, "Adding IPE component");
+
+	cam_soc_util_initialize_power_domain(&pdev->dev);
+
 	rc = component_add(&pdev->dev, &cam_ipe_component_ops);
 	if (rc)
 		CAM_ERR(CAM_ICP, "failed to add component rc: %d", rc);
@@ -224,10 +227,19 @@ int cam_ipe_probe(struct platform_device *pdev)
 	return rc;
 }
 
+#if KERNEL_VERSION(6, 10, 0) > LINUX_VERSION_CODE
 static int cam_ipe_remove(struct platform_device *pdev)
+#else
+static void cam_ipe_remove(struct platform_device *pdev)
+#endif
 {
 	component_del(&pdev->dev, &cam_ipe_component_ops);
+
+	cam_soc_util_uninitialize_power_domain(&pdev->dev);
+
+#if KERNEL_VERSION(6, 10, 0) > LINUX_VERSION_CODE
 	return 0;
+#endif
 }
 
 static const struct of_device_id cam_ipe_dt_match[] = {

@@ -3642,6 +3642,67 @@ static int __cam_req_mgr_check_for_dual_trigger(
 }
 
 /**
+ * cam_req_mgr_no_crm_dual_trigger_check()
+ * @brief: checks if both triggers have arrived if dual_trigger enabled on the
+ *         link in no-crm design
+ * @notify: received trigger notification
+ *
+ * @return   : 0 on success, negative in case of failure
+ */
+int cam_req_mgr_no_crm_dual_trigger_check(struct cam_req_mgr_trigger_notify *notify)
+{
+	struct cam_req_mgr_core_link *link = NULL;
+	int32_t  trigger_id = 0, rc = 0;
+	uint32_t trigger;
+
+	if (!notify)
+		return -EINVAL;
+
+	trigger_id = notify->trigger_id;
+	trigger = notify->trigger;
+
+	link = cam_get_link_priv(notify->link_hdl);
+	if (!link) {
+		CAM_ERR(CAM_CRM, "link ptr NULL %x", notify->link_hdl);
+		return -EINVAL;
+	}
+
+	mutex_lock(&link->link_state_mutex_lock);
+	if (link->state < CAM_CRM_LINK_STATE_READY) {
+		mutex_unlock(&link->link_state_mutex_lock);
+		CAM_ERR(CAM_CRM, "invalid link state:%d", link->state);
+		return -EPERM;
+	}
+
+	if (link->dual_trigger) {
+		if ((trigger_id >= 0) && (trigger_id <
+					CAM_REQ_MGR_MAX_TRIGGERS)) {
+			link->trigger_cnt[trigger_id][trigger]++;
+			rc = __cam_req_mgr_check_for_dual_trigger(link, trigger);
+			if (rc) {
+				mutex_unlock(&link->link_state_mutex_lock);
+				CAM_DBG(CAM_CRM, "dual trigger check failed "
+				"rc=%d trigger_id=%d trigger=%d trigger_cnt=%u",
+				rc, trigger_id, trigger,
+				link->trigger_cnt[trigger_id][trigger]);
+				return rc;
+			}
+		} else {
+			mutex_unlock(&link->link_state_mutex_lock);
+			CAM_ERR(CAM_CRM, "trigger_id invalid %d", trigger_id);
+			return -EINVAL;
+		}
+	}
+
+	mutex_unlock(&link->link_state_mutex_lock);
+	CAM_DBG(CAM_CRM, "exiting cam_req_mgr_no_crm_dual_trigger_check"
+			 " with rc=%d trigger_id=%d trigger=%d trigger_cnt=%u",
+			 rc, trigger_id, trigger,
+			 link->trigger_cnt[trigger_id][trigger]);
+	return rc;
+}
+
+/**
  * cam_req_mgr_cb_notify_timer()
  *
  * @brief      : Notify SOF timer to pause after flush
@@ -3771,8 +3832,10 @@ static int cam_req_mgr_no_crm_trigger_cb(int trigger_point,
 	struct cam_req_mgr_no_crm_apply_request *apply_info)
 {
 	int rc = -EINVAL, i;
+	uint64_t ife_reqid = 0;
 	struct cam_req_mgr_core_link *link;
 	struct cam_req_mgr_connected_device *dev;
+	struct cam_req_mgr_connected_device *ife_dev = NULL;
 
 	link = cam_get_link_priv(apply_info->link_hdl);
 	if (!link) {
@@ -3793,8 +3856,15 @@ static int cam_req_mgr_no_crm_trigger_cb(int trigger_point,
 			continue;
 		}
 
+		if (link->dual_trigger && (dev->dev_hdl == apply_info->dev_hdl))
+			continue;
+		else if ((!link->dual_trigger)
+		       && (dev->dev_info.dev_id == CAM_REQ_MGR_DEVICE_IFE))
+			continue;
+
 		CAM_DBG(CAM_CRM, "%d apply \"%s\" for req %lld setting id: %u", i, dev->dev_info.name,
 				apply_info->anchor_req_id, apply_info->setting_id);
+
 		apply_info->dev_hdl = dev->dev_hdl;
 		rc = dev->no_crm_ops->apply_req(apply_info);
 		if (rc) {
@@ -3804,6 +3874,20 @@ static int cam_req_mgr_no_crm_trigger_cb(int trigger_point,
 				apply_info->anchor_req_id);
 			rc = 0;
 		}
+
+		if (link->dual_trigger
+		   && (dev->dev_info.dev_id == CAM_REQ_MGR_DEVICE_IFE)) {
+			ife_dev =  dev;
+			if (apply_info->last_apply_req) {
+				ife_reqid = apply_info->last_apply_req;
+				apply_info->last_apply_req = 0;
+			}
+		}
+
+		if (link->dual_trigger && ife_dev
+		  && (dev->dev_info.dev_id == CAM_REQ_MGR_DEVICE_SENSOR))
+			ife_dev->no_crm_ops->update_last_apply_reqid(
+			       ife_dev->dev_hdl, apply_info->last_apply_req, ife_reqid);
 	}
 
 end:
@@ -4472,6 +4556,7 @@ static int cam_req_mgr_no_crm_notify_devices(u32 device_id_mask,
 	struct cam_req_mgr_core_link *link;
 	struct cam_req_mgr_connected_device *dev;
 	uint32_t caller_dev_hdl;
+	bool skip_ifelite = false;
 
 	link = cam_get_link_priv(notify_dev->link_hdl);
 	if (!link) {
@@ -4492,6 +4577,21 @@ static int cam_req_mgr_no_crm_notify_devices(u32 device_id_mask,
 			CAM_DBG(CAM_CRM, "skip as notify device hdl does not need to handle \"%s\"",
 					dev->dev_info.name);
 			continue;
+		}
+
+		/*In option2 feature, if dual trigger enabled, skip IFELite*/
+		if (link->dual_trigger
+			&& device_id_mask == CAM_REQ_MGR_DEVICE_IFE) {
+
+		       if (skip_ifelite)
+			       continue;
+
+		       if (dev->dev_info.dev_id == CAM_REQ_MGR_DEVICE_IFE) {
+				CAM_DBG(CAM_CRM, "For dual trigger, notifying "
+					"IFE/IFELite dev_hdl %d",
+					dev->dev_info.dev_hdl);
+				skip_ifelite = true;
+		       }
 		}
 
 		/* send notification for device id mask devices */
@@ -4755,6 +4855,7 @@ static struct cam_req_mgr_crm_cb cam_req_mgr_ops = {
 	.no_crm_resume          = cam_req_mgr_no_crm_resume_cb,
 	.no_crm_notify_dev      = cam_req_mgr_no_crm_notify_devices,
 	.fast_crop_sync_utility = cam_req_mgr_cb_fast_crop_sync_utility,
+	.check_dual_trigger     = cam_req_mgr_no_crm_dual_trigger_check,
 };
 
 /**
@@ -4878,8 +4979,11 @@ static int __cam_req_mgr_setup_link_info(struct cam_req_mgr_core_link *link,
 	link_data.link_hdl = link->link_hdl;
 	link_data.crm_cb = &cam_req_mgr_ops;
 	link_data.max_delay = max_delay;
-	if (num_trigger_devices == CAM_REQ_MGR_MAX_TRIGGERS)
+	if (num_trigger_devices == CAM_REQ_MGR_MAX_TRIGGERS) {
 		link->dual_trigger = true;
+		link_data.dual_trigger = true;
+	} else
+		link_data.dual_trigger = false;
 
 	num_trigger_devices = 0;
 	for (i = 0; i < num_devices; i++) {
@@ -5760,9 +5864,9 @@ int cam_req_mgr_sync_config_v2(struct cam_req_mgr_sync_mode_v2 *sync_info)
 	}
 
 	for (i = 0; i < sync_info->num_links; i++) {
-		if (!sync_info->links[i].link_hdl) {
+		if (!sync_info->links_flex[i].link_hdl) {
 			CAM_WARN(CAM_CRM, "Invalid link hdl %d, hdl 0x%x", i,
-					sync_info->links[i].link_hdl);
+					sync_info->links_flex[i].link_hdl);
 			rc = -EINVAL;
 		}
 	}
@@ -5784,10 +5888,10 @@ int cam_req_mgr_sync_config_v2(struct cam_req_mgr_sync_mode_v2 *sync_info)
 	mutex_lock(&cam_session->lock);
 
 	for (i = 0; i < sync_info->num_links; i++) {
-		link[i] = cam_get_link_priv(sync_info->links[i].link_hdl);
-		if (!link[i] || (link[i]->link_hdl != sync_info->links[i].link_hdl)) {
+		link[i] = cam_get_link_priv(sync_info->links_flex[i].link_hdl);
+		if (!link[i] || (link[i]->link_hdl != sync_info->links_flex[i].link_hdl)) {
 			CAM_ERR(CAM_CRM, "link: %s, sync_info->link_hdl:%x, link->link_hdl:%x",
-				CAM_IS_NULL_TO_STR(link), sync_info->links[i].link_hdl,
+				CAM_IS_NULL_TO_STR(link), sync_info->links_flex[i].link_hdl,
 				(!link[i]) ? CAM_REQ_MGR_DEFAULT_HDL_VAL : link[i]->link_hdl);
 			rc = -EINVAL;
 			goto done;

@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #ifndef _CAM_TFE_DEV_H_
@@ -30,7 +31,11 @@ int cam_tfe_probe(struct platform_device *pdev);
  * @Return:                  0: Success
  *                           Non-zero: Failure
  */
+#if KERNEL_VERSION(6, 10, 0) > LINUX_VERSION_CODE
 int cam_tfe_remove(struct platform_device *pdev);
+#else
+void cam_tfe_remove(struct platform_device *pdev);
+#endif
 
 int cam_tfe_init_module(void);
 void cam_tfe_exit_module(void);

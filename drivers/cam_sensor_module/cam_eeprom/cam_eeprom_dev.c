@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #include "cam_eeprom_dev.h"
@@ -163,7 +163,7 @@ static int cam_eeprom_init_subdev(struct cam_eeprom_ctrl_t *e_ctrl)
 
 	e_ctrl->v4l2_dev_str.internal_ops = &cam_eeprom_internal_ops;
 	e_ctrl->v4l2_dev_str.ops = &cam_eeprom_subdev_ops;
-	strlcpy(e_ctrl->device_name, CAM_EEPROM_NAME,
+	strscpy(e_ctrl->device_name, CAM_EEPROM_NAME,
 		sizeof(e_ctrl->device_name));
 	e_ctrl->v4l2_dev_str.name = e_ctrl->device_name;
 	e_ctrl->v4l2_dev_str.sd_flags =
@@ -296,6 +296,7 @@ static void cam_eeprom_i2c_component_unbind(struct device *dev,
 
 	CAM_INFO(CAM_EEPROM, "i2c driver remove invoked");
 	soc_info = &e_ctrl->soc_info;
+
 	for (i = 0; i < soc_info->num_clk; i++)
 		devm_clk_put(soc_info->dev, soc_info->clk[i]);
 
@@ -314,6 +315,34 @@ const static struct component_ops cam_eeprom_i2c_component_ops = {
 	.unbind = cam_eeprom_i2c_component_unbind,
 };
 
+#if KERNEL_VERSION(6, 2, 0) <= LINUX_VERSION_CODE
+static int cam_eeprom_i2c_driver_probe(struct i2c_client *client)
+{
+	int rc = 0;
+
+	if (client == NULL) {
+		CAM_ERR(CAM_EEPROM, "Invalid Args client: %pK",
+			client);
+		return -EINVAL;
+	}
+
+	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
+		CAM_ERR(CAM_EEPROM, "%s :: i2c_check_functionality failed",
+			client->name);
+		return -EFAULT;
+	}
+
+	CAM_DBG(CAM_EEPROM, "Adding sensor eeprom component");
+
+	cam_soc_util_initialize_power_domain(&client->dev);
+
+	rc = component_add(&client->dev, &cam_eeprom_i2c_component_ops);
+	if (rc)
+		CAM_ERR(CAM_EEPROM, "failed to add component rc: %d", rc);
+
+	return rc;
+}
+#else
 static int cam_eeprom_i2c_driver_probe(struct i2c_client *client,
 	const struct i2c_device_id *id)
 {
@@ -332,16 +361,22 @@ static int cam_eeprom_i2c_driver_probe(struct i2c_client *client,
 	}
 
 	CAM_DBG(CAM_EEPROM, "Adding sensor eeprom component");
+
+	cam_soc_util_initialize_power_domain(&client->dev);
+
 	rc = component_add(&client->dev, &cam_eeprom_i2c_component_ops);
 	if (rc)
 		CAM_ERR(CAM_EEPROM, "failed to add component rc: %d", rc);
 
 	return rc;
 }
+#endif
 
 void cam_eeprom_i2c_component_del_wrapper(struct i2c_client *client)
 {
 	component_del(&client->dev, &cam_eeprom_i2c_component_ops);
+
+	cam_soc_util_uninitialize_power_domain(&client->dev);
 }
 
 static int cam_eeprom_spi_setup(struct spi_device *spi)
@@ -556,6 +591,9 @@ static int32_t cam_eeprom_platform_driver_probe(
 	int rc = 0;
 
 	CAM_DBG(CAM_EEPROM, "Adding EEPROM Sensor component");
+
+	cam_soc_util_initialize_power_domain(&pdev->dev);
+
 	rc = component_add(&pdev->dev, &cam_eeprom_component_ops);
 	if (rc)
 		CAM_ERR(CAM_EEPROM, "failed to add component rc: %d", rc);
@@ -563,10 +601,19 @@ static int32_t cam_eeprom_platform_driver_probe(
 	return rc;
 }
 
+#if KERNEL_VERSION(6, 10, 0) > LINUX_VERSION_CODE
 static int cam_eeprom_platform_driver_remove(struct platform_device *pdev)
+#else
+static void cam_eeprom_platform_driver_remove(struct platform_device *pdev)
+#endif
 {
 	component_del(&pdev->dev, &cam_eeprom_component_ops);
+
+	cam_soc_util_uninitialize_power_domain(&pdev->dev);
+
+#if KERNEL_VERSION(6, 10, 0) > LINUX_VERSION_CODE
 	return 0;
+#endif
 }
 
 static const struct of_device_id cam_eeprom_dt_match[] = {

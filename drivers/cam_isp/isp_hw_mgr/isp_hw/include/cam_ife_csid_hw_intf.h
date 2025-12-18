@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #ifndef _CAM_CSID_HW_INTF_H_
@@ -224,6 +224,9 @@ struct cam_csid_secondary_evt_config {
  * @vc:                  input virtual channel number
  * @dt:                  input data type number
  * @decode_fmt:          decode format
+ * @path_err_recovery    Enable recovery for below path errors
+                         error_unbounded_frame/error_cphy_sot_reception/
+                         error_cphy_eot_reception
  *
  */
 struct cam_csid_hw_reserve_resource_args {
@@ -258,6 +261,7 @@ struct cam_csid_hw_reserve_resource_args {
 	uint32_t                                  vc;
 	uint32_t                                  dt;
 	uint32_t                                  decode_fmt;
+	bool                                      path_err_recovery;
 };
 
 /**
@@ -340,6 +344,7 @@ struct cam_ife_csid_hw_halt_args {
  * @node_res :  reource pointer array( ie cid or CSID)
  * @num_res :   number of resources to be stopped
  * @is_internal_stop:  Stop triggered internally for reset & recovery
+ * @is_recovery:        Csid path error recovery
  *
  */
 struct cam_csid_hw_stop_args {
@@ -347,6 +352,7 @@ struct cam_csid_hw_stop_args {
 	struct cam_isp_resource_node            **node_res;
 	uint32_t                                  num_res;
 	bool                                      is_internal_stop;
+	bool                                      is_recovery;
 };
 
 /**
@@ -359,6 +365,7 @@ struct cam_csid_hw_stop_args {
  * @is_frame_drop:      Start triggered internally during frame drop recovery
  * @is_trigger_mode:    Indicates if the start hw is called for trigger more or
  *                      streaming mode.
+ * @is_recovery:        Csid path error recovery
  */
 struct cam_csid_hw_start_args {
 	struct cam_isp_resource_node            **node_res;
@@ -367,6 +374,7 @@ struct cam_csid_hw_start_args {
 	bool                                      is_per_port_start;
 	bool                                      is_frame_drop;
 	bool                                      is_trigger_mode;
+	bool                                      is_recovery;
 };
 
 /**

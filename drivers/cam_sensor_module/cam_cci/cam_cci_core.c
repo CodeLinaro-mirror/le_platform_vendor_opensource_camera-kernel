@@ -44,7 +44,8 @@ static int cam_gpio_init(
 	struct cam_cci_ctrl *c_ctrl,
 	struct cci_device *cci_dev,
 	struct cam_cci_slave_context_data *context_data,
-	uint8_t active_trigger_sensor)
+	uint8_t active_trigger_sensor,
+	bool found_matching_entry)
 {
 	int rc = 0, i = 0;
 	void __iomem *base = NULL;
@@ -178,11 +179,12 @@ static int cam_gpio_init(
 		rc = -EINVAL;
 		return rc;
 	}
-
-	cam_io_w_mb(context_data->cid,
-		base + CCI_SET_CID_SYNC_TIMER_ADDR +
-		context_data->idx *
-		CCI_SET_CID_SYNC_TIMER_OFFSET);
+	if (c_ctrl->cfg.trigger_data.is_sensor_ctx || !found_matching_entry) {
+		cam_io_w_mb(context_data->cid,
+			base + CCI_SET_CID_SYNC_TIMER_ADDR +
+			context_data->idx *
+			CCI_SET_CID_SYNC_TIMER_OFFSET);
+	}
 
 	CAM_DBG(CAM_CCI, "CCI%d_GPIO: Q0: %d Q1: %d Q2: %d",
 		cci_dev->soc_info.index,
@@ -370,11 +372,14 @@ static int cam_cci_create_context_id(
 	enum cci_i2c_master_t master,
 	struct cam_cci_trigger_data *ctx)
 {
-	int32_t rc = 0, i = 0;
+	int32_t rc = 0, i = 0, j = 0;
 	struct cam_cci_slave_context_data *context_data =
 		kzalloc(sizeof(struct cam_cci_slave_context_data), GFP_KERNEL);
 	struct cam_cci_master_info *cci_master_info;
 	struct cam_cci_gpio_info *cci_gpio_info;
+	struct cam_cci_slave_context_data *existing_entry = NULL;
+	struct list_head *pos = NULL;
+	bool found_matching_entry = false;
 
 	cci_master_info = &cci_dev->cci_master_info[master];
 	cci_gpio_info = &cci_dev->cci_gpio_info;
@@ -384,6 +389,27 @@ static int cam_cci_create_context_id(
 		CAM_ERR(CAM_CCI, "[%d] alloc failed", cci_dev->soc_info.index);
 		return -ENOMEM;
 	}
+
+	/* Check if is_sensor_ctx is false, then search for existing entry with same csid and cid */
+	if (!ctx->is_sensor_ctx) {
+		for (j = 0; j < CONTEXT_ID_MAX; j++) {
+			if (!cci_dev->is_contextid_acquire[j])
+				continue;
+
+			list_for_each(pos, &cci_dev->trigger_ctx_array[j]) {
+				existing_entry = list_entry(pos, struct cam_cci_slave_context_data, list);
+				if (existing_entry->csid == ctx->csid && existing_entry->cid == ctx->cid) {
+					found_matching_entry = true;
+					CAM_DBG(CAM_CCI, "Found matching entry: csid=%d cid=%d idx=%d",
+						existing_entry->csid, existing_entry->cid, existing_entry->idx);
+					break;
+				}
+			}
+			if (found_matching_entry)
+				break;
+		}
+	}
+
 	for (i = 0; i < NUM_QUEUES; i++) {
 		if (mutex_trylock(&cci_master_info->mutex_q[i])) {
 			if (cci_dev->cci_i2c_queue_info[master][i].queue_status ==
@@ -400,6 +426,7 @@ static int cam_cci_create_context_id(
 
 	if (i == NUM_QUEUES) {
 		CAM_ERR(CAM_CCI, "[%d] i2c queue not available", cci_dev->soc_info.index);
+		kfree(context_data);
 		return -EINVAL;
 	}
 
@@ -419,6 +446,7 @@ static int cam_cci_create_context_id(
 		CAM_ERR(CAM_CCI, "[%d] GPIO queue not available", cci_dev->soc_info.index);
 		cci_dev->cci_i2c_queue_info[master][context_data->i2cqueue].queue_status =
 			QUEUE_STATE_FREE;
+		kfree(context_data);
 		return -EINVAL;
 	}
 
@@ -434,46 +462,72 @@ static int cam_cci_create_context_id(
 		CAM_ERR(CAM_CCI, "[%d]  All context are acquired", cci_dev->soc_info.index);
 		cci_dev->cci_i2c_queue_info[master][context_data->i2cqueue].queue_status =
 			QUEUE_STATE_FREE;
-		cci_dev->cci_i2c_queue_info[master][context_data->gpioqueue].queue_status =
+		cci_dev->cci_gpio_queue_info[context_data->gpioqueue].queue_status =
 			QUEUE_STATE_FREE;
+		kfree(context_data);
 		return -EINVAL;
 	}
 
-	switch (active_trigger_sensor) {
-	case CCI_SET_CID_SYNC_TIMER_0:
-		context_data->idx = CCI_SET_CID_SYNC_TIMER_0;
-		break;
-	case CCI_SET_CID_SYNC_TIMER_1:
-		context_data->idx = CCI_SET_CID_SYNC_TIMER_1;
-		break;
-	case CCI_SET_CID_SYNC_TIMER_2:
-		context_data->idx = CCI_SET_CID_SYNC_TIMER_2;
-		break;
-	case CCI_SET_CID_SYNC_TIMER_3:
-		context_data->idx = CCI_SET_CID_SYNC_TIMER_3;
-		break;
-	default:
-		CAM_ERR(CAM_CCI, "Invalid idmap");
-		cci_dev->cci_i2c_queue_info[master][context_data->i2cqueue].queue_status =
-			QUEUE_STATE_FREE;
-		cci_dev->cci_i2c_queue_info[master][context_data->gpioqueue].queue_status =
-			QUEUE_STATE_FREE;
-		cci_dev->is_contextid_acquire[ctx->context_id] = false;
-		return -EINVAL;
+	/* Handle idx, csid, cid assignment based on is_sensor_ctx and existing entries */
+	if (ctx->is_sensor_ctx || !found_matching_entry) {
+		/* For sensor context or when no matching entry found, assign new values */
+		switch (active_trigger_sensor) {
+		case CCI_SET_CID_SYNC_TIMER_0:
+			context_data->idx = CCI_SET_CID_SYNC_TIMER_0;
+			break;
+		case CCI_SET_CID_SYNC_TIMER_1:
+			context_data->idx = CCI_SET_CID_SYNC_TIMER_1;
+			break;
+		case CCI_SET_CID_SYNC_TIMER_2:
+			context_data->idx = CCI_SET_CID_SYNC_TIMER_2;
+			break;
+		case CCI_SET_CID_SYNC_TIMER_3:
+			context_data->idx = CCI_SET_CID_SYNC_TIMER_3;
+			break;
+		default:
+			CAM_ERR(CAM_CCI, "Invalid idmap");
+			cci_dev->cci_i2c_queue_info[master][context_data->i2cqueue].queue_status =
+				QUEUE_STATE_FREE;
+			cci_dev->cci_gpio_queue_info[context_data->gpioqueue].queue_status =
+				QUEUE_STATE_FREE;
+			cci_dev->is_contextid_acquire[ctx->context_id] = false;
+			kfree(context_data);
+			return -EINVAL;
+		}
+		context_data->csid = ctx->csid;
+		context_data->cid = ctx->cid;
+	} else {
+		/* For non-sensor context with matching entry, reuse existing values */
+		context_data->idx = existing_entry->idx;
+		context_data->csid = existing_entry->csid;
+		context_data->cid = existing_entry->cid;
+		CAM_DBG(CAM_CCI, "Reusing values from existing entry: idx=%d csid=%d cid=%d",
+			context_data->idx, context_data->csid, context_data->cid);
 	}
-	context_data->csid = ctx->csid;
-	context_data->cid = ctx->cid;
+
 	context_data->contextId  = ctx->context_id;
 	context_data->master = master;
-	CAM_DBG(CAM_CCI, "csid: %d cid: %d context_id %d", ctx->csid, ctx->cid, ctx->context_id);
-	CAM_DBG(CAM_CCI, " i2cqueue %d master %d gpioqueue %d",
-		context_data->i2cqueue, context_data->master, context_data->gpioqueue);
+	CAM_DBG(CAM_CCI, "csid: %d cid: %d context_id %d is_sensor_ctx: %s i2cqueue %d master %d gpioqueue %d idx %d",
+		context_data->csid, context_data->cid, ctx->context_id,
+		ctx->is_sensor_ctx ? "true" : "false", context_data->i2cqueue, context_data->master,
+		context_data->gpioqueue, context_data->idx);
 	list_add_tail(&(context_data->list), &cci_dev->trigger_ctx_array[context_data->contextId]);
 
 	if (!cci_dev->cci_gpio_info.is_initialized) {
-		rc = cam_gpio_init(c_ctrl, cci_dev, context_data, ++active_trigger_sensor);
+		if (ctx->is_sensor_ctx || !found_matching_entry) {
+			rc = cam_gpio_init(c_ctrl, cci_dev, context_data, ++active_trigger_sensor, found_matching_entry);
+		} else {
+			rc = cam_gpio_init(c_ctrl, cci_dev, context_data, active_trigger_sensor, found_matching_entry);
+		}
 		if (rc < 0) {
 			CAM_ERR(CAM_CCI, "gpio_init fail");
+			cci_dev->cci_i2c_queue_info[master][context_data->i2cqueue].queue_status =
+				QUEUE_STATE_FREE;
+			cci_dev->cci_gpio_queue_info[context_data->gpioqueue].queue_status =
+				QUEUE_STATE_FREE;
+			cci_dev->is_contextid_acquire[ctx->context_id] = false;
+			list_del(&context_data->list);
+			kfree(context_data);
 			return -EINVAL;
 		}
 	}
@@ -863,9 +917,6 @@ static int32_t cam_cci_lock_queue(struct cci_device *cci_dev,
 	enum cci_i2c_queue_t queue, uint32_t en)
 {
 	uint32_t val;
-
-	if (queue != PRIORITY_QUEUE)
-		return 0;
 
 	val = en ? CCI_I2C_LOCK_CMD : CCI_I2C_UNLOCK_CMD;
 	return cam_cci_write_i2c_queue(cci_dev, val, master, queue);
@@ -2595,8 +2646,7 @@ static int32_t cam_cci_apply_i2c_setting(struct cci_device *cci_dev,
 		return rc;
 	}
 
-	if (i2cqueue == PRIORITY_QUEUE)
-		get_ctx->i2c_queue_cmd_size++;
+	get_ctx->i2c_queue_cmd_size++;
 
 	while (cmd_size) {
 		uint32_t pack = 0;
@@ -2773,9 +2823,7 @@ static int32_t cam_cci_apply_i2c_setting(struct cci_device *cci_dev,
 			cci_dev->soc_info.index, master, i2cqueue, rc);
 		return rc;
 	}
-
-	if (i2cqueue == PRIORITY_QUEUE)
-		get_ctx->i2c_queue_cmd_size++;
+	get_ctx->i2c_queue_cmd_size++;
 
 	return rc;
 }
@@ -3023,6 +3071,9 @@ static enum cam_cci_cmd_state cam_cci_push_frame_event_cmd(struct cci_device *cc
 		line_no = 0x3FFF;
 	} else if (frame_event == CAM_SENSOR_SOF_FRAME_EVENT) {
 		CAM_DBG(CAM_CCI, "CCI SOF Frame event");
+	} else if (frame_event == CAM_SENSOR_FRAME_LINE_EVENT) {
+		CAM_DBG(CAM_CCI, "CCI Frame Line event line no %d", frame_event_info->line_no);
+		line_no = frame_event_info->line_no;
 	} else {
 		CAM_ERR(CAM_CCI, "INVALID Frame event %d", frame_event);
 		return CCI_INVALID_QUEUE;
@@ -3971,7 +4022,7 @@ int32_t cam_cci_core_cfg(struct v4l2_subdev *sd,
 		rc = cam_cci_create_context_id(cci_dev, cci_ctrl,
 			cci_dev->num_active_trigger_sensor,
 			master, &(cci_ctrl->cfg.trigger_data));
-		if (rc == 0)
+		if (rc == 0 && cci_ctrl->cfg.trigger_data.is_sensor_ctx)
 			++cci_dev->num_active_trigger_sensor;
 		mutex_unlock(&cci_dev->ctx_mutex);
 		break;
@@ -3979,7 +4030,7 @@ int32_t cam_cci_core_cfg(struct v4l2_subdev *sd,
 		if ((&cci_ctrl->cfg.trigger_data)->context_id < CONTEXT_ID_MAX) {
 			rc = cam_cci_release_context_data(cci_dev, master,
 				(&cci_ctrl->cfg.trigger_data)->context_id);
-			if (rc == 0)
+			if (rc == 0 && cci_ctrl->cfg.trigger_data.is_sensor_ctx)
 				--cci_dev->num_active_trigger_sensor;
 		} else {
 			CAM_ERR(CAM_CCI, "invalid context_id");

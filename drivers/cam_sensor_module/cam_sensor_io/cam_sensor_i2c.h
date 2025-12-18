@@ -98,13 +98,15 @@ int32_t cam_sensor_cci_get_contextid(struct cam_sensor_cci_client *cci_client,
 /**
  * @cci_client: CCI client structure
  * @cci_cmd: CCI command type
- * @contextId:  context id
+ * @contextId:     context id
+ * @is_sensor_ctx: is sensor ctx
  *
  * Does I2C call to I2C functionalities
  */
 int32_t cam_sensor_cci_release_contextid(struct cam_sensor_cci_client *cci_client,
 	uint16_t cci_cmd,
-	uint32_t contextId);
+	uint32_t contextId,
+	bool     is_sensor_ctx);
 
 /**
  * @cci_client: CCI client structure

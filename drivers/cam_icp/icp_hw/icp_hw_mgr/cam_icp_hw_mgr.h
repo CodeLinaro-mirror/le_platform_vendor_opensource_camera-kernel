@@ -271,6 +271,8 @@ struct cam_ctx_clk_info {
  * @watch_dog_reset_counter: Counter for watch dog reset
  * @icp_dev_io_info: io config resource
  * @last_flush_req: last flush req for this ctx
+ * @prev_fc: Previous applied frame cycle
+ * @prev_budget_ns: Previous budget in nanoseconds
  */
 struct cam_icp_hw_ctx_data {
 	void *context_priv;
@@ -294,6 +296,8 @@ struct cam_icp_hw_ctx_data {
 	struct cam_icp_acquire_dev_info icp_dev_io_info;
 	uint64_t last_flush_req;
 	char ctx_id_string[128];
+	uint32_t prev_fc;
+	uint64_t prev_budget_ns;
 };
 
 /**

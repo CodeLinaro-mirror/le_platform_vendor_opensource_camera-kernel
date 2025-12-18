@@ -9,6 +9,8 @@
 #include <linux/slab.h>
 #include <linux/gpio.h>
 #include <linux/of_gpio.h>
+#include <linux/pm_domain.h>
+#include <linux/pm_runtime.h>
 #include "cam_soc_util.h"
 #include "cam_debug_util.h"
 #include "cam_cx_ipeak.h"
@@ -1823,7 +1825,7 @@ static int cam_soc_util_get_gpio_info(struct cam_hw_soc_info *soc_info)
 		return -EINVAL;
 	}
 
-	gpio_array_size = of_gpio_count(of_node);
+	gpio_array_size = cam_get_gpio_counts(soc_info);
 
 	if (gpio_array_size <= 0)
 		return 0;
@@ -1835,7 +1837,7 @@ static int cam_soc_util_get_gpio_info(struct cam_hw_soc_info *soc_info)
 		goto free_gpio_conf;
 
 	for (i = 0; i < gpio_array_size; i++) {
-		gpio_array[i] = of_get_gpio(of_node, i);
+		gpio_array[i] = cam_get_named_gpio(soc_info, i);
 		CAM_DBG(CAM_UTIL, "gpio_array[%d] = %d", i, gpio_array[i]);
 	}
 
@@ -1920,7 +1922,8 @@ static int cam_soc_util_request_gpio_table(
 			}
 		}
 	} else {
-		gpio_free_array(gpio_tbl, size);
+		for (i = 0; i < size; i++)
+			gpio_free(gpio_tbl[i].gpio);
 	}
 
 	return rc;
@@ -2002,6 +2005,152 @@ static int cam_soc_util_get_dt_regulator_info
 static uint32_t next_dummy_irq_line_num = 0x000f;
 struct resource dummy_irq_line[512];
 #endif
+
+inline char *cam_soc_util_get_gdsc_mode_string(enum cam_gdsc_control_mode ctrl_mode)
+{
+	switch (ctrl_mode) {
+	case CAM_GDSC_SW_CONTROL:
+		return "CAM_GDSC_SW_CONTROL";
+	case CAM_GDSC_HW_CONTROL:
+		return "CAM_GDSC_HW_CONTROL";
+	default:
+		CAM_ERR(CAM_UTIL, "Invalid GDSC control mode %d", ctrl_mode);
+		return "";
+	}
+}
+
+inline int cam_soc_util_initialize_power_domain(struct device *dev)
+{
+	if (unlikely(!dev)) {
+		CAM_ERR(CAM_UTIL, "Invalid device");
+		return -EINVAL;
+	}
+
+	/* Runtime power management should be enabled before trying
+	 * to turn them on or off, i.e, calling get_sync or put_sync.
+	 */
+	if (dev->pm_domain)
+		pm_runtime_enable(dev);
+
+	return 0;
+}
+
+inline int cam_soc_util_uninitialize_power_domain(struct device *dev)
+{
+	if (unlikely(!dev)) {
+		CAM_ERR(CAM_UTIL, "Invalid device");
+		return -EINVAL;
+	}
+
+	/* Return value has to be handled if we support PM runtime
+	 * callbacks for device suspend and resume.
+	 */
+	if (dev->pm_domain)
+		pm_runtime_disable(dev);
+
+	return 0;
+}
+
+inline int cam_soc_util_turn_on_power_domain(struct cam_hw_soc_info *soc_info)
+{
+	int ret = 0;
+
+	if (!soc_info || !soc_info->dev) {
+		CAM_ERR(CAM_UTIL, "%s is NULL", soc_info? "soc_info->dev": "soc_info");
+		return -EINVAL;
+	}
+
+	ret = pm_runtime_get_sync(soc_info->dev);
+	if (ret < 0) {
+		CAM_ERR(CAM_UTIL, "%s: Failed to turn on the power domain: %d",
+			soc_info->dev_name, ret);
+		return ret;
+	}
+
+	return 0;
+}
+
+inline int cam_soc_util_turn_off_power_domain(struct cam_hw_soc_info *soc_info)
+{
+	int ret = 0;
+
+	if (!soc_info || !soc_info->dev) {
+		CAM_ERR(CAM_UTIL, "%s is NULL", soc_info? "soc_info->dev": "soc_info");
+		return -EINVAL;
+	}
+
+	ret = pm_runtime_put_sync(soc_info->dev);
+	if (ret < 0) {
+		CAM_ERR(CAM_UTIL, "%s: Failed to turn off the power domain: %d",
+			soc_info->dev_name, ret);
+		return ret;
+	}
+
+	return 0;
+}
+
+inline int cam_soc_util_power_domain_set_mode(struct cam_hw_soc_info *soc_info,
+	enum cam_gdsc_control_mode ctrl_mode)
+{
+	int ret = 0;
+
+	if (!soc_info || !soc_info->dev) {
+		CAM_ERR(CAM_UTIL, "%s is NULL", soc_info? "soc_info->dev": "soc_info");
+		return -EINVAL;
+	}
+
+#ifdef CONFIG_SPECTRA_POWER_DOMAIN_SET_HW_MODE
+	if (ctrl_mode == CAM_GDSC_SW_CONTROL) {
+		ret = dev_pm_genpd_set_hwmode(soc_info->dev, false);
+		if (ret)
+			CAM_ERR(CAM_UTIL, "%s: Failed to set the GDSC to SW control mode",
+				soc_info->dev_name);
+	} else if (ctrl_mode == CAM_GDSC_HW_CONTROL) {
+		ret = dev_pm_genpd_set_hwmode(soc_info->dev, true);
+		if (ret)
+			CAM_ERR(CAM_UTIL, "%s: Failed to set the GDSC to HW control mode",
+				soc_info->dev_name);
+	} else {
+		CAM_ERR(CAM_UTIL, "%s: Invalid GDSC control mode %d", soc_info->dev_name,
+			ctrl_mode);
+		return -EINVAL;
+	}
+#else
+	CAM_ERR(CAM_UTIL, "%s: Transferring the GDSC control not supported on this platform",
+		soc_info->dev_name);
+	ret = -EOPNOTSUPP;
+#endif
+
+	return ret;
+}
+
+static int cam_soc_util_get_dt_power_domain_info(struct cam_hw_soc_info *soc_info)
+{
+	if (!soc_info || !soc_info->dev) {
+		CAM_ERR(CAM_UTIL, "%s is NULL", soc_info? "soc_info->dev": "soc_info");
+		return -EINVAL;
+	}
+
+	soc_info->is_a_genpd_device = false;
+	/*
+	 * Currently there is no requirement on any platform for camera to
+	 * support multiple power domains for a device.
+	 * If device has a single power domain associated with it,
+	 * the power domain will be attached to the device by core framework
+	 * before probe callback of device is called and no need to explictly
+	 * attach it and hence 'dev->pm_domain' shoulbe valid here.
+	 */
+	if (soc_info->dev->pm_domain) {
+		soc_info->is_a_genpd_device = true;
+	} else if (of_count_phandle_with_args(soc_info->dev->of_node, "power-domains",
+				       "#power-domain-cells") > 1) {
+		CAM_ERR(CAM_UTIL, "%s: Camera devices don't support multiple PDs per device",
+			soc_info->dev_name);
+		return -EOPNOTSUPP;
+	}
+
+	return 0;
+}
 
 int cam_soc_util_get_dt_properties(struct cam_hw_soc_info *soc_info)
 {
@@ -2098,6 +2247,10 @@ int cam_soc_util_get_dt_properties(struct cam_hw_soc_info *soc_info)
 		soc_info->is_nrt_dev = true;
 	CAM_DBG(CAM_UTIL, "Dev %s, nrt_dev %d",
 		soc_info->dev_name, soc_info->is_nrt_dev);
+
+	rc = cam_soc_util_get_dt_power_domain_info(soc_info);
+	if (rc)
+		return rc;
 
 	rc = cam_soc_util_get_dt_regulator_info(soc_info);
 	if (rc)
@@ -2850,10 +3003,19 @@ int cam_soc_util_enable_platform_resource(struct cam_hw_soc_info *soc_info,
 	if (!soc_info)
 		return -EINVAL;
 
+	if (soc_info->is_a_genpd_device) {
+		rc = cam_soc_util_turn_on_power_domain(soc_info);
+		if (rc) {
+			CAM_ERR(CAM_UTIL, "Failed to turn on the GDSC for dev: %s",
+				soc_info->dev_name);
+			return rc;
+		}
+	}
+
 	rc = cam_soc_util_regulator_enable_default(soc_info);
 	if (rc) {
 		CAM_ERR(CAM_UTIL, "Regulators enable failed");
-		return rc;
+		goto turn_off_power_domain;
 	}
 
 	if (enable_clocks) {
@@ -2877,6 +3039,10 @@ disable_clk:
 disable_regulator:
 	cam_soc_util_regulator_disable_default(soc_info);
 
+turn_off_power_domain:
+	if (soc_info->is_a_genpd_device)
+		cam_soc_util_turn_off_power_domain(soc_info);
+
 	return rc;
 }
 
@@ -2895,6 +3061,13 @@ int cam_soc_util_disable_platform_resource(struct cam_hw_soc_info *soc_info,
 		cam_soc_util_clk_disable_default(soc_info);
 
 	cam_soc_util_regulator_disable_default(soc_info);
+
+	if (soc_info->is_a_genpd_device) {
+		rc = cam_soc_util_turn_off_power_domain(soc_info);
+		if (rc)
+			CAM_ERR(CAM_UTIL, "Failed to turn off the GDSC for dev: %s",
+				soc_info->dev_name);
+	}
 
 	return rc;
 }
@@ -2973,9 +3146,9 @@ static int cam_soc_util_dump_cont_reg_range(
 			goto end;
 		}
 
-		dump_out_buf->dump_data[write_idx++] = reg_read->offset +
+		dump_out_buf->dump_data_flex[write_idx++] = reg_read->offset +
 			(i * sizeof(uint32_t));
-		dump_out_buf->dump_data[write_idx++] =
+		dump_out_buf->dump_data_flex[write_idx++] =
 			cam_soc_util_r(soc_info, base_idx,
 			(reg_read->offset + (i * sizeof(uint32_t))));
 		dump_out_buf->bytes_written += (2 * sizeof(uint32_t));
@@ -3058,9 +3231,9 @@ static int cam_soc_util_dump_dmi_reg_range(
 		cam_soc_util_w_mb(soc_info, base_idx,
 			dmi_read->pre_read_config[i].offset,
 			dmi_read->pre_read_config[i].value);
-		dump_out_buf->dump_data[write_idx++] =
+		dump_out_buf->dump_data_flex[write_idx++] =
 			dmi_read->pre_read_config[i].offset;
-		dump_out_buf->dump_data[write_idx++] =
+		dump_out_buf->dump_data_flex[write_idx++] =
 			dmi_read->pre_read_config[i].value;
 		dump_out_buf->bytes_written += (2 * sizeof(uint32_t));
 	}
@@ -3076,9 +3249,9 @@ static int cam_soc_util_dump_dmi_reg_range(
 	}
 
 	for (i = 0; i < dmi_read->dmi_data_read.num_values; i++) {
-		dump_out_buf->dump_data[write_idx++] =
+		dump_out_buf->dump_data_flex[write_idx++] =
 			dmi_read->dmi_data_read.offset;
-		dump_out_buf->dump_data[write_idx++] =
+		dump_out_buf->dump_data_flex[write_idx++] =
 			cam_soc_util_r_mb(soc_info, base_idx,
 			dmi_read->dmi_data_read.offset);
 		dump_out_buf->bytes_written += (2 * sizeof(uint32_t));
@@ -3330,7 +3503,7 @@ static int cam_soc_util_user_reg_dump(
 	}
 	for (i = 0; i < reg_dump_desc->num_read_range; i++) {
 
-		reg_read_info = &reg_dump_desc->read_range[i];
+		reg_read_info = &reg_dump_desc->read_range_flex[i];
 		if (reg_read_info->type ==
 				CAM_REG_DUMP_READ_TYPE_CONT_RANGE) {
 			rc = cam_soc_util_dump_cont_reg_range_user_buf(
@@ -3458,10 +3631,10 @@ int cam_soc_util_reg_dump_to_cmd_buf(void *ctx,
 		req_id, ctx, reg_input_info->num_dump_sets);
 	for (i = 0; i < reg_input_info->num_dump_sets; i++) {
 		if ((cmd_in_data_end - cmd_buf_start) <= (uintptr_t)
-			reg_input_info->dump_set_offsets[i]) {
+			reg_input_info->dump_set_offsets_flex[i]) {
 			CAM_ERR(CAM_UTIL,
 				"Invalid dump set offset: [%pK], cmd_buf_start: [%pK] cmd_in_data_end: [%pK]",
-				(uintptr_t)reg_input_info->dump_set_offsets[i],
+				(uintptr_t)reg_input_info->dump_set_offsets_flex[i],
 				cmd_buf_start, cmd_in_data_end);
 			rc = -EINVAL;
 			goto end;
@@ -3469,7 +3642,7 @@ int cam_soc_util_reg_dump_to_cmd_buf(void *ctx,
 
 		reg_dump_desc = (struct cam_reg_dump_desc *)
 			(cmd_buf_start +
-			(uintptr_t)reg_input_info->dump_set_offsets[i]);
+			(uintptr_t)reg_input_info->dump_set_offsets_flex[i]);
 		if ((reg_dump_desc->num_read_range > 1) &&
 			(sizeof(struct cam_reg_read_info) > ((U32_MAX -
 			sizeof(struct cam_reg_dump_desc)) /
@@ -3564,7 +3737,7 @@ int cam_soc_util_reg_dump_to_cmd_buf(void *ctx,
 			CAM_DBG(CAM_UTIL,
 				"Number of bytes written to cmd buffer: %u req_id: %llu",
 				dump_out_buf->bytes_written, req_id);
-			reg_read_info = &reg_dump_desc->read_range[j];
+			reg_read_info = &reg_dump_desc->read_range_flex[j];
 			if (reg_read_info->type ==
 				CAM_REG_DUMP_READ_TYPE_CONT_RANGE) {
 				rc = cam_soc_util_dump_cont_reg_range(soc_info,

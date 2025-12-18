@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, 2024, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #ifndef _CAM_CPAS_SOC_H_
@@ -144,6 +144,8 @@ struct cam_cpas_smart_qos_info {
  * @arch_compat: ARCH compatible string
  * @client_id_based: Whether clients are id based
  * @bus_icc_based: Interconnect based bus interaction
+ * @use_cam_icc_path_str: Indicates if AXI path from interconnect is taken based on
+ *                       cam specified property
  * @num_clients: Number of clients supported
  * @client_name: Client names
  * @tree_node: Array of pointers to all tree nodes required to calculate
@@ -173,6 +175,7 @@ struct cam_cpas_private_soc {
 	const char *arch_compat;
 	bool client_id_based;
 	bool bus_icc_based;
+	bool use_cam_icc_path_str;
 	uint32_t num_clients;
 	const char *client_name[CAM_CPAS_MAX_CLIENTS];
 	struct cam_cpas_tree_node *tree_node[CAM_CPAS_MAX_TREE_NODES];

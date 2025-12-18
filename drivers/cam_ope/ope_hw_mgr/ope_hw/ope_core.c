@@ -391,13 +391,13 @@ static int cam_ope_dev_prepare_cdm_request(
 	cdm_cmd->irq_cb_intr_ctx = false;
 
 	i = cdm_cmd->cmd_arrary_count;
-	cdm_cmd->cmd[i].bl_addr.mem_handle =
+	cdm_cmd->cmd_flex[i].bl_addr.mem_handle =
 		ope_request->ope_kmd_buf.mem_handle;
-	cdm_cmd->cmd[i].offset = kmd_buf_offset +
+	cdm_cmd->cmd_flex[i].offset = kmd_buf_offset +
 		ope_request->ope_kmd_buf.offset;
-	cdm_cmd->cmd[i].len = len;
-	cdm_cmd->cmd[i].arbitrate = arbitrate;
-	cdm_cmd->cmd[i].enable_debug_gen_irq = false;
+	cdm_cmd->cmd_flex[i].len = len;
+	cdm_cmd->cmd_flex[i].arbitrate = arbitrate;
+	cdm_cmd->cmd_flex[i].enable_debug_gen_irq = false;
 
 	cdm_cmd->cmd_arrary_count++;
 
@@ -406,7 +406,7 @@ static int cam_ope_dev_prepare_cdm_request(
 		cdm_cmd->cmd_arrary_count);
 	CAM_DBG(CAM_OPE, "CDM cmd:mem_hdl = %d offset = %d len = %d, iova 0x%x",
 		ope_request->ope_kmd_buf.mem_handle, kmd_buf_offset, len,
-		cdm_cmd->cmd[i].bl_addr.hw_iova);
+		cdm_cmd->cmd_flex[i].bl_addr.hw_iova);
 
 	return 0;
 }

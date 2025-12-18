@@ -517,9 +517,9 @@ static int cam_icp_update_qos(struct cam_icp_hw_mgr *hw_mgr)
 	set_prop->size = payload_size;
 	set_prop->pkt_type = HFI_CMD_SYS_SET_PROPERTY;
 	set_prop->num_prop = 1;
-	set_prop->prop_data[0] = HFI_PROPERTY_QOS_PARAMS;
+	set_prop->prop_data_flex[0] = HFI_PROPERTY_QOS_PARAMS;
 
-	qos_data = (struct hfi_cmd_qos_params *)&set_prop->prop_data[1];
+	qos_data = (struct hfi_cmd_qos_params *)&set_prop->prop_data_flex[1];
 
 	qos_data->core_id = HW_CORE_IPE;
 	qos_data->num_sessions = total_ent;
@@ -532,13 +532,13 @@ static int cam_icp_update_qos(struct cam_icp_hw_mgr *hw_mgr)
 			fmin = ((ctx_data->clk_info.curr_fc * mul) /
 					ctx_data->clk_info.budget_ns);
 			fps = mul / ctx_data->clk_info.budget_ns;
-			qos_data->qos_params[num_ent].target_completion_cycles =
+			qos_data->qos_params_flex[num_ent].target_completion_cycles =
 				(fmin * core_freq) /
 					(total_fmin * fps);
-			qos_data->qos_params[num_ent].session_id = ctx_data->fw_handle;
+			qos_data->qos_params_flex[num_ent].session_id = ctx_data->fw_handle;
 			CAM_DBG(CAM_ICP, "ctx %d core freq %llu tgc %llu fmin %llu",
 				ctx_data->ctx_id, core_freq,
-				qos_data->qos_params[num_ent].target_completion_cycles, fmin);
+				qos_data->qos_params_flex[num_ent].target_completion_cycles, fmin);
 			num_ent++;
 		}
 	}
@@ -1480,8 +1480,19 @@ static int cam_icp_check_clk_update(struct cam_icp_hw_mgr *hw_mgr,
 	CAM_DBG(CAM_PERF, "busy = %d req_id = %lld", busy, req_id);
 
 	clk_info = &ctx_data->hfi_frame_process.clk_info[idx];
-	if (!clk_info->frame_cycles)
-		return cam_icp_default_clk_update(hw_mgr_clk_info);
+	if (!clk_info->frame_cycles) {
+		if (!ctx_data->prev_fc)
+			return cam_icp_default_clk_update(hw_mgr_clk_info);
+
+		clk_info->frame_cycles = ctx_data->prev_fc;
+		clk_info->budget_ns = ctx_data->prev_budget_ns;
+		CAM_DBG(CAM_ICP, "Default to previous fc: %llu, budget: %llu",
+			clk_info->frame_cycles,
+			clk_info->budget_ns);
+	}
+
+	ctx_data->prev_fc = clk_info->frame_cycles;
+	ctx_data->prev_budget_ns = clk_info->budget_ns;
 
 	ctx_data->clk_info.rt_flag = clk_info->rt_flag;
 
@@ -2365,7 +2376,7 @@ static int cam_icp_mgr_process_msg_frame_process(uint32_t *msg_ptr)
 	}
 
 	frame_done =
-		(struct hfi_msg_frame_process_done *)ioconfig_ack->msg_data;
+		(struct hfi_msg_frame_process_done *)ioconfig_ack->msg_data_flex;
 	if (!frame_done) {
 		cam_icp_mgr_handle_frame_process(msg_ptr,
 			ICP_FRAME_PROCESS_FAILURE);
@@ -2396,7 +2407,7 @@ static int cam_icp_mgr_process_msg_config_io(uint32_t *msg_ptr)
 
 	if (ioconfig_ack->opcode == HFI_IPEBPS_CMD_OPCODE_IPE_CONFIG_IO) {
 		ipe_config_ack =
-			(struct hfi_msg_ipe_config *)(ioconfig_ack->msg_data);
+			(struct hfi_msg_ipe_config *)(ioconfig_ack->msg_data_flex);
 		if (ipe_config_ack->rc) {
 			CAM_ERR(CAM_ICP, "rc = %d failed with\n"
 				"err_no = [%u] err_type = [%s]",
@@ -2416,7 +2427,7 @@ static int cam_icp_mgr_process_msg_config_io(uint32_t *msg_ptr)
 		ctx_data->scratch_mem_size = ipe_config_ack->scratch_mem_size;
 	} else {
 		bps_config_ack =
-			(struct hfi_msg_bps_common *)(ioconfig_ack->msg_data);
+			(struct hfi_msg_bps_common *)(ioconfig_ack->msg_data_flex);
 		if (bps_config_ack->rc) {
 			CAM_ERR(CAM_ICP, "rc : %u, opcode :%u",
 				bps_config_ack->rc, ioconfig_ack->opcode);
@@ -2681,7 +2692,7 @@ static void cam_icp_mgr_process_dbg_buf(unsigned int debug_lvl)
 		pkt_ptr = msg_ptr;
 		if (pkt_ptr[ICP_PACKET_TYPE] == HFI_MSG_SYS_DEBUG) {
 			dbg_msg = (struct hfi_msg_debug *)pkt_ptr;
-			dbg_buf = (char *)&dbg_msg->msg_data;
+			dbg_buf = (char *)&dbg_msg->msg_data_flex;
 			timestamp = ((((uint64_t)(dbg_msg->timestamp_hi) << 32)
 				| dbg_msg->timestamp_lo));
 			trace_cam_icp_fw_dbg(dbg_buf, timestamp);
@@ -3989,7 +4000,7 @@ static int cam_icp_mgr_abort_handle_wq(
 		abort_cmd->opcode = HFI_IPEBPS_CMD_OPCODE_IPE_ABORT;
 
 	abort_cmd->num_fw_handles = 1;
-	abort_cmd->fw_handles[0] = ctx_data->fw_handle;
+	abort_cmd->fw_handles_flex[0] = ctx_data->fw_handle;
 	abort_cmd->user_data1 = PTR_TO_U64(ctx_data);
 	abort_cmd->user_data2 = (uint64_t)0x0;
 
@@ -4037,7 +4048,7 @@ static int cam_icp_mgr_abort_handle(
 
 	reinit_completion(&ctx_data->wait_complete);
 	abort_cmd->num_fw_handles = 1;
-	abort_cmd->fw_handles[0] = ctx_data->fw_handle;
+	abort_cmd->fw_handles_flex[0] = ctx_data->fw_handle;
 	abort_cmd->user_data1 = PTR_TO_U64(ctx_data);
 	abort_cmd->user_data2 = (uint64_t)0x0;
 
@@ -4097,10 +4108,10 @@ static int cam_icp_mgr_destroy_handle(
 
 	reinit_completion(&ctx_data->wait_complete);
 	destroy_cmd->num_fw_handles = 1;
-	destroy_cmd->fw_handles[0] = ctx_data->fw_handle;
+	destroy_cmd->fw_handles_flex[0] = ctx_data->fw_handle;
 	destroy_cmd->user_data1 = PTR_TO_U64(ctx_data);
 	destroy_cmd->user_data2 = (uint64_t)0x0;
-	memcpy(destroy_cmd->payload.direct, &ctx_data->temp_payload,
+	memcpy(destroy_cmd->payload.direct_flex, &ctx_data->temp_payload,
 		sizeof(uint64_t));
 
 	rc = hfi_write_cmd(destroy_cmd);
@@ -4239,7 +4250,7 @@ static unsigned long cam_icp_hw_mgr_mini_dump_cb(void *dst, unsigned long len)
 				&ctx->icp_dev_acquire_info->in_res,
 				sizeof(struct cam_icp_res_info));
 			memcpy(ctx_md->acquire.out_res,
-				ctx->icp_dev_acquire_info->out_res,
+				ctx->icp_dev_acquire_info->out_res_flex,
 				sizeof(ctx->icp_dev_acquire_info->out_res));
 		} else {
 			memset(&ctx_md->acquire, 0,
@@ -4569,54 +4580,54 @@ static int cam_icp_mgr_send_memory_region_info(
 	set_prop->size = payload_size;
 	set_prop->pkt_type = HFI_CMD_SYS_SET_PROPERTY;
 	set_prop->num_prop = 1;
-	set_prop->prop_data[0] = HFI_PROP_SYS_MEM_REGIONS;
+	set_prop->prop_data_flex[0] = HFI_PROP_SYS_MEM_REGIONS;
 
-	region_info = (struct hfi_cmd_config_mem_regions *)&set_prop->prop_data[1];
+	region_info = (struct hfi_cmd_config_mem_regions *)&set_prop->prop_data_flex[1];
 	if (hw_mgr->synx_signaling_en) {
 		/* Update synx global mem */
-		region_info->region_info[region_info->num_valid_regions].region_id =
+		region_info->region_info_flex[region_info->num_valid_regions].region_id =
 			HFI_MEM_REGION_ID_IPCLITE_SHARED_MEM;
-		region_info->region_info[region_info->num_valid_regions].region_type =
+		region_info->region_info_flex[region_info->num_valid_regions].region_type =
 			HFI_MEM_REGION_TYPE_UNCACHED;
-		region_info->region_info[region_info->num_valid_regions].start_addr =
+		region_info->region_info_flex[region_info->num_valid_regions].start_addr =
 			hw_mgr->hfi_mem.fw_uncached_global_sync.iova;
-		region_info->region_info[region_info->num_valid_regions].size =
+		region_info->region_info_flex[region_info->num_valid_regions].size =
 			hw_mgr->hfi_mem.fw_uncached_global_sync.len;
 
 		region_info->num_valid_regions++;
 
 		/* Update synx hw_mutex mem */
-		region_info->region_info[region_info->num_valid_regions].region_id =
+		region_info->region_info_flex[region_info->num_valid_regions].region_id =
 			HFI_MEM_REGION_ID_SYNX_HW_MUTEX;
-		region_info->region_info[region_info->num_valid_regions].region_type =
+		region_info->region_info_flex[region_info->num_valid_regions].region_type =
 			HFI_MEM_REGION_TYPE_DEVICE;
-		region_info->region_info[region_info->num_valid_regions].start_addr =
+		region_info->region_info_flex[region_info->num_valid_regions].start_addr =
 			hw_mgr->hfi_mem.synx_hwmutex.iova;
-		region_info->region_info[region_info->num_valid_regions].size =
+		region_info->region_info_flex[region_info->num_valid_regions].size =
 			hw_mgr->hfi_mem.synx_hwmutex.len;
 
 		region_info->num_valid_regions++;
 
 		/* Update ipc hw_mutex mem */
-		region_info->region_info[region_info->num_valid_regions].region_id =
+		region_info->region_info_flex[region_info->num_valid_regions].region_id =
 			HFI_MEM_REGION_ID_GLOBAL_ATOMIC_HW_MUTEX;
-		region_info->region_info[region_info->num_valid_regions].region_type =
+		region_info->region_info_flex[region_info->num_valid_regions].region_type =
 			HFI_MEM_REGION_TYPE_DEVICE;
-		region_info->region_info[region_info->num_valid_regions].start_addr =
+		region_info->region_info_flex[region_info->num_valid_regions].start_addr =
 			hw_mgr->hfi_mem.ipc_hwmutex.iova;
-		region_info->region_info[region_info->num_valid_regions].size =
+		region_info->region_info_flex[region_info->num_valid_regions].size =
 			hw_mgr->hfi_mem.ipc_hwmutex.len;
 
 		region_info->num_valid_regions++;
 
 		/* Update soc hw version mem */
-		region_info->region_info[region_info->num_valid_regions].region_id =
+		region_info->region_info_flex[region_info->num_valid_regions].region_id =
 			HFI_MEM_REGION_ID_SOC_HW_VERSION;
-		region_info->region_info[region_info->num_valid_regions].region_type =
+		region_info->region_info_flex[region_info->num_valid_regions].region_type =
 			HFI_MEM_REGION_TYPE_DEVICE;
-		region_info->region_info[region_info->num_valid_regions].start_addr =
+		region_info->region_info_flex[region_info->num_valid_regions].start_addr =
 			hw_mgr->hfi_mem.soc_hw_version.iova;
-		region_info->region_info[region_info->num_valid_regions].size =
+		region_info->region_info_flex[region_info->num_valid_regions].size =
 			hw_mgr->hfi_mem.soc_hw_version.len;
 
 		region_info->num_valid_regions++;
@@ -4631,13 +4642,13 @@ static int cam_icp_mgr_send_memory_region_info(
 	}
 
 	/* Update global cntr mem */
-	region_info->region_info[region_info->num_valid_regions].region_id =
+	region_info->region_info_flex[region_info->num_valid_regions].region_id =
 		HFI_MEM_REGION_ID_GLOBAL_CNTR;
-	region_info->region_info[region_info->num_valid_regions].region_type =
+	region_info->region_info_flex[region_info->num_valid_regions].region_type =
 		HFI_MEM_REGION_TYPE_DEVICE;
-	region_info->region_info[region_info->num_valid_regions].start_addr =
+	region_info->region_info_flex[region_info->num_valid_regions].start_addr =
 		hw_mgr->hfi_mem.global_cntr.iova;
-	region_info->region_info[region_info->num_valid_regions].size =
+	region_info->region_info_flex[region_info->num_valid_regions].size =
 		hw_mgr->hfi_mem.global_cntr.len;
 
 	region_info->num_valid_regions++;
@@ -4977,7 +4988,7 @@ static int cam_icp_mgr_send_config_io(struct cam_icp_hw_ctx_data *ctx_data,
 	reinit_completion(&ctx_data->wait_complete);
 
 	ioconfig_cmd.num_fw_handles = 1;
-	ioconfig_cmd.fw_handles[0] = ctx_data->fw_handle;
+	ioconfig_cmd.fw_handles_flex[0] = ctx_data->fw_handle;
 	ioconfig_cmd.payload.indirect = io_buf_addr;
 	ioconfig_cmd.user_data1 = PTR_TO_U64(ctx_data);
 	ioconfig_cmd.user_data2 = (uint64_t)0x0;
@@ -5147,7 +5158,7 @@ static int cam_icp_mgr_prepare_frame_process_cmd(
 	else
 		hfi_cmd->opcode = HFI_IPEBPS_CMD_OPCODE_IPE_FRAME_PROCESS;
 	hfi_cmd->num_fw_handles = 1;
-	hfi_cmd->fw_handles[0] = ctx_data->fw_handle;
+	hfi_cmd->fw_handles_flex[0] = ctx_data->fw_handle;
 	hfi_cmd->payload.indirect = fw_cmd_buf_iova_addr;
 	hfi_cmd->user_data1 = PTR_TO_U64(ctx_data);
 	hfi_cmd->user_data2 = request_id;
@@ -5165,7 +5176,7 @@ static bool cam_icp_mgr_is_valid_inconfig(struct cam_packet *packet)
 	bool in_config_valid = false;
 	struct cam_buf_io_cfg *io_cfg_ptr = NULL;
 
-	io_cfg_ptr = (struct cam_buf_io_cfg *) ((uint32_t *) &packet->payload +
+	io_cfg_ptr = (struct cam_buf_io_cfg *) ((uint32_t *) &packet->payload_flex +
 					packet->io_configs_offset/4);
 
 	for (i = 0 ; i < packet->num_io_configs; i++)
@@ -5192,7 +5203,7 @@ static bool cam_icp_mgr_is_valid_outconfig(struct cam_packet *packet)
 	bool out_config_valid = false;
 	struct cam_buf_io_cfg *io_cfg_ptr = NULL;
 
-	io_cfg_ptr = (struct cam_buf_io_cfg *) ((uint32_t *) &packet->payload +
+	io_cfg_ptr = (struct cam_buf_io_cfg *) ((uint32_t *) &packet->payload_flex +
 					packet->io_configs_offset/4);
 
 	for (i = 0 ; i < packet->num_io_configs; i++)
@@ -5262,7 +5273,7 @@ static int cam_icp_mgr_process_cmd_desc(struct cam_icp_hw_mgr *hw_mgr,
 	uintptr_t cpu_addr = 0;
 
 	cmd_desc = (struct cam_cmd_buf_desc *)
-		((uint32_t *) &packet->payload + packet->cmd_buf_offset/4);
+		((uint32_t *) &packet->payload_flex + packet->cmd_buf_offset/4);
 	rc = cam_packet_util_validate_cmd_desc(cmd_desc);
 	if (rc)
 		return rc;
@@ -5340,7 +5351,7 @@ static int cam_icp_mgr_process_io_cfg(struct cam_icp_hw_mgr *hw_mgr,
 	int32_t sync_in_obj[CAM_MAX_IN_RES];
 	int32_t merged_sync_in_obj;
 
-	io_cfg_ptr = (struct cam_buf_io_cfg *) ((uint32_t *) &packet->payload +
+	io_cfg_ptr = (struct cam_buf_io_cfg *) ((uint32_t *) &packet->payload_flex +
 				packet->io_configs_offset/4);
 	prepare_args->num_out_map_entries = 0;
 	prepare_args->num_in_map_entries = 0;
@@ -5436,23 +5447,23 @@ static int cam_icp_process_stream_settings(
 
 	for (i = 0; i < cmd_mem_regions->num_regions; i++) {
 		rc = cam_mem_get_io_buf(
-			cmd_mem_regions->map_info_array[i].mem_handle,
+			cmd_mem_regions->map_info_array_flex[i].mem_handle,
 			icp_hw_mgr.iommu_hdl, &iova, &len, NULL);
 		if (rc) {
 			CAM_ERR(CAM_ICP,
 				"Failed to get cmd region iova for handle %u",
-				cmd_mem_regions->map_info_array[i].mem_handle);
+				cmd_mem_regions->map_info_array_flex[i].mem_handle);
 			kfree(map_cmd);
 			return -EINVAL;
 		}
 
 		/* FW/CDM buffers are expected to be mapped in 32-bit address range */
-		map_cmd->mem_map_region_sets[i].start_addr = (uint32_t)iova +
-			(cmd_mem_regions->map_info_array[i].offset);
-		map_cmd->mem_map_region_sets[i].len = (uint32_t) len;
+		map_cmd->mem_map_region_sets_flex[i].start_addr = (uint32_t)iova +
+			(cmd_mem_regions->map_info_array_flex[i].offset);
+		map_cmd->mem_map_region_sets_flex[i].len = (uint32_t) len;
 
 		CAM_DBG(CAM_ICP, "Region %u mem_handle %d iova %pK len %u",
-			(i+1), cmd_mem_regions->map_info_array[i].mem_handle,
+			(i+1), cmd_mem_regions->map_info_array_flex[i].mem_handle,
 			(uint32_t)iova, (uint32_t)len);
 	}
 
@@ -5479,10 +5490,10 @@ static int cam_icp_process_stream_settings(
 	else
 		async_direct->opcode = HFI_IPEBPS_CMD_OPCODE_MEM_UNMAP;
 	async_direct->num_fw_handles = 1;
-	async_direct->fw_handles[0] = ctx_data->fw_handle;
+	async_direct->fw_handles_flex[0] = ctx_data->fw_handle;
 	async_direct->user_data1 = (uint64_t)ctx_data;
 	async_direct->user_data2 = (uint64_t)0x0;
-	memcpy(async_direct->payload.direct, map_cmd,
+	memcpy(async_direct->payload.direct_flex, map_cmd,
 		map_cmd_size);
 
 	reinit_completion(&ctx_data->wait_complete);
@@ -5647,7 +5658,6 @@ static int cam_icp_packet_generic_blob_handler(void *user_data,
 				clk_info_v2->axi_path[i].mnoc_ab_bw,
 				clk_info_v2->axi_path[i].mnoc_ib_bw);
 		}
-
 		break;
 
 	case CAM_ICP_CMD_GENERIC_BLOB_CFG_IO:
@@ -5728,7 +5738,7 @@ static int cam_icp_process_generic_cmd_buffer(
 	cmd_generic_blob.io_buf_addr = io_buf_addr;
 
 	cmd_desc = (struct cam_cmd_buf_desc *)
-		((uint32_t *) &packet->payload + packet->cmd_buf_offset/4);
+		((uint32_t *) &packet->payload_flex + packet->cmd_buf_offset/4);
 	for (i = 0; i < packet->num_cmd_buf; i++) {
 		rc = cam_packet_util_validate_cmd_desc(&cmd_desc[i]);
 		if (rc)
@@ -5763,7 +5773,7 @@ static int cam_icp_mgr_process_cfg_io_cmd(
 		ioconfig_cmd->opcode = HFI_IPEBPS_CMD_OPCODE_IPE_CONFIG_IO;
 
 	ioconfig_cmd->num_fw_handles = 1;
-	ioconfig_cmd->fw_handles[0] = ctx_data->fw_handle;
+	ioconfig_cmd->fw_handles_flex[0] = ctx_data->fw_handle;
 	ioconfig_cmd->payload.indirect = io_config;
 	ioconfig_cmd->user_data1 = PTR_TO_U64(ctx_data);
 	ioconfig_cmd->user_data2 = request_id;
@@ -5830,7 +5840,7 @@ static void cam_icp_mgr_print_io_bufs(struct cam_packet *packet,
 	if (mem_found)
 		*mem_found = false;
 
-	io_cfg = (struct cam_buf_io_cfg *)((uint32_t *)&packet->payload +
+	io_cfg = (struct cam_buf_io_cfg *)((uint32_t *)&packet->payload_flex +
 		packet->io_configs_offset / 4);
 
 	for (i = 0; i < packet->num_io_configs; i++) {
@@ -5912,7 +5922,7 @@ static int cam_icp_mgr_config_stream_settings(
 	cmd_generic_blob.io_buf_addr = NULL;
 
 	cmd_desc = (struct cam_cmd_buf_desc *)
-		((uint32_t *) &packet->payload + packet->cmd_buf_offset/4);
+		((uint32_t *) &packet->payload_flex + packet->cmd_buf_offset/4);
 
 	rc = cam_packet_util_validate_cmd_desc(cmd_desc);
 	if (rc)
@@ -6787,7 +6797,7 @@ static int cam_icp_get_acquire_info(struct cam_icp_hw_mgr *hw_mgr,
 		ctx_data->icp_dev_acquire_info->num_out_res,
 		ctx_data->icp_dev_acquire_info->scratch_mem_size);
 
-	p_icp_out = ctx_data->icp_dev_acquire_info->out_res;
+	p_icp_out = ctx_data->icp_dev_acquire_info->out_res_flex;
 	for (i = 0; i < icp_dev_acquire_info.num_out_res; i++)
 		CAM_DBG(CAM_ICP, "out[i] %x %x %x %x",
 			p_icp_out[i].format,
@@ -6990,6 +7000,9 @@ static int cam_icp_mgr_acquire_hw(void *hw_mgr_priv, void *acquire_hw_args)
 	if (rc)
 		goto acquire_info_failed;
 
+	ctx_data->prev_fc = 0;
+	ctx_data->prev_budget_ns = 0;
+
 	icp_dev_acquire_info = ctx_data->icp_dev_acquire_info;
 	dev_type = icp_dev_acquire_info->dev_type;
 	icp_dev_acquire_info->dev_type =
@@ -7058,12 +7071,12 @@ static int cam_icp_mgr_acquire_hw(void *hw_mgr_priv, void *acquire_hw_args)
 		dev_type);
 
 	cmd_mem_region.num_regions = 1;
-	cmd_mem_region.map_info_array[0].mem_handle =
+	cmd_mem_region.map_info_array_flex[0].mem_handle =
 		icp_dev_acquire_info->io_config_cmd_handle;
-	cmd_mem_region.map_info_array[0].offset = 0;
-	cmd_mem_region.map_info_array[0].size =
+	cmd_mem_region.map_info_array_flex[0].offset = 0;
+	cmd_mem_region.map_info_array_flex[0].size =
 		icp_dev_acquire_info->io_config_cmd_size;
-	cmd_mem_region.map_info_array[0].flags = 0;
+	cmd_mem_region.map_info_array_flex[0].flags = 0;
 
 	rc = cam_icp_process_stream_settings(ctx_data,
 		&cmd_mem_region, true);

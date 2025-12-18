@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #include <linux/delay.h>
@@ -711,6 +712,9 @@ static int cam_cdm_intf_probe(struct platform_device *pdev)
 	int rc = 0;
 
 	CAM_DBG(CAM_CDM, "Adding CDM INTF component");
+
+	cam_soc_util_initialize_power_domain(&pdev->dev);
+
 	rc = component_add(&pdev->dev, &cam_cdm_intf_component_ops);
 	if (rc)
 		CAM_ERR(CAM_CDM, "failed to add component rc: %d", rc);
@@ -718,10 +722,19 @@ static int cam_cdm_intf_probe(struct platform_device *pdev)
 	return rc;
 }
 
+#if KERNEL_VERSION(6, 10, 0) > LINUX_VERSION_CODE
 static int cam_cdm_intf_remove(struct platform_device *pdev)
+#else
+static void cam_cdm_intf_remove(struct platform_device *pdev)
+#endif
 {
 	component_del(&pdev->dev, &cam_cdm_intf_component_ops);
+
+	cam_soc_util_uninitialize_power_domain(&pdev->dev);
+
+#if KERNEL_VERSION(6, 10, 0) > LINUX_VERSION_CODE
 	return 0;
+#endif
 }
 
 struct platform_driver cam_cdm_intf_driver = {

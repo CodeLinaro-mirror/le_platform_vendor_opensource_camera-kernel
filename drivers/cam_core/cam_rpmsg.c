@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #include <linux/kernel.h>
@@ -371,7 +371,7 @@ int cam_rpmsg_system_send_sync(struct cam_req_mgr_sync_mode_v2 *sync_info)
 	size_t sz = 0;
 
 	for (i = 0; i < sync_info->num_links; i++) {
-		if (sync_info->links[i].remote_sensor)
+		if (sync_info->links_flex[i].remote_sensor)
 			num_remote++;
 	}
 
@@ -389,8 +389,8 @@ int cam_rpmsg_system_send_sync(struct cam_req_mgr_sync_mode_v2 *sync_info)
 
 	pkt->num_cams = num_remote;
 	for (i = 0, j = 0; i < sync_info->num_links; i++) {
-		if (sync_info->links[i].remote_sensor)
-			pkt->camera_id[j++] = sync_info->links[i].sensor_id;
+		if (sync_info->links_flex[i].remote_sensor)
+			pkt->camera_id[j++] = sync_info->links_flex[i].sensor_id;
 	}
 
 	CAM_RPMSG_SLAVE_SET_PAYLOAD_TYPE(&pkt->phdr,

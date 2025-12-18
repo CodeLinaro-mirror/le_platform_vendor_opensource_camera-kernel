@@ -87,4 +87,13 @@ int32_t cam_actuator_driver_cmd(struct cam_actuator_ctrl_t *a_ctrl, void *arg);
  */
 void cam_actuator_shutdown(struct cam_actuator_ctrl_t *a_ctrl);
 
+/**
+* @notify_dev: Callback to notify dev to process cmd
+*
+* This API request dev to process requested command
+*/
+int cam_actuator_no_crm_notify_dev(uint32_t dev_hdl,
+          struct cam_req_mgr_no_crm_notify_device *notify_subdev);
+
+
 #endif /* _CAM_ACTUATOR_CORE_H_ */

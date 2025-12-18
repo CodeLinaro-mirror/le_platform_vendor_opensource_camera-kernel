@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #include "cam_sensor_dev.h"
@@ -245,7 +245,7 @@ static int cam_sensor_init_subdev_params(struct cam_sensor_ctrl_t *s_ctrl)
 		&cam_sensor_internal_ops;
 	s_ctrl->v4l2_dev_str.ops =
 		&cam_sensor_subdev_ops;
-	strlcpy(s_ctrl->device_name, CAMX_SENSOR_DEV_NAME,
+	strscpy(s_ctrl->device_name, CAMX_SENSOR_DEV_NAME,
 		sizeof(s_ctrl->device_name));
 	s_ctrl->v4l2_dev_str.name =
 		s_ctrl->device_name;
@@ -416,6 +416,34 @@ const static struct component_ops cam_sensor_i2c_component_ops = {
 	.unbind = cam_sensor_i2c_component_unbind,
 };
 
+#if KERNEL_VERSION(6, 2, 0) <= LINUX_VERSION_CODE
+static int cam_sensor_i2c_driver_probe(struct i2c_client *client)
+{
+	int rc = 0;
+
+	if (client == NULL) {
+		CAM_ERR(CAM_SENSOR, "Invalid Args client: %pK",
+			client);
+		return -EINVAL;
+	}
+
+	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
+		CAM_ERR(CAM_SENSOR, "%s :: i2c_check_functionality failed",
+			client->name);
+		return -EFAULT;
+	}
+
+	CAM_DBG(CAM_SENSOR, "Adding sensor component");
+
+	cam_soc_util_initialize_power_domain(&client->dev);
+
+	rc = component_add(&client->dev, &cam_sensor_i2c_component_ops);
+	if (rc)
+		CAM_ERR(CAM_SENSOR, "failed to add component rc: %d", rc);
+
+	return rc;
+}
+#else
 static int cam_sensor_i2c_driver_probe(struct i2c_client *client,
 	const struct i2c_device_id *id)
 {
@@ -434,16 +462,22 @@ static int cam_sensor_i2c_driver_probe(struct i2c_client *client,
 	}
 
 	CAM_DBG(CAM_SENSOR, "Adding sensor component");
+
+	cam_soc_util_initialize_power_domain(&client->dev);
+
 	rc = component_add(&client->dev, &cam_sensor_i2c_component_ops);
 	if (rc)
 		CAM_ERR(CAM_SENSOR, "failed to add component rc: %d", rc);
 
 	return rc;
 }
+#endif
 
 void cam_sensor_i2c_component_del_wrapper(struct i2c_client *client)
 {
 	component_del(&client->dev, &cam_sensor_i2c_component_ops);
+
+	cam_soc_util_uninitialize_power_domain(&client->dev);
 }
 
 static int cam_sensor_component_bind(struct device *dev,
@@ -591,10 +625,19 @@ const static struct component_ops cam_sensor_component_ops = {
 	.unbind = cam_sensor_component_unbind,
 };
 
+#if KERNEL_VERSION(6, 10, 0) > LINUX_VERSION_CODE
 static int cam_sensor_platform_remove(struct platform_device *pdev)
+#else
+static void cam_sensor_platform_remove(struct platform_device *pdev)
+#endif
 {
 	component_del(&pdev->dev, &cam_sensor_component_ops);
+
+	cam_soc_util_uninitialize_power_domain(&pdev->dev);
+
+#if KERNEL_VERSION(6, 10, 0) > LINUX_VERSION_CODE
 	return 0;
+#endif
 }
 
 static const struct of_device_id cam_sensor_driver_dt_match[] = {
@@ -608,6 +651,9 @@ static int32_t cam_sensor_driver_platform_probe(
 	int rc = 0;
 
 	CAM_DBG(CAM_SENSOR, "Adding Sensor component");
+
+	cam_soc_util_initialize_power_domain(&pdev->dev);
+
 	rc = component_add(&pdev->dev, &cam_sensor_component_ops);
 	if (rc)
 		CAM_ERR(CAM_SENSOR, "failed to add component rc: %d", rc);

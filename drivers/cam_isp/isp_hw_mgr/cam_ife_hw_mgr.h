@@ -60,6 +60,10 @@ enum cam_ife_ctx_master_type {
  *                             feature with duplicate sensors
  *@csid_rx_capture_vc_dt_rst:  Dynamic change vc/dt for rx capture
  *                             control and reset strobes
+ * @csid_path_error_recovery:  Enable recovery for below path errors
+                               error_unbounded_frame/error_cphy_sot_reception/
+                               error_cphy_eot_reception/ccif_violation/error_line_count
+                               error_pix_count/error_rec_overflow
  */
 struct cam_ife_hw_mgr_debug {
 	struct dentry  *dentry;
@@ -76,6 +80,7 @@ struct cam_ife_hw_mgr_debug {
 	bool           disable_ubwc_comp;
 	bool           disable_ife_mmu_prefetch;
 	bool           disable_line_based_mode;
+	bool           csid_path_error_recovery;
 };
 
 /**
@@ -551,6 +556,7 @@ struct cam_ife_hw_mgr_grp_info {
  * @csid_rup_en            Reg update at CSID side
  * @csid_global_reset_en   CSID global reset enable
  * @max_ife_lite_out_res   Maximum IFE_LITE OUT Res
+ * @irq_sync_spin_lock     Synchronization lock between vfe and csid irq
  */
 struct cam_ife_hw_mgr {
 	struct cam_isp_hw_mgr          mgr_common;
@@ -584,6 +590,7 @@ struct cam_ife_hw_mgr {
 	bool                             csid_rup_en;
 	bool                             csid_global_reset_en;
 	uint32_t                         max_ife_lite_out_res;
+	spinlock_t                       irq_sync_spin_lock[CAM_IFE_HW_NUM_MAX];
 };
 
 /**

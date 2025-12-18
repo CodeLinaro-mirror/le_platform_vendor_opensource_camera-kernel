@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, 2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #ifndef _CAM_IRQ_CONTROLLER_H_
@@ -92,12 +92,14 @@ struct cam_irq_controller_reg_info {
  *                          Length of array = num_registers
  * @evt_payload_priv:       Private payload pointer which can be set by Top
  *                          Half handler for use in Bottom Half.
+ * @ignore_further:         Ignore further same irq controller event
  */
 struct cam_irq_th_payload {
 	void       *handler_priv;
 	uint32_t    num_registers;
 	uint32_t   *evt_status_arr;
 	void       *evt_payload_priv;
+	bool        ignore_further;
 };
 
 /*

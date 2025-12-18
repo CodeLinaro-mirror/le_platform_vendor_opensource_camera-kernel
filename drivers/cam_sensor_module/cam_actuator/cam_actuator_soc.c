@@ -47,6 +47,13 @@ int32_t cam_actuator_parse_dt(struct cam_actuator_ctrl_t *a_ctrl,
 			return rc;
 		}
 
+		if (of_property_read_u32(of_node, "cell-index", &a_ctrl->id) < 0) {
+			CAM_DBG(CAM_ACTUATOR, "Wrong info: actuator id %d", a_ctrl->id);
+			rc = -EFAULT;
+			return rc;
+		}
+		CAM_DBG(CAM_ACTUATOR, "actuator no %d", a_ctrl->id);
+
 		of_parent = of_get_parent(of_node);
 		if (of_property_read_u32(of_parent, "cell-index",
 				&a_ctrl->cci_num) < 0)

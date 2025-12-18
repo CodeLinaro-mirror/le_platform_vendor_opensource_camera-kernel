@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #ifndef _CAM_ISP_HW_H_
@@ -240,6 +240,9 @@ enum cam_isp_hw_cmd_type {
 	CAM_ISP_HW_CMD_GET_HWFENCE_DEVICE_INFO,
 	CAM_ISP_HW_CMD_GET_SESSION_COOKIE,
 	CAM_ISP_HW_CMD_GET_SRC_GRP,
+	CAM_ISP_HW_CMD_SET_SYNC_IRQ_SPIN_LOCK,
+	CAM_ISP_HW_CMD_CSID_CHECK_CSID_FORMAT_ERROR,
+	CAM_ISP_HW_CMD_CHECK_AND_CLEAR_BUS_VIOLATION,
 	CAM_ISP_HW_CMD_MAX,
 };
 
@@ -321,10 +324,14 @@ struct cam_isp_blanking_config {
  * @brief:              Structure to pass error event details to hw mgr
  *
  * @err_type:           Type of error being reported
+ * @existing_error:     Indicates if has existing error
+ * @top_half_event:     Indicates if top half event
  *
  */
 struct cam_isp_hw_error_event_info {
 	uint32_t    err_type;
+	bool        existing_error;
+	bool        top_half_event;
 };
 
 /**

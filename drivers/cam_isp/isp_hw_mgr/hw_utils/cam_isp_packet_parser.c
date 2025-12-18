@@ -132,7 +132,7 @@ static int cam_isp_update_dual_config(
 
 	if ((dual_config->num_ports *
 		sizeof(struct cam_isp_dual_stripe_config)) >
-		(remain_len - offsetof(struct cam_isp_dual_config, stripes))) {
+		(remain_len - offsetof(struct cam_isp_dual_config, stripes_flex))) {
 		CAM_ERR(CAM_ISP, "not enough buffer for all the dual configs");
 		rc = -EINVAL;
 		goto end;
@@ -175,7 +175,7 @@ static int cam_isp_update_dual_config(
 				CAM_PACKET_MAX_PLANES)) +
 				(outport_id * CAM_PACKET_MAX_PLANES);
 
-			if (dual_config->stripes[ports_plane_idx].port_id == 0)
+			if (dual_config->stripes_flex[ports_plane_idx].port_id == 0)
 				continue;
 
 			dual_isp_update_args.split_id = j;
@@ -285,7 +285,7 @@ int cam_isp_add_command_buffers(
 	 * packet
 	 */
 	cmd_desc = (struct cam_cmd_buf_desc *)
-			((uint8_t *)&prepare->packet->payload +
+			((uint8_t *)&prepare->packet->payload_flex +
 			prepare->packet->cmd_buf_offset);
 
 	CAM_DBG(CAM_ISP, "split id = %d, number of command buffers:%d",
@@ -525,7 +525,7 @@ int cam_sfe_add_command_buffers(
 	 * packet
 	 */
 	cmd_desc = (struct cam_cmd_buf_desc *)
-			((uint8_t *)&prepare->packet->payload +
+			((uint8_t *)&prepare->packet->payload_flex +
 			prepare->packet->cmd_buf_offset);
 
 	CAM_DBG(CAM_ISP, "split id = %d, number of command buffers:%d",
@@ -824,7 +824,7 @@ int cam_isp_ul_parse_io_config(struct cam_isp_ctx_ul_data *ul_data,
 	struct cam_hw_fence_map_entry       out_map_entry;
 
 	io_cfg = (struct cam_buf_io_cfg *) ((uint8_t *)
-		&packet->payload + packet->io_configs_offset);
+		&packet->payload_flex + packet->io_configs_offset);
 	kmd_buf_info = &ul_data->kmd_buf;
 	for (i = 0; i < packet->num_io_configs; i++) {
 		CAM_DBG(CAM_ISP, "======= io config idx %d ============", i);
@@ -1137,7 +1137,7 @@ int cam_isp_add_io_buffers(
 	bool                                is_virtual_ife_out_port = false;
 
 	io_cfg = (struct cam_buf_io_cfg *) ((uint8_t *)
-			&prepare->packet->payload +
+			&prepare->packet->payload_flex +
 			prepare->packet->io_configs_offset);
 	num_out_buf = prepare->num_out_map_entries;
 	num_in_buf  = prepare->num_in_map_entries;
@@ -2063,7 +2063,7 @@ int cam_isp_add_csid_command_buffers(
 	 * packet
 	 */
 	cmd_desc = (struct cam_cmd_buf_desc *)
-			((uint8_t *)&prepare->packet->payload +
+			((uint8_t *)&prepare->packet->payload_flex +
 			prepare->packet->cmd_buf_offset);
 
 	CAM_DBG(CAM_ISP, "split id = %d, number of command buffers:%d",
@@ -2374,7 +2374,7 @@ int cam_isp_get_cmd_buf_count(
 	int                             rc = 0;
 
 	cmd_desc = (struct cam_cmd_buf_desc *)
-			((uint8_t *)&prepare->packet->payload +
+			((uint8_t *)&prepare->packet->payload_flex +
 			prepare->packet->cmd_buf_offset);
 
 	memset(cmd_buf_count, 0, sizeof(struct cam_isp_cmd_buf_count));

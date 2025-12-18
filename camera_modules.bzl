@@ -1,27 +1,53 @@
 load("//build/kernel/kleaf:kernel.bzl", "ddk_module")
 load("//build/bazel_common_rules/dist:dist.bzl", "copy_to_dist_dir")
-load("//msm-kernel:target_variants.bzl", "get_all_variants")
+load(":target_variants.bzl", "get_all_variants")
 load(":project_defconfig.bzl", "get_project_defconfig")
 
 def _define_module(target, variant):
     tv = "{}_{}".format(target, variant)
-    deps = [
-        ":camera_headers",
-        ":camera_banner",
-        "//msm-kernel:all_headers",
-    ]
+    base_deps = []
+    deps = []
+    base_deps = select({
+        "//build/kernel/kleaf:socrepo_true": [
+            ":camera_headers",
+            ":camera_banner",
+            "//soc-repo:all_headers",
+            "//soc-repo:{}/drivers/firmware/qcom/qcom-scm".format(tv),
+            "//soc-repo:{}/drivers/iommu/qcom_iommu_util".format(tv),
+            "//soc-repo:{}/drivers/soc/qcom/mem_buf/mem_buf_dev".format(tv),
+            "//soc-repo:{}/drivers/soc/qcom/crm-v2".format(tv),
+            "//soc-repo:{}/drivers/clk/qcom/clk-qcom".format(tv),
+            "//soc-repo:{}/drivers/soc/qcom/qcom_rpmh".format(tv),
+            "//soc-repo:{}/drivers/soc/qcom/socinfo".format(tv),
+            "//soc-repo:{}/drivers/soc/qcom/llcc-qcom".format(tv),
+            "//soc-repo:{}/drivers/soc/qcom/mdt_loader".format(tv),
+            "//soc-repo:{}/drivers/leds/flash/leds-qcom-flash".format(tv),
+            "//soc-repo:{}/drivers/soc/qcom/qcom_va_minidump".format(tv),
+            "//soc-repo:{}/drivers/leds/leds-qti-flash".format(tv),
+        ],
+        "//build/kernel/kleaf:socrepo_false": [
+            ":camera_headers",
+            ":camera_banner",
+            "//msm-kernel:all_headers",
+        ],
+    })
+
+    kernel_build = select({
+        "//build/kernel/kleaf:socrepo_true": "//soc-repo:{}_base_kernel".format(tv),
+        "//build/kernel/kleaf:socrepo_false": "//msm-kernel:{}".format(tv),
+    })
 
     # Generate the defconfig file dynamically
     native.genrule(
         name = "{}_defconfig_generated".format(tv),
-	srcs = [
-	    # Use the base target/variant defconfig to start
-	    # and concatenate and project-specific config
-	    #"{}_defconfig".format(tv),
-	    get_project_defconfig(target, variant),
-	],
-	outs = ["{}_defconfig.generated".format(tv)],
-	cmd = "cat $(SRCS) > $@",
+        srcs = [
+            # Use the base target/variant defconfig to start
+            # and concatenate and project-specific config
+            #"{}_defconfig".format(tv),
+            get_project_defconfig(target, variant),
+        ],
+        outs = ["{}_defconfig.generated".format(tv)],
+        cmd = "cat $(SRCS) > $@",
     )
 
     if target == "niobe":
@@ -265,11 +291,19 @@ def _define_module(target, variant):
                 ],
             },
         },
-        copts = ["-include", "$(location :camera_banner)"],
-        deps = deps,
+        copts = [
+                "-include",
+               "$(location :camera_banner)",
+               ] + select({
+                   "//build/kernel/kleaf:socrepo_true": [
+                   "-DCONFIG_SPECTRA_POWER_DOMAIN_SET_HW_MODE",
+                   ],
+                   "//conditions:default": [],
+                   }),
+        deps = base_deps + deps,
         kconfig = "Kconfig",
         defconfig = "{}_defconfig".format(tv),
-        kernel_build = "//msm-kernel:{}".format(tv),
+        kernel_build = kernel_build,
     )
 
     copy_to_dist_dir(

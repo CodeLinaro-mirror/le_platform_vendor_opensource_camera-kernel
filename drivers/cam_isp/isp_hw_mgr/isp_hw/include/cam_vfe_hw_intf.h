@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #ifndef _CAM_VFE_HW_INTF_H_
@@ -216,9 +216,10 @@ struct cam_vfe_hw_vfe_in_acquire_args {
  *                           with this resource.
  * @priv:                    Context data
  * @event_cb:                Callback function to hw mgr in case of hw events
+ * @buf_done_controller:     Buf done controller for isp
  * @per_port_acquire:        Indicates if acquire as real acquire or per port virual
  *                           acquire for current res path
- * @buf_done_controller:     Buf done controller for isp
+ * @path_err_recovery:       Recovery for csid path errors
  * @vfe_out:                 Acquire args for VFE_OUT
  * @vfe_bus_rd               Acquire args for VFE_BUS_READ
  * @vfe_in:                  Acquire args for VFE_IN
@@ -230,6 +231,7 @@ struct cam_vfe_acquire_args {
 	cam_hw_mgr_event_cb_func             event_cb;
 	void                                *buf_done_controller;
 	bool                                 per_port_acquire;
+	bool                                 path_err_recovery;
 	union {
 		struct cam_vfe_hw_vfe_out_acquire_args     vfe_out;
 		struct cam_vfe_hw_vfe_bus_rd_acquire_args  vfe_bus_rd;
@@ -400,6 +402,7 @@ struct cam_vfe_top_irq_evt_payload {
  *                           handled
  * @error_type:              Identify different errors
  * @global_timestamp         global timestamp for buf done event
+ * @if_format_measure_error  If format measure error happen
  * @ts:                      Timestamp
  */
 struct cam_vfe_bus_irq_evt_payload {
@@ -412,6 +415,7 @@ struct cam_vfe_bus_irq_evt_payload {
 	uint32_t                    evt_id;
 	uint32_t                    irq_reg_val[CAM_IFE_BUS_IRQ_REGISTERS_MAX];
 	uint64_t                    global_timestamp;
+	uint32_t                    if_format_measure_error;
 	struct cam_isp_timestamp    ts;
 };
 

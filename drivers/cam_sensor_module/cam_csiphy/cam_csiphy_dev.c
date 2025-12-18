@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #include "cam_csiphy_dev.h"
@@ -347,7 +347,7 @@ static int cam_csiphy_component_bind(struct device *dev,
 	cpas_parms.dev = &pdev->dev;
 	cpas_parms.userdata = new_csiphy_dev;
 
-	strlcpy(cpas_parms.identifier, "csiphy", CAM_HW_IDENTIFIER_LENGTH);
+	strscpy(cpas_parms.identifier, "csiphy", CAM_HW_IDENTIFIER_LENGTH);
 
 	rc = cam_cpas_register_client(&cpas_parms);
 	if (rc) {
@@ -419,6 +419,9 @@ static int32_t cam_csiphy_platform_probe(struct platform_device *pdev)
 	int rc = 0;
 
 	CAM_DBG(CAM_CSIPHY, "Adding CSIPHY component");
+
+	cam_soc_util_initialize_power_domain(&pdev->dev);
+
 	rc = component_add(&pdev->dev, &cam_csiphy_component_ops);
 	if (rc)
 		CAM_ERR(CAM_CSIPHY, "failed to add component rc: %d", rc);
@@ -426,11 +429,19 @@ static int32_t cam_csiphy_platform_probe(struct platform_device *pdev)
 	return rc;
 }
 
-
+#if KERNEL_VERSION(6, 10, 0) > LINUX_VERSION_CODE
 static int32_t cam_csiphy_device_remove(struct platform_device *pdev)
+#else
+static void cam_csiphy_device_remove(struct platform_device *pdev)
+#endif
 {
 	component_del(&pdev->dev, &cam_csiphy_component_ops);
+
+	cam_soc_util_uninitialize_power_domain(&pdev->dev);
+
+#if KERNEL_VERSION(6, 10, 0) > LINUX_VERSION_CODE
 	return 0;
+#endif
 }
 
 static const struct of_device_id cam_csiphy_dt_match[] = {

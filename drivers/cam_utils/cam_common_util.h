@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #ifndef _CAM_COMMON_UTIL_H_
@@ -9,6 +9,7 @@
 
 #include <linux/types.h>
 #include <linux/kernel.h>
+#include <linux/vmalloc.h>
 
 #define CAM_BITS_MASK_SHIFT(x, mask, shift) (((x) & (mask)) >> shift)
 #define CAM_36BIT_INTF_GET_IOVA_BASE(iova) ((iova) >> 8)

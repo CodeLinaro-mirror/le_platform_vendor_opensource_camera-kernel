@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #include <linux/slab.h>
@@ -399,12 +399,13 @@ int cam_irq_controller_init(const char       *name,
 		CAM_DBG(CAM_IRQ_CTRL, "i %d status_reg_offset: 0x%x", i,
 			controller->irq_register_arr[i].status_reg_offset);
 	}
-	controller->num_registers        = register_info->num_registers;
-	controller->global_clear_bitmask = register_info->global_clear_bitmask;
-	controller->global_clear_offset  = register_info->global_clear_offset;
-	controller->clear_all_bitmask    = register_info->clear_all_bitmask;
-	controller->mem_base             = mem_base;
-	controller->is_dependent         = false;
+	controller->num_registers             = register_info->num_registers;
+	controller->global_clear_bitmask      = register_info->global_clear_bitmask;
+	controller->global_clear_offset       = register_info->global_clear_offset;
+	controller->clear_all_bitmask         = register_info->clear_all_bitmask;
+	controller->mem_base                  = mem_base;
+	controller->is_dependent              = false;
+	controller->th_payload.ignore_further = false;
 
 	CAM_DBG(CAM_IRQ_CTRL, "global_clear_bitmask: 0x%x",
 		controller->global_clear_bitmask);
@@ -745,6 +746,11 @@ static void __cam_irq_controller_th_processing(
 
 		CAM_DBG(CAM_IRQ_CTRL, "match found");
 
+		if (th_payload->ignore_further) {
+			CAM_INFO(CAM_IRQ_CTRL, "Skip other events for hardware");
+			break;
+		}
+
 		cam_irq_th_payload_init(th_payload);
 		th_payload->handler_priv  = evt_handler->handler_priv;
 		th_payload->num_registers = controller->num_registers;
@@ -970,8 +976,13 @@ static void cam_irq_controller_process_th(struct cam_irq_controller *controller,
 				controller->name, i);
 			__cam_irq_controller_th_processing(controller, &controller->th_list_head[i],
 				evt_grp);
+			if (controller->th_payload.ignore_further) {
+				CAM_INFO(CAM_IRQ_CTRL, "Skip other events for hardware");
+				break;
+			}
 		}
 	}
+	controller->th_payload.ignore_further = false;
 }
 
 irqreturn_t cam_irq_controller_handle_irq(int irq_num, void *priv, int evt_grp)

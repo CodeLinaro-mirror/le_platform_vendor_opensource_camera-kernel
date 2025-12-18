@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
- * Copyright (c) 2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #include <linux/io.h>
@@ -87,55 +87,61 @@ int cam_bps_disable_soc_resources(struct cam_hw_soc_info *soc_info,
 	return rc;
 }
 
-int cam_bps_transfer_gdsc_control(struct cam_hw_soc_info *soc_info)
+static int cam_bps_set_gdsc_mode(struct cam_hw_soc_info *soc_info,
+	enum cam_gdsc_control_mode gdsc_mode)
 {
 	int i;
 	int rc;
 
-	for (i = 0; i < soc_info->num_rgltr; i++) {
-		rc = regulator_set_mode(soc_info->rgltr[i],
-			REGULATOR_MODE_FAST);
+	if (soc_info->is_a_genpd_device) {
+		rc = cam_soc_util_power_domain_set_mode(soc_info, gdsc_mode);
 		if (rc) {
-			CAM_ERR(CAM_ICP, "Regulator set mode %s failed",
-				soc_info->rgltr_name[i]);
-			goto rgltr_set_mode_failed;
+			CAM_ERR(CAM_ICP,
+				"Failed to set GDSC control to %s mode for dev: %s",
+				cam_soc_util_get_gdsc_mode_string(gdsc_mode),
+				soc_info->dev_name);
 		}
-	}
-	return 0;
+		return rc;
+	} else {
+		uint32_t mode;
+
+		if (gdsc_mode == CAM_GDSC_SW_CONTROL)
+			mode = REGULATOR_MODE_NORMAL;
+		else
+			mode = REGULATOR_MODE_FAST;
+
+		for (i = 0; i < soc_info->num_rgltr; i++) {
+			rc = regulator_set_mode(soc_info->rgltr[i], mode);
+			if (rc) {
+				CAM_ERR(CAM_ICP, "Failed to set %s to %s mode",
+					soc_info->rgltr_name[i],
+					cam_soc_util_get_gdsc_mode_string(gdsc_mode));
+				goto rgltr_set_mode_failed;
+			}
+		}
+		return 0;
 
 rgltr_set_mode_failed:
-	for (i = i - 1; i >= 0; i--)
-		if (soc_info->rgltr[i])
-			regulator_set_mode(soc_info->rgltr[i],
-					REGULATOR_MODE_NORMAL);
+		for (i = i - 1; i >= 0; i--)
+			if (soc_info->rgltr[i])
+				regulator_set_mode(soc_info->rgltr[i],
+					(mode == REGULATOR_MODE_NORMAL ?
+					REGULATOR_MODE_FAST : REGULATOR_MODE_NORMAL));
 
-	return rc;
+		return rc;
+	}
+}
+
+int cam_bps_transfer_gdsc_control(struct cam_hw_soc_info *soc_info)
+{
+	return cam_bps_set_gdsc_mode(soc_info, CAM_GDSC_HW_CONTROL);
 }
 
 int cam_bps_get_gdsc_control(struct cam_hw_soc_info *soc_info)
 {
-	int i;
-	int rc;
-
-	for (i = 0; i < soc_info->num_rgltr; i++) {
-		rc = regulator_set_mode(soc_info->rgltr[i],
-			REGULATOR_MODE_NORMAL);
-		if (rc) {
-			CAM_ERR(CAM_ICP, "Regulator set mode %s failed",
-				soc_info->rgltr_name[i]);
-			goto rgltr_set_mode_failed;
-		}
-	}
-	return 0;
-
-rgltr_set_mode_failed:
-	for (i = i - 1; i >= 0; i--)
-		if (soc_info->rgltr[i])
-			regulator_set_mode(soc_info->rgltr[i],
-					REGULATOR_MODE_FAST);
-
-	return rc;
+	return cam_bps_set_gdsc_mode(soc_info, CAM_GDSC_SW_CONTROL);
 }
+
 
 int cam_bps_update_clk_rate(struct cam_hw_soc_info *soc_info,
 	uint32_t clk_rate)

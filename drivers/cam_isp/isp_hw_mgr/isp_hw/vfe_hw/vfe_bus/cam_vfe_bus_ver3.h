@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 
@@ -554,6 +554,7 @@ struct cam_vfe_bus_ver3_common_data {
 	bool                                        disable_mmu_prefetch;
 	bool                                        support_tunneling;
 	bool                                        buf_done_evt_control;
+	bool                                        path_err_recovery;
 	cam_hw_mgr_event_cb_func                    event_cb;
 	int                                         rup_irq_handle[
 		CAM_VFE_BUS_VER3_SRC_GRP_MAX];

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2015-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #ifndef _CAM_SOC_UTIL_H_
@@ -17,6 +17,7 @@
 #include <linux/platform_device.h>
 #include <linux/i2c.h>
 #include <linux/regulator/consumer.h>
+#include <linux/pinctrl/consumer.h>
 #include <linux/debugfs.h>
 #include <linux/of_fdt.h>
 
@@ -211,6 +212,7 @@ struct cam_soc_gpio_data {
  * @cam_cx_ipeak_bit        cx-ipeak mask for driver
  * @soc_private:            Soc private data
  * @global_timer_mem_base   mem base for global timestamp
+ * @is_a_genpd_device:      Indicates whether the device is using power domains for GDSCs
  */
 struct cam_hw_soc_info {
 	struct platform_device         *pdev;
@@ -277,6 +279,7 @@ struct cam_hw_soc_info {
 
 	void                           *soc_private;
 	void __iomem                   *global_timer_mem_base;
+	bool                            is_a_genpd_device;
 };
 
 /**
@@ -305,6 +308,17 @@ struct cam_hw_soc_dump_args {
 	uint64_t             request_id;
 	size_t               offset;
 	uint32_t             buf_handle;
+};
+
+/**
+ * enum cam_gdsc_control_mode - Enum for the GDSC control mode
+ *
+ * @CAM_GDSC_SW_CONTROL   : GDSC controlled by the software.
+ * @CAM_GDSC_HW_CONTROL   : GDSC controlled by the hardware.
+ */
+enum cam_gdsc_control_mode {
+	CAM_GDSC_SW_CONTROL,
+	CAM_GDSC_HW_CONTROL,
 };
 
 /*
@@ -792,5 +806,72 @@ int cam_soc_util_regulators_enabled(struct cam_hw_soc_info *soc_info);
  */
 int cam_soc_util_select_pinctrl_state(
 	struct cam_hw_soc_info *soc_info, int idx, bool active);
+
+/**
+ * cam_soc_util_get_gdsc_mode_string()
+ * @brief:             Returns the string for the GDSC mode.
+ *
+ * @ctrl_mode:         GDSC control mode.
+ *
+ * @return:            The string corresponding to the mode
+ */
+inline char *cam_soc_util_get_gdsc_mode_string(enum cam_gdsc_control_mode ctrl_mode);
+
+/**
+ * cam_soc_util_initialize_power_domain()
+ * @brief:             Enables the required power domain.This is performed during probe
+                       and doesn't actually turn on the power domain. The client is
+                       required to call get_sync following this to turn it on.
+ *
+ * @dev:               The device associated with the power domain.
+ *
+ * @return:            0 on success, or an error code otherwise
+ */
+inline int cam_soc_util_initialize_power_domain(struct device *dev);
+
+/**
+ * cam_soc_util_uninitialize_power_domain()
+ * @brief:             Disables the required power domain. This is performed during device remove.
+ *
+ * @dev:               The device associated with the power domain.
+ *
+ * @return:            0 on success, or an error code otherwise
+ */
+inline int cam_soc_util_uninitialize_power_domain(struct device *dev);
+
+/**
+ * cam_soc_util_turn_on_power_domain()
+ * @brief:             Increments the reference count and turns on the
+ *                     power domain in the first call.
+ *
+ * @soc_info:          SOC info for the device associated with the power domain.
+ *
+ * @return:            0 on success, or an error code otherwise
+ */
+inline int cam_soc_util_turn_on_power_domain(struct cam_hw_soc_info *soc_info);
+
+/**
+ * cam_soc_util_turn_off_power_domain()
+ * @brief:             Decrements the reference count and turns off
+ *                     the power domain in the last call.
+ *
+ * @soc_info:          SOC info for the device associated with the power domain.
+ *
+ * @return:            0 on success, or an error code otherwise
+ */
+inline int cam_soc_util_turn_off_power_domain(struct cam_hw_soc_info *soc_info);
+
+/**
+ * cam_soc_util_power_domain_set_mode()
+ * @brief:             Sets the control mode of the GDSC. This is used
+ *                     to transfer the GDSC between SW and HW.
+ *
+ * @soc_info:          SOC info for the device associated with the power domain.
+ * @ctrl_mode:         Control mode to be set.
+ *
+ * @return:            0 on success, or an error code otherwise
+ */
+inline int cam_soc_util_power_domain_set_mode(struct cam_hw_soc_info *soc_info,
+	enum cam_gdsc_control_mode ctrl_mode);
 
 #endif /* _CAM_SOC_UTIL_H_ */

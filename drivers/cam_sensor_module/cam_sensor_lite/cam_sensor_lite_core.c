@@ -209,7 +209,7 @@ int cam_sensor_lite_publish_dev_info(
 	}
 
 	info->dev_id = CAM_REQ_MGR_DEVICE_SENSOR_LITE;
-	strlcpy(info->name, CAM_SENSOR_LITE_NAME, sizeof(info->name));
+	strscpy(info->name, CAM_SENSOR_LITE_NAME, sizeof(info->name));
 	/* Hard code for now, piline delay should come from umd */
 	info->p_delay = 2;
 	info->trigger = CAM_TRIGGER_POINT_SOF;
@@ -993,7 +993,7 @@ static int cam_sensor_lite_cmd_buf_parse(
 		uint32_t  cmd_type = -1;
 		uintptr_t cmd_addr = 0;
 		cmd_desc = (struct cam_cmd_buf_desc *)
-			((uint32_t *)&packet->payload +
+			((uint32_t *)&packet->payload_flex +
 			(packet->cmd_buf_offset / 4) +
 			(i * (sizeof(struct cam_cmd_buf_desc)/4)));
 		rc = cam_sensor_lite_validate_cmd_descriptor(
@@ -1304,7 +1304,7 @@ int32_t __cam_sensor_lite_handle_probe(
 	}
 
 	cmd_desc = (struct cam_cmd_buf_desc *)
-		((uint32_t *)&pkt->payload + pkt->cmd_buf_offset/4);
+		((uint32_t *)&pkt->payload_flex + pkt->cmd_buf_offset/4);
 	if (cmd_desc == NULL) {
 		CAM_ERR(CAM_SENSOR_LITE, "command descriptor pos is invalid");
 		rc = -EINVAL;

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #include <linux/slab.h>
@@ -130,6 +131,8 @@ int cam_tfe_csid_probe(struct platform_device *pdev)
 {
 	int rc = 0;
 
+	cam_soc_util_initialize_power_domain(&pdev->dev);
+
 	rc = component_add(&pdev->dev, &cam_tfe_csid_component_ops);
 	if (rc)
 		CAM_ERR(CAM_ISP, "failed to add component rc: %d", rc);
@@ -137,10 +140,19 @@ int cam_tfe_csid_probe(struct platform_device *pdev)
 	return rc;
 }
 
+#if KERNEL_VERSION(6, 10, 0) > LINUX_VERSION_CODE
 int cam_tfe_csid_remove(struct platform_device *pdev)
+#else
+void cam_tfe_csid_remove(struct platform_device *pdev)
+#endif
 {
 	component_del(&pdev->dev, &cam_tfe_csid_component_ops);
+
+	cam_soc_util_uninitialize_power_domain(&pdev->dev);
+
+#if KERNEL_VERSION(6, 10, 0) > LINUX_VERSION_CODE
 	return 0;
+#endif
 }
 
 int cam_tfe_csid_hw_init(struct cam_hw_intf **tfe_csid_hw,

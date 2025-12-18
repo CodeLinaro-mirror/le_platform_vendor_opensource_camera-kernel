@@ -50,6 +50,7 @@
 #define CAM_IFE_CTX_SLAVE_METADTA_EN   BIT(7)
 #define CAM_IFE_CTX_UL_PATH            BIT(8)
 #define CAM_IFE_CTX_FAST_CROP_EN       BIT(9)
+#define CAM_IFE_CTX_ERR_RECOVERY       BIT(10)
 
 /*
  * Maximum configuration entry size  - This is based on the
@@ -141,6 +142,8 @@ enum cam_isp_hw_err_type {
 	CAM_ISP_HW_ERROR_CSID_FRAME_SIZE = 0x0100,
 	CAM_ISP_HW_ERROR_CSID_SENSOR_FRAME_DROP = 0x0200,
 	CAM_ISP_HW_ERROR_TUNNEL_OVERFLOW = 0x0400,
+	CAM_ISP_HW_ERROR_CSID_RX = 0x0800,
+	CAM_ISP_HW_ERROR_CSID_CCIF_VIOLATION = 0x1000,
 };
 
 /**
@@ -257,6 +260,7 @@ struct cam_isp_hw_fence_res_info {
  * @stop_only:                 Send stop only to hw drivers. No Deinit to be
  *                             done.
  * @is_shutdown:               Is shut down
+ * @is_recovery:               Csid path error recovery
  *
  */
 struct cam_isp_stop_args {
@@ -265,6 +269,7 @@ struct cam_isp_stop_args {
 	bool                          reset_cdm;
 	bool                          stop_only;
 	bool                          is_shutdown;
+	bool                          is_recovery;
 };
 
 /**
@@ -653,6 +658,7 @@ struct cam_isp_hw_active_hw_ctx {
  * @frame_drop:                Indicates start hw is called as part of frame drop recovery
  *                             not to call config Hw from start hw.
  * @is_trigger_type:           Indicate if usecase is trigger type or not
+ * @is_recovery:               Csid path error recovery
  *
  */
 struct cam_isp_start_args {
@@ -661,6 +667,7 @@ struct cam_isp_start_args {
 	bool                      start_only;
 	bool                      frame_drop;
 	int8_t                    is_trigger_type;
+	bool                      is_recovery;
 };
 
 /**

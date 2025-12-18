@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #include <linux/interconnect.h>
 #include "cam_soc_bus.h"
+#include "cam_compat.h"
 
 /**
  * struct cam_soc_bus_client_data : Bus client data
@@ -74,7 +76,7 @@ end:
 
 int cam_soc_bus_client_register(struct platform_device *pdev,
 	struct device_node *dev_node, void **client,
-	struct cam_soc_bus_client_common_data *common_data)
+	struct cam_soc_bus_client_common_data *common_data, bool use_path_name)
 {
 	struct cam_soc_bus_client *bus_client = NULL;
 	struct cam_soc_bus_client_data *bus_client_data = NULL;
@@ -100,9 +102,10 @@ int cam_soc_bus_client_register(struct platform_device *pdev,
 
 	bus_client->client_data = bus_client_data;
 	bus_client->common_data = common_data;
-	bus_client_data->icc_data = icc_get(&pdev->dev,
+	bus_client_data->icc_data = cam_icc_get_path(&pdev->dev,
 		bus_client->common_data->src_id,
-		bus_client->common_data->dst_id);
+		bus_client->common_data->dst_id,
+		bus_client->common_data->name, use_path_name);
 	if (IS_ERR_OR_NULL(bus_client_data->icc_data)) {
 		CAM_ERR(CAM_UTIL, "failed in register bus client");
 		rc = -EINVAL;

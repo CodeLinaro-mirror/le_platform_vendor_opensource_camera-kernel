@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, 2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #ifndef _CAM_CDM_API_H_
@@ -154,7 +154,10 @@ struct cam_cdm_bl_request {
 	uint32_t cmd_arrary_count;
 	uint64_t cookie;
 	bool irq_cb_intr_ctx;
-	struct cam_cdm_bl_cmd cmd[1];
+	union {
+		struct cam_cdm_bl_cmd cmd[1];
+		__DECLARE_FLEX_ARRAY(struct cam_cdm_bl_cmd, cmd_flex);
+	};
 };
 
 /**

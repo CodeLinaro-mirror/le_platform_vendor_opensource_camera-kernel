@@ -233,7 +233,8 @@ int32_t camera_io_init(struct camera_io_master *io_master_info)
 	return -EINVAL;
 }
 
-int32_t camera_io_contextid_release(struct camera_io_master *io_master_info, uint32_t contextId)
+int32_t camera_io_contextid_release(struct camera_io_master *io_master_info,
+	uint32_t contextId, bool is_sensor_ctx)
 {
 	if (!io_master_info) {
 		CAM_ERR(CAM_SENSOR, "Invalid Args");
@@ -242,7 +243,7 @@ int32_t camera_io_contextid_release(struct camera_io_master *io_master_info, uin
 
 	if (io_master_info->master_type == CCI_MASTER) {
 		return cam_sensor_cci_release_contextid(io_master_info->cci_client,
-			MSM_CCI_RELEASE_CONTEXT_ID, contextId);
+			MSM_CCI_RELEASE_CONTEXT_ID, contextId, is_sensor_ctx);
 	} else if ((io_master_info->master_type == I2C_MASTER) ||
 		(io_master_info->master_type == SPI_MASTER)) {
 		return 0;

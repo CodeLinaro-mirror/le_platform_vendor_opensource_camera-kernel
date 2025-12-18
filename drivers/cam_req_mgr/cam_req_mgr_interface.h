@@ -63,6 +63,8 @@ typedef int (*cam_req_mgr_no_crm_notify_dev)(u32 device_type,
 	struct cam_req_mgr_no_crm_notify_device *);
 typedef int (*cam_req_mgr_fast_crop_sync_utility)(int32_t session_hdl,
 	uint64_t req_id, uint64_t *);
+typedef int (*cam_req_mgr_no_crm_check_dual_trigger)
+	(struct cam_req_mgr_trigger_notify *notify);
 
 /**
  * @brief: cam req mgr to camera device drivers
@@ -81,6 +83,8 @@ typedef int (*cam_req_mgr_fast_crop_sync_utility)(int32_t session_hdl,
  * @cam_req_mgr_no_crm_pause             : no_crm pause callback type
  * @cam_req_mgr_no_crm_resume            : no_crm resume callback type
  * @cam_req_mgr_no_crm_notify            : no_crm notify call back for devices
+ * @cam_req_mgr_no_crm_update_last_apply_reqid : no_crm update last apply reqid
+ *                                               in ctx_isp
  */
 typedef int (*cam_req_mgr_get_dev_info) (struct cam_req_mgr_device_info *);
 typedef int (*cam_req_mgr_link_setup)(struct cam_req_mgr_core_dev_link_setup *);
@@ -107,6 +111,8 @@ typedef int (*cam_req_mgr_no_crm_setup)(int32_t dev_hdl, struct cam_packet *pack
 	bool is_hwfence_en);
 typedef int (*cam_req_mgr_no_crm_retrieve)(int32_t dev_hdl, struct ul_cam_packet *ul_packet);
 typedef int (*cam_req_mgr_no_crm_retrieve_v2)(int32_t dev_hdl, struct ul_cam_packet_v2 *ul_packet);
+typedef int (*cam_req_mgr_no_crm_update_last_apply_reqid)(int32_t dev_hdl, uint64_t last_apply_req, uint64_t ife_reqid);
+
 /**
  * @brief          : cam_req_mgr_crm_cb - func table
  *
@@ -120,18 +126,20 @@ typedef int (*cam_req_mgr_no_crm_retrieve_v2)(int32_t dev_hdl, struct ul_cam_pac
  * @no_crm_resume          : payload for resume event in no-crm useacases
  * @no_crm_notify_dev      : payload for notify the sub devices in no crm usecases.
  * @fast_crop_sync_utility : payload for maintain fast crop settings
+ * @cam_req_mgr_no_crm_check_dual_trigger: no_crm check if dual trigger arrived
  */
 struct cam_req_mgr_crm_cb {
-	cam_req_mgr_notify_trigger         notify_trigger;
-	cam_req_mgr_notify_err             notify_err;
-	cam_req_mgr_add_req                add_req;
-	cam_req_mgr_notify_timer           notify_timer;
-	cam_req_mgr_notify_stop            notify_stop;
-	cam_req_mgr_no_crm_trigger         no_crm_trigger;
-	cam_req_mgr_no_crm_notify_pause    no_crm_pause;
-	cam_req_mgr_no_crm_notify_resume   no_crm_resume;
-	cam_req_mgr_no_crm_notify_dev      no_crm_notify_dev;
-	cam_req_mgr_fast_crop_sync_utility fast_crop_sync_utility;
+	cam_req_mgr_notify_trigger              notify_trigger;
+	cam_req_mgr_notify_err                  notify_err;
+	cam_req_mgr_add_req                     add_req;
+	cam_req_mgr_notify_timer                notify_timer;
+	cam_req_mgr_notify_stop                 notify_stop;
+	cam_req_mgr_no_crm_trigger              no_crm_trigger;
+	cam_req_mgr_no_crm_notify_pause         no_crm_pause;
+	cam_req_mgr_no_crm_notify_resume        no_crm_resume;
+	cam_req_mgr_no_crm_notify_dev           no_crm_notify_dev;
+	cam_req_mgr_fast_crop_sync_utility      fast_crop_sync_utility;
+	cam_req_mgr_no_crm_check_dual_trigger   check_dual_trigger;
 };
 
 /**
@@ -163,6 +171,7 @@ struct cam_req_mgr_kmd_ops {
  * @pause_cb     : Pause call back to devices
  * @resume_cb    : resume call back to devices
  * @notify_dev   : notify to device for specific command
+ * @update_last_apply_reqid : update the last applied req id
  */
 struct cam_req_mgr_no_crm_kmd_ops {
 	cam_req_mgr_no_crm_handshake_device handshake;
@@ -174,6 +183,7 @@ struct cam_req_mgr_no_crm_kmd_ops {
 	cam_req_mgr_no_crm_setup            setup;
 	cam_req_mgr_no_crm_retrieve         retrieve;
 	cam_req_mgr_no_crm_retrieve_v2      retrieve_v2;
+	cam_req_mgr_no_crm_update_last_apply_reqid  update_last_apply_reqid;
 };
 
 /**
@@ -437,6 +447,7 @@ struct cam_req_mgr_device_info {
  * @stream_type     : sensor mode streaming type
  * @sensor_pd       : sensor pipeline delay
  * @is_sensorlite   : sensor lite active or not
+ * @dual_trigger    : dual trigger active or not
  */
 struct cam_req_mgr_core_dev_link_setup {
 	int32_t                    link_enable;
@@ -448,6 +459,7 @@ struct cam_req_mgr_core_dev_link_setup {
 	int8_t                     stream_type;
 	int8_t                     sensor_pd;
 	bool                       is_sensorlite;
+	bool                       dual_trigger;
 };
 
 /**

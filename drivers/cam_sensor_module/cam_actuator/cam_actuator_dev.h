@@ -119,6 +119,17 @@ struct cam_actuator_ctrl_t {
 	struct actuator_intf_params bridge_intf;
 	uint32_t last_flush_req;
 	uint32_t anchor_pd;
+	uint32_t cci_contextId;
+	bool     is_trigger_mode;
+	struct cam_sensor_frame_event_info frame_event;
+	struct cam_actuator_trigger_data actuator_trigger_data;
+};
+
+struct actuator_userdata {
+	struct   cam_actuator_ctrl_t *actuator_ctrl;
+	uint64_t reqid;
+	struct   cam_sensor_per_frame_event_data *event_data;
+	void*    userdata;
 };
 
 /**

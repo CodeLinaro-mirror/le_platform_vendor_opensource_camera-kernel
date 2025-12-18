@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #include "cam_tpg_core.h"
@@ -41,7 +41,7 @@ int cam_tpg_publish_dev_info(
 	}
 
 	info->dev_id = CAM_REQ_MGR_DEVICE_TPG;
-	strlcpy(info->name, CAM_TPG_NAME, sizeof(info->name));
+	strscpy(info->name, CAM_TPG_NAME, sizeof(info->name));
 	info->p_delay = CAM_TPG_PIPELINE_DELAY;
 	info->trigger = CAM_TRIGGER_POINT_SOF;
 
@@ -606,7 +606,7 @@ static int cam_tpg_cmd_buf_parse(
 		uintptr_t cmd_addr;
 
 		cmd_desc = (struct cam_cmd_buf_desc *)
-			((uint32_t *)&packet->payload +
+			((uint32_t *)&packet->payload_flex +
 			(packet->cmd_buf_offset / 4) +
 			(i * (sizeof(struct cam_cmd_buf_desc)/4)));
 

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, 2024-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #if !defined(_CAM_TRACE_H) || defined(TRACE_HEADER_MULTI_READ)
@@ -15,6 +15,7 @@
 #define TRACE_INCLUDE_FILE ./cam_trace
 
 #include <linux/tracepoint.h>
+#include <linux/version.h>
 #include <clocksource/arm_arch_timer.h>
 #include <media/cam_req_mgr.h>
 #include "cam_req_mgr_core.h"
@@ -52,10 +53,19 @@ TRACE_EVENT(cam_rpmsg,
 		__field(uint64_t, qtimer)
 	),
 	TP_fast_assign(
+	#if KERNEL_VERSION(6, 10, 0) <= LINUX_VERSION_CODE
+		__assign_str(dev_name);
+		__assign_str(dir);
+	#else
 		__assign_str(dev_name, dev_name);
 		__assign_str(dir, dir);
+	#endif
 		__entry->pckt_size = pckt_size;
+	#if KERNEL_VERSION(6, 10, 0) <= LINUX_VERSION_CODE
+		__assign_str(pckt_type);
+	#else
 		__assign_str(pckt_type, pckt_type);
+	#endif
 		__entry->qtimer = arch_timer_read_counter();
 	),
 	TP_printk(
@@ -80,15 +90,24 @@ TRACE_EVENT(cam_rpmsg_isp,
 		__string(pckt_type, pckt_type)
 	),
 	TP_fast_assign(
+	#if KERNEL_VERSION(6, 10, 0) <= LINUX_VERSION_CODE
+		__assign_str(dev_name);
+		__assign_str(dir);
+	#else
 		__assign_str(dev_name, dev_name);
 		__assign_str(dir, dir);
+	#endif
 		__entry->req_id = req_id;
 		__entry->sensor_id = sensor_id;
 		__entry->pckt_size = pckt_size;
+	#if KERNEL_VERSION(6, 10, 0) <= LINUX_VERSION_CODE
+		__assign_str(pckt_type);
+	#else
 		__assign_str(pckt_type, pckt_type);
+	#endif
 	),
 	TP_printk(
-		"%s: %s req_id=%d sensor_id=0x%x pckt_size=%d pckt_type=%s",
+		"%s: %s req_id=%lld sensor_id=0x%x pckt_size=%d pckt_type=%s",
 			__get_str(dev_name), __get_str(dir),
 			__entry->req_id, __entry->sensor_id,
 			__entry->pckt_size, __get_str(pckt_type)
@@ -106,7 +125,11 @@ TRACE_EVENT(cam_context_state,
 	TP_fast_assign(
 		__entry->ctx = ctx;
 		__entry->state = ctx->state;
+	#if KERNEL_VERSION(6, 10, 0) <= LINUX_VERSION_CODE
+		__assign_str(name);
+	#else
 		__assign_str(name, name);
+	#endif
 	),
 	TP_printk(
 		"%s: State ctx=%p ctx_state=%u",
@@ -153,8 +176,13 @@ TRACE_EVENT(cam_log_event,
 		__field(uint64_t, val2)
 	),
 	TP_fast_assign(
+	#if KERNEL_VERSION(6, 10, 0) <= LINUX_VERSION_CODE
+		__assign_str(string1);
+		__assign_str(string2);
+	#else
 		__assign_str(string1, string1);
 		__assign_str(string2, string2);
+	#endif
 		__entry->val1 = val1;
 		__entry->val2 = val2;
 	),
@@ -190,7 +218,11 @@ TRACE_EVENT(cam_icp_fw_dbg,
 		__field(uint64_t, timestamp)
 	),
 	TP_fast_assign(
+	#if KERNEL_VERSION(6, 10, 0) <= LINUX_VERSION_CODE
+		__assign_str(dbg_message);
+	#else
 		__assign_str(dbg_message, dbg_message);
+	#endif
 		__entry->timestamp = timestamp;
 	),
 	TP_printk(
@@ -211,7 +243,11 @@ TRACE_EVENT(cam_buf_done,
 		__field(uint64_t, global_timestamp)
 	),
 	TP_fast_assign(
+	#if KERNEL_VERSION(6, 10, 0) <= LINUX_VERSION_CODE
+		__assign_str(ctx_type);
+	#else
 		__assign_str(ctx_type, ctx_type);
+	#endif
 		__entry->ctx = ctx;
 		__entry->link_hdl = ctx->link_hdl;
 		__entry->request = req->request_id;
@@ -238,8 +274,13 @@ TRACE_EVENT(cam_isp_buf_done,
 		__field(uint32_t, resource_hdl)
 	),
 	TP_fast_assign(
+	#if KERNEL_VERSION(6, 10, 0) <= LINUX_VERSION_CODE
+		__assign_str(ctx_type);
+		__assign_str(status);
+	#else
 		__assign_str(ctx_type, ctx_type);
 		__assign_str(status, status);
+	#endif
 		__entry->ctx = ctx;
 		__entry->link_hdl = ctx->link_hdl;
 		__entry->req_id = req_id;
@@ -264,7 +305,11 @@ TRACE_EVENT(cam_apply_req,
 		__field(int32_t, link_hdl)
 	),
 	TP_fast_assign(
+	#if KERNEL_VERSION(6, 10, 0) <= LINUX_VERSION_CODE
+		__assign_str(entity);
+	#else
 		__assign_str(entity, entity);
+	#endif
 		__entry->id = id;
 		__entry->req_id = req_id;
 		__entry->link_hdl = link_hdl;
@@ -285,7 +330,11 @@ TRACE_EVENT(cam_ul_fastpath_bufdone,
 		__field(int32_t, link_hdl)
 	),
 	TP_fast_assign(
+	#if KERNEL_VERSION(6, 10, 0) <= LINUX_VERSION_CODE
+		__assign_str(entity);
+	#else
 		__assign_str(entity, entity);
+	#endif
 		__entry->id = id;
 		__entry->ts = ts;
 		__entry->link_hdl = link_hdl;
@@ -307,7 +356,11 @@ TRACE_EVENT(cam_ul_fastpath_retrieve,
 		__field(int32_t, link_hdl)
 	),
 	TP_fast_assign(
+	#if KERNEL_VERSION(6, 10, 0) <= LINUX_VERSION_CODE
+		__assign_str(entity);
+	#else
 		__assign_str(entity, entity);
+	#endif
 		__entry->id = id;
 		__entry->setting = setting;
 		__entry->ts = ts;
@@ -329,7 +382,11 @@ TRACE_EVENT(cam_notify_frame_skip,
 		__field(uint64_t, req_id)
 	),
 	TP_fast_assign(
+	#if KERNEL_VERSION(6, 10, 0) <= LINUX_VERSION_CODE
+		__assign_str(entity);
+	#else
 		__assign_str(entity, entity);
+	#endif
 		__entry->req_id = req_id;
 	),
 	TP_printk(
@@ -373,7 +430,11 @@ TRACE_EVENT(cam_req_mgr_connect_device,
 		__field(void*, session)
 	),
 	TP_fast_assign(
+	#if KERNEL_VERSION(6, 10, 0) <= LINUX_VERSION_CODE
+		__assign_str(name);
+	#else
 		__assign_str(name, info->name);
+	#endif
 		__entry->id      = info->dev_id;
 		__entry->delay   = info->p_delay;
 		__entry->link    = link;
@@ -400,7 +461,11 @@ TRACE_EVENT(cam_req_mgr_apply_request,
 		__field(void*, session)
 	),
 	TP_fast_assign(
+	#if KERNEL_VERSION(6, 10, 0) <= LINUX_VERSION_CODE
+		__assign_str(name);
+	#else
 		__assign_str(name, dev->dev_info.name);
+	#endif
 		__entry->dev_id  = dev->dev_info.dev_id;
 		__entry->req_id  = req->request_id;
 		__entry->link    = link;
@@ -433,7 +498,11 @@ TRACE_EVENT(cam_req_mgr_add_req,
 		__field(int32_t, link_hdl)
 	),
 	TP_fast_assign(
+	#if KERNEL_VERSION(6, 10, 0) <= LINUX_VERSION_CODE
+		__assign_str(name);
+	#else
 		__assign_str(name, dev->dev_info.name);
+	#endif
 		__entry->dev_id    = dev->dev_info.dev_id;
 		__entry->req_id    = add_req->req_id;
 		__entry->slot_id   = idx;
@@ -470,8 +539,13 @@ TRACE_EVENT(cam_delay_detect,
 		__field(int32_t, rc)
 	),
 	TP_fast_assign(
+	#if KERNEL_VERSION(6, 10, 0) <= LINUX_VERSION_CODE
+		__assign_str(entity);
+		__assign_str(text);
+	#else
 		__assign_str(entity, entity);
 		__assign_str(text, text);
+	#endif
 		__entry->req_id      = req_id;
 		__entry->ctx_id      = ctx_id;
 		__entry->link_hdl    = link_hdl;
@@ -479,7 +553,7 @@ TRACE_EVENT(cam_delay_detect,
 		__entry->rc          = rc;
 	),
 	TP_printk(
-		"%s: %s request=%lld ctx_id=%d link_hdl=0x%x session_hdl=0x%x rc=%d",
+		"%s: %s request=%lld ctx_id=%lld link_hdl=0x%x session_hdl=0x%x rc=%d",
 			__get_str(entity), __get_str(text), __entry->req_id,
 			__entry->ctx_id, __entry->link_hdl,
 			__entry->session_hdl, __entry->rc
@@ -494,7 +568,11 @@ TRACE_EVENT(cam_submit_to_hw,
 		__field(uint64_t, req_id)
 	),
 	TP_fast_assign(
+	#if KERNEL_VERSION(6, 10, 0) <= LINUX_VERSION_CODE
+		__assign_str(entity);
+	#else
 		__assign_str(entity, entity);
+	#endif
 		__entry->req_id = req_id;
 	),
 	TP_printk(
@@ -511,7 +589,11 @@ TRACE_EVENT(cam_irq_activated,
 		__field(uint32_t, irq_type)
 	),
 	TP_fast_assign(
+	#if KERNEL_VERSION(6, 10, 0) <= LINUX_VERSION_CODE
+		__assign_str(entity);
+	#else
 		__assign_str(entity, entity);
+	#endif
 		__entry->irq_type = irq_type;
 	),
 	TP_printk(
@@ -528,7 +610,11 @@ TRACE_EVENT(cam_irq_handled,
 		__field(uint32_t, irq_type)
 	),
 	TP_fast_assign(
+	#if KERNEL_VERSION(6, 10, 0) <= LINUX_VERSION_CODE
+		__assign_str(entity);
+	#else
 		__assign_str(entity, entity);
+	#endif
 		__entry->irq_type = irq_type;
 	),
 	TP_printk(
@@ -545,7 +631,11 @@ TRACE_EVENT(cam_cdm_cb,
 		__field(uint32_t, status)
 	),
 	TP_fast_assign(
+	#if KERNEL_VERSION(6, 10, 0) <= LINUX_VERSION_CODE
+		__assign_str(entity);
+	#else
 		__assign_str(entity, entity);
+	#endif
 		__entry->status = status;
 	),
 	TP_printk(

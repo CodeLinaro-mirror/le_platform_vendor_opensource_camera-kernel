@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2019, 2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #ifndef _CAM_SENSOR_DEV_H_
@@ -28,6 +28,7 @@
 
 #define NUM_MASTERS 2
 #define NUM_QUEUES 2
+#define MAX_SENSOR_STREAMS 4
 
 #undef CDBG
 #ifdef CAM_SENSOR_DEBUG
@@ -38,6 +39,21 @@
 
 #define SENSOR_DRIVER_I2C "cam-i2c-sensor"
 #define CAMX_SENSOR_DEV_NAME "cam-sensor-driver"
+
+enum cam_sensor_stream_type {
+	BLOB         = 0,
+	IMAGE        = 1,
+	PDAF         = 2,
+	HDR          = 3,
+	META         = 4,
+	IMAGE_SHORT  = 5,
+	IMAGE_MIDDLE = 6,
+	IMAGE1       = 7,
+	IMAGE2       = 8,
+	IMAGE3       = 9,
+	PERIPHERAL   = 10,
+	SETTINGSID   = 11
+};
 
 enum cam_sensor_state_t {
 	CAM_SENSOR_INIT,
@@ -74,18 +90,14 @@ struct sensor_intf_params {
 /**
  * struct cam_sensor_dev_res_info
  *
- * @vc: Virtaul channel
+ * @vc: Virtual channel
  * @dt: Data type
- * @frame_duration: Frame duraton
- * @req_id: Request Id
- * @feature_mask: Feature mask
+ * @type: stream type
  */
 struct cam_sensor_dev_res_info {
 	uint16_t   vc;
 	uint16_t   dt;
-	uint64_t   frame_duration;
-	uint64_t   req_id;
-	uint16_t   feature_mask;
+	uint32_t   type;
 };
 
 /**
@@ -136,7 +148,7 @@ struct cam_sensor_ctrl_t {
 	struct cam_hw_soc_info         soc_info;
 	struct mutex                   cam_sensor_mutex;
 	struct cam_sensor_board_info  *sensordata;
-	struct cam_sensor_dev_res_info sensor_res;
+	struct cam_sensor_dev_res_info sensor_res[MAX_SENSOR_STREAMS];
 	enum cci_i2c_master_t          cci_i2c_master;
 	enum cci_device_num            cci_num;
 	struct camera_io_master        io_master_info;
@@ -169,6 +181,7 @@ struct cam_sensor_ctrl_t {
 	uint64_t                       last_applied_req;
 	uint16_t                       vc;
 	uint16_t                       dt;
+	uint32_t                       num_streams;
 	uint64_t                       frame_duration;
 
 	struct dentry                  *root_dentry;

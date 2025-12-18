@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #ifndef _CAM_IFE_CSID_HW_VER2_H_
@@ -592,6 +592,10 @@ struct cam_ife_csid_trigger_cam_data {
  * @primary_vc:               Indicates Primary vc
  * @active_res_mask:          Indicates active mask of res
  * @rx_capture_vc_dt_rst      dynamic change vc/dt for RX capture control
+ * @irq_sync_spin_lock        Synchronization lock between vfe and csid irq
+ * @path_err_recovery         Enable recovery for below path errors
+                              error_unbounded_frame/error_cphy_sot_reception/
+                              error_cphy_eot_reception
  */
 struct cam_ife_csid_ver2_hw {
 	struct cam_isp_resource_node           path_res
@@ -636,6 +640,8 @@ struct cam_ife_csid_ver2_hw {
 	int                                    per_port_group_index;
 	struct cam_ife_csid_trigger_cam_data   trigger_cam_data;
 	uint32_t                               rx_capture_vc_dt_rst;
+	spinlock_t                            *irq_sync_spin_lock;
+	bool                                   path_err_recovery;
 };
 
 /*

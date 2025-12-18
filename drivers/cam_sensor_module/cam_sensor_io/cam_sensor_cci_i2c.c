@@ -266,6 +266,7 @@ int32_t cam_sensor_cci_get_contextid(struct cam_sensor_cci_client *cci_client,
 	cci_ctrl.cfg.trigger_data.cid = trigger_data->cid;
 	cci_ctrl.cfg.trigger_data.csid = trigger_data->csid;
 	cci_ctrl.cfg.trigger_data.gpio_mask = trigger_data->gpio_mask;
+	cci_ctrl.cfg.trigger_data.is_sensor_ctx = trigger_data->is_sensor_ctx;
 	rc = v4l2_subdev_call(cci_client->cci_subdev,
 		core, ioctl, VIDIOC_MSM_CCI_CFG, &cci_ctrl);
 	if (rc < 0) {
@@ -277,7 +278,7 @@ int32_t cam_sensor_cci_get_contextid(struct cam_sensor_cci_client *cci_client,
 }
 
 int32_t cam_sensor_cci_release_contextid(struct cam_sensor_cci_client *cci_client,
-	uint16_t cci_cmd, uint32_t contextId)
+	uint16_t cci_cmd, uint32_t contextId, bool is_sensor_ctx)
 {
 	int32_t rc = 0;
 	struct cam_cci_ctrl cci_ctrl;
@@ -285,6 +286,7 @@ int32_t cam_sensor_cci_release_contextid(struct cam_sensor_cci_client *cci_clien
 	cci_ctrl.cmd = cci_cmd;
 	cci_ctrl.cci_info = cci_client;
 	cci_ctrl.cfg.trigger_data.context_id = contextId;
+	cci_ctrl.cfg.trigger_data.is_sensor_ctx = is_sensor_ctx;
 	rc = v4l2_subdev_call(cci_client->cci_subdev,
 		core, ioctl, VIDIOC_MSM_CCI_CFG, &cci_ctrl);
 	if (rc < 0) {

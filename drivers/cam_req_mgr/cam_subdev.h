@@ -28,6 +28,7 @@ enum cam_subdev_message_type_t {
 	CAM_SUBDEV_MESSAGE_SENSOR_QUERY_MCU = 0x8,
 	CAM_SUBDEV_MESSAGE_GET_CSID_CID = 0x9,
 	CAM_SUBDEV_MESSAGE_GET_SENSOR_PD = 0x10,
+	CAM_SUBDEV_MESSAGE_SET_TRIGGER_DATA = 0x11,
 };
 
 /* Enum for close sequence priority */

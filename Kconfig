@@ -100,3 +100,11 @@ config SYNX_BATCH_API
 	   defined in Synx headers. Synx Batch
 	   APIs compile only when this flag is
 	   enabled.
+
+config SPECTRA_SECURE_CAMNOC_REG_UPDATE
+	bool "enable secure camnoc reg update feature"
+	help
+	   This config enables secure reg update
+	   feature that allows the HLOS to configure
+	   camnoc registers through HYP to avoid
+	   potential security issues.

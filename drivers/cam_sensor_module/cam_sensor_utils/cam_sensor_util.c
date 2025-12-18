@@ -214,9 +214,9 @@ int32_t cam_sensor_handle_random_write(
 
 	for (cnt = 0; cnt < payload_count; cnt++) {
 		i2c_list->i2c_settings.reg_setting[cnt].reg_addr =
-			cam_cmd_i2c_random_wr->random_wr_payload[cnt].reg_addr;
+			cam_cmd_i2c_random_wr->random_wr_payload_flex[cnt].reg_addr;
 		i2c_list->i2c_settings.reg_setting[cnt].reg_data =
-			cam_cmd_i2c_random_wr->random_wr_payload[cnt].reg_data;
+			cam_cmd_i2c_random_wr->random_wr_payload_flex[cnt].reg_data;
 		i2c_list->i2c_settings.reg_setting[cnt].data_mask = 0;
 	}
 	*offset = cnt;
@@ -266,7 +266,7 @@ static int32_t cam_sensor_handle_continuous_write(
 		i2c_list->i2c_settings.reg_setting[cnt].reg_addr =
 			cam_cmd_i2c_continuous_wr->reg_addr;
 		i2c_list->i2c_settings.reg_setting[cnt].reg_data =
-			cam_cmd_i2c_continuous_wr->data_read[cnt].reg_data;
+			cam_cmd_i2c_continuous_wr->data_read_flex[cnt].reg_data;
 		i2c_list->i2c_settings.reg_setting[cnt].data_mask = 0;
 	}
 	*offset = cnt;
@@ -413,7 +413,7 @@ static int32_t cam_sensor_handle_random_read(
 
 		for (cnt = 0; cnt < payload_count; cnt++) {
 			i2c_list->i2c_settings.reg_setting[cnt].reg_addr =
-				cmd_i2c_random_rd->data_read[cnt].reg_data;
+				cmd_i2c_random_rd->data_read_flex[cnt].reg_data;
 		}
 		*offset = cnt;
 		*list = &(i2c_list->list);
@@ -1438,9 +1438,9 @@ int32_t cam_sensor_update_power_settings(void *cmd_buf,
 
 			for (i = 0; i < pwr_up_cmd->count; i++, pwr_up++) {
 				power_info->power_setting[pwr_up].seq_type =
-				pwr_up_cmd->power_settings[i].power_seq_type;
+				pwr_up_cmd->power_settings_flex[i].power_seq_type;
 				power_info->power_setting[pwr_up].config_val =
-				pwr_up_cmd->power_settings[i].config_val_low;
+				pwr_up_cmd->power_settings_flex[i].config_val_low;
 				power_info->power_setting[pwr_up].delay = 0;
 				if (i) {
 					scr = scr +
@@ -1547,9 +1547,9 @@ int32_t cam_sensor_update_power_settings(void *cmd_buf,
 				pwr_settings =
 				&power_info->power_down_setting[pwr_down];
 				pwr_settings->seq_type =
-				pwr_dwn_cmd->power_settings[i].power_seq_type;
+				pwr_dwn_cmd->power_settings_flex[i].power_seq_type;
 				pwr_settings->config_val =
-				pwr_dwn_cmd->power_settings[i].config_val_low;
+				pwr_dwn_cmd->power_settings_flex[i].config_val_low;
 				power_info->power_down_setting[pwr_down].delay
 					= 0;
 				if (i) {
@@ -2207,44 +2207,54 @@ int cam_sensor_core_power_up(struct cam_sensor_power_ctrl_t *ctrl,
 					soc_info->num_clk);
 				goto power_up_failed;
 			}
-			for (j = 0; j < num_vreg; j++) {
-				if (!strcmp(soc_info->rgltr_name[j],
-					"cam_clk")) {
-					CAM_DBG(CAM_SENSOR,
-						"Enable cam_clk: %d", j);
+			if (soc_info->is_a_genpd_device) {
+				rc = cam_soc_util_turn_on_power_domain(soc_info);
+				if (rc) {
+					CAM_ERR(CAM_SENSOR,
+						"Failed to turn on the GDSC for dev: %s",
+						soc_info->dev_name);
+					goto power_up_failed;
+				}
+			} else {
+				for (j = 0; j < num_vreg; j++) {
+					if (!strcmp(soc_info->rgltr_name[j],
+						"cam_clk")) {
+						CAM_DBG(CAM_SENSOR,
+							"Enable cam_clk: %d", j);
 
-					if (IS_ERR_OR_NULL(
-						soc_info->rgltr[j])) {
-						rc = PTR_ERR(
-							soc_info->rgltr[j]);
-						rc = rc ? rc : -EINVAL;
-						CAM_ERR(CAM_SENSOR,
-							"vreg %s %d",
-							soc_info->rgltr_name[j],
-							rc);
-						goto power_up_failed;
+						if (IS_ERR_OR_NULL(
+							soc_info->rgltr[j])) {
+							rc = PTR_ERR(
+								soc_info->rgltr[j]);
+							rc = rc ? rc : -EINVAL;
+							CAM_ERR(CAM_SENSOR,
+								"vreg %s %d",
+								soc_info->rgltr_name[j],
+								rc);
+							goto power_up_failed;
+						}
+						rc = cam_cpas_gdsc_get_put(soc_info->index, true);
+						if (rc) {
+							CAM_ERR(CAM_SENSOR,
+							"sensor index: %d, gdsc get failure ",
+								soc_info->index);
+							goto power_up_failed;
+						}
+						rc =  cam_soc_util_regulator_enable(
+						soc_info->rgltr[j],
+						soc_info->rgltr_name[j],
+						soc_info->rgltr_min_volt[j],
+						soc_info->rgltr_max_volt[j],
+						soc_info->rgltr_op_mode[j],
+						soc_info->rgltr_delay[j]);
+						if (rc) {
+							CAM_ERR(CAM_SENSOR,
+								"Reg enable failed");
+							goto power_up_failed;
+						}
+						power_setting->data[0] =
+							soc_info->rgltr[j];
 					}
-					rc = cam_cpas_gdsc_get_put(soc_info->index, true);
-					if (rc) {
-						CAM_ERR(CAM_SENSOR,
-						"sensor index: %d, gdsc get failure ",
-							soc_info->index);
-						goto power_up_failed;
-					}
-					rc =  cam_soc_util_regulator_enable(
-					soc_info->rgltr[j],
-					soc_info->rgltr_name[j],
-					soc_info->rgltr_min_volt[j],
-					soc_info->rgltr_max_volt[j],
-					soc_info->rgltr_op_mode[j],
-					soc_info->rgltr_delay[j]);
-					if (rc) {
-						CAM_ERR(CAM_SENSOR,
-							"Reg enable failed");
-						goto power_up_failed;
-					}
-					power_setting->data[0] =
-						soc_info->rgltr[j];
 				}
 			}
 			if (power_setting->config_val)
@@ -2382,11 +2392,15 @@ power_up_failed:
 			for (i = soc_info->num_clk - 1; i >= 0; i--) {
 				cam_soc_util_clk_disable(soc_info, false, i);
 			}
-			ret = cam_config_mclk_reg(ctrl, soc_info, index);
-			if (ret < 0) {
-				CAM_ERR(CAM_SENSOR,
-					"config clk reg failed rc: %d", ret);
-				continue;
+			if (soc_info->is_a_genpd_device) {
+				cam_soc_util_turn_off_power_domain(soc_info);
+			} else {
+				ret = cam_config_mclk_reg(ctrl, soc_info, index);
+				if (ret < 0) {
+					CAM_ERR(CAM_SENSOR,
+						"config clk reg failed rc: %d", ret);
+					continue;
+				}
 			}
 			break;
 		case SENSOR_RESET:
@@ -2707,11 +2721,20 @@ int cam_sensor_util_power_down(struct cam_sensor_power_ctrl_t *ctrl,
 				cam_soc_util_clk_disable(soc_info, false, i);
 			}
 
-			ret = cam_config_mclk_reg(ctrl, soc_info, index);
-			if (ret < 0) {
-				CAM_ERR(CAM_SENSOR,
-					"config clk reg failed rc: %d", ret);
-				continue;
+			if (soc_info->is_a_genpd_device) {
+				ret = cam_soc_util_turn_off_power_domain(soc_info);
+				if (ret) {
+					CAM_ERR(CAM_SENSOR, "Failed to turn off the GDSC for dev: %s",
+						soc_info->dev_name);
+					continue;
+				}
+			} else {
+				ret = cam_config_mclk_reg(ctrl, soc_info, index);
+				if (ret < 0) {
+					CAM_ERR(CAM_SENSOR,
+						"config clk reg failed rc: %d", ret);
+					continue;
+				}
 			}
 			break;
 		case SENSOR_RESET:

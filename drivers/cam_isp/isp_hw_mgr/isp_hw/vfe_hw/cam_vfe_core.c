@@ -314,6 +314,7 @@ int cam_vfe_reserve(void *hw_priv, void *reserve_args, uint32_t arg_size)
 
 	CAM_DBG(CAM_ISP, "acq res type: %d", acquire->rsrc_type);
 	mutex_lock(&vfe_hw->hw_mutex);
+	core_info->path_err_recovery = acquire->path_err_recovery;
 	if (acquire->rsrc_type == CAM_ISP_RESOURCE_VFE_IN) {
 		rc = core_info->vfe_top->hw_ops.reserve(
 			core_info->vfe_top->top_priv,
@@ -368,7 +369,7 @@ int cam_vfe_release(void *hw_priv, void *release_args, uint32_t arg_size)
 	} else {
 		CAM_ERR(CAM_ISP, "Invalid res type:%d", isp_res->res_type);
 	}
-
+	core_info->path_err_recovery = false;
 	mutex_unlock(&vfe_hw->hw_mutex);
 
 	return rc;
@@ -560,6 +561,7 @@ int cam_vfe_process_cmd(void *hw_priv, uint32_t cmd_type,
 	case CAM_ISP_HW_CMD_GET_HWFENCE_DEVICE_INFO:
 	case CAM_ISP_HW_CMD_GET_SESSION_COOKIE:
 	case CAM_ISP_HW_CMD_GET_SRC_GRP:
+	case CAM_ISP_HW_CMD_CHECK_AND_CLEAR_BUS_VIOLATION:
 		rc = core_info->vfe_bus->hw_ops.process_cmd(
 			core_info->vfe_bus->bus_priv, cmd_type, cmd_args,
 			arg_size);
@@ -576,6 +578,9 @@ int cam_vfe_process_cmd(void *hw_priv, uint32_t cmd_type,
 		*((struct cam_hw_soc_info **)cmd_args) = soc_info;
 		rc = 0;
 		break;
+	case CAM_ISP_HW_CMD_SET_SYNC_IRQ_SPIN_LOCK:
+		core_info->irq_sync_spin_lock = cmd_args;
+		break;
 	default:
 		CAM_ERR(CAM_ISP, "Invalid cmd type:%d", cmd_type);
 		rc = -EINVAL;
@@ -588,6 +593,7 @@ irqreturn_t cam_vfe_irq(int irq_num, void *data)
 {
 	struct cam_hw_info            *vfe_hw;
 	struct cam_vfe_hw_core_info   *core_info;
+	irqreturn_t    rc;
 
 	if (!data)
 		return IRQ_NONE;
@@ -595,8 +601,13 @@ irqreturn_t cam_vfe_irq(int irq_num, void *data)
 	vfe_hw = (struct cam_hw_info *)data;
 	core_info = (struct cam_vfe_hw_core_info *)vfe_hw->core_info;
 
-	return cam_irq_controller_handle_irq(irq_num,
+	if (core_info->path_err_recovery)
+		spin_lock(core_info->irq_sync_spin_lock);
+	rc = cam_irq_controller_handle_irq(irq_num,
 		core_info->vfe_irq_controller, CAM_IRQ_EVT_GROUP_0);
+	if (core_info->path_err_recovery)
+		spin_unlock(core_info->irq_sync_spin_lock);
+	return rc;
 }
 
 int cam_vfe_core_init(struct cam_vfe_hw_core_info  *core_info,
@@ -655,6 +666,8 @@ int cam_vfe_core_init(struct cam_vfe_hw_core_info  *core_info,
 	}
 
 	spin_lock_init(&core_info->spin_lock);
+
+	core_info->path_err_recovery = false;
 
 	return rc;
 

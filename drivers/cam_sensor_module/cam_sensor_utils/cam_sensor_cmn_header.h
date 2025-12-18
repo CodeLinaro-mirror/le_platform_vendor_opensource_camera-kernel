@@ -216,12 +216,27 @@ struct cam_sensor_i2c_reg_array {
  * @csid:          CSID of sensor
  * @cid:           CID of sensor
  * @context_id:    Context ID of Trigger sensor
+ * @gpio_mask:     cci-timer Trigger sensor
+ * @is_sensor_ctx: is sensor context
  */
 struct cam_cci_trigger_data {
 	uint32_t csid;
 	uint32_t cid;
 	uint32_t context_id;
 	uint32_t gpio_mask;
+	bool     is_sensor_ctx;
+};
+
+ struct cam_actuator_trigger_data {
+	uint32_t actuator_no;
+	uint32_t csid;
+	uint32_t cid;
+	uint32_t context_id;
+	uint32_t phy_no;
+	uint32_t gpio_mask;
+	uint32_t line_no;
+	uint16_t vc;
+	uint16_t dt;
 };
 
 struct cam_sensor_i2c_reg_setting {
@@ -246,6 +261,7 @@ struct cam_sensor_frame_event_data {
 	uint16_t dt;
 	uint32_t streamId;
 	uint32_t frame_event;
+	uint32_t line_no;
 };
 
 struct cam_sensor_fsin_data {

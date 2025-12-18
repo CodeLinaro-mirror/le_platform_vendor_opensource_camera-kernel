@@ -187,7 +187,7 @@ int32_t cam_csiphy_remote_cmd_buf_parser(struct csiphy_remote_device *csiphy_dev
 	}
 
 	cmd_desc = (struct cam_cmd_buf_desc *)
-		((uint32_t *)&csl_packet->payload +
+		((uint32_t *)&csl_packet->payload_flex +
 		csl_packet->cmd_buf_offset / 4);
 
 	rc = cam_mem_get_cpu_buf(cmd_desc->mem_handle,

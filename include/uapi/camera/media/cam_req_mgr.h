@@ -301,7 +301,10 @@ struct cam_req_mgr_sync_mode_v2 {
 	__s32 sync_mode;
 	__s32 master_link_hdl;
 	__u32 reserved;
-	struct cam_req_mgr_sync_link_desc links[1];
+	union {
+		struct cam_req_mgr_sync_link_desc links[1];
+		__DECLARE_FLEX_ARRAY(struct cam_req_mgr_sync_link_desc, links_flex);
+	};
 };
 
 /**

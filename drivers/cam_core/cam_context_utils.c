@@ -807,16 +807,16 @@ end:
 
 int32_t cam_context_flush_ctx_to_hw(struct cam_context *ctx)
 {
-	struct cam_hw_flush_args flush_args;
+	struct cam_hw_flush_args flush_args = {0};
 	struct list_head temp_list;
+	struct list_head *list;
 	struct cam_ctx_request *req;
 	struct cam_sync_signal_param param;
-	uint32_t i;
+	uint32_t i, num_entries = 0;
 	int rc = 0;
 	bool free_req;
 
 	CAM_DBG(CAM_CTXT, "[%s] E: NRT flush ctx", ctx->dev_name);
-	memset(&flush_args, 0, sizeof(flush_args));
 
 	/*
 	 * flush pending requests, take the sync lock to synchronize with the
@@ -834,20 +834,30 @@ int32_t cam_context_flush_ctx_to_hw(struct cam_context *ctx)
 			"[%s][%d] : Moving all pending requests from pending_list to temp_list",
 			ctx->dev_name, ctx->ctx_id);
 
-	flush_args.num_req_pending = 0;
 	flush_args.last_flush_req = ctx->last_flush_req;
-	while (true) {
-		spin_lock(&ctx->lock);
-		if (list_empty(&temp_list)) {
-			spin_unlock(&ctx->lock);
-			break;
+	list_for_each(list, &temp_list) {
+		num_entries++;
+	}
+	if (num_entries) {
+		flush_args.flush_req_pending =
+			kvcalloc(num_entries, sizeof(void *), GFP_KERNEL);
+		if (!flush_args.flush_req_pending) {
+			CAM_ERR(CAM_CTXT, "[%s][%d] : Flush array memory alloc fail",
+				ctx->dev_name, ctx->ctx_id);
+			mutex_unlock(&ctx->sync_mutex);
+			rc = -ENOMEM;
+			goto end;
 		}
+	}
+
+	while (num_entries) {
+		if (list_empty(&temp_list))
+			break;
 
 		req = list_first_entry(&temp_list,
 				struct cam_ctx_request, list);
 
 		list_del_init(&req->list);
-		spin_unlock(&ctx->lock);
 		req->flushed = 1;
 
 		flush_args.flush_req_pending[flush_args.num_req_pending++] =
@@ -907,11 +917,35 @@ int32_t cam_context_flush_ctx_to_hw(struct cam_context *ctx)
 	mutex_unlock(&ctx->sync_mutex);
 
 	if (ctx->hw_mgr_intf->hw_flush) {
-		flush_args.num_req_active = 0;
+		num_entries = 0;
+
+		/*
+		 * Hold the ctx lock till the active requests are populated for
+		 * flush, allocate memory in atomic context. We want to ensure the
+		 * allocated memory is sufficient for the requests in the active list.
+		 * The active list should not be reinitialized since it is possible that
+		 * any buf done's from HW is serviced before the flush
+		 * makes it to the HW layer
+		 */
 		spin_lock(&ctx->lock);
-		list_for_each_entry(req, &ctx->active_req_list, list) {
-			flush_args.flush_req_active[flush_args.num_req_active++]
-				= req->req_priv;
+		list_for_each(list, &ctx->active_req_list)
+			num_entries++;
+
+		if (num_entries) {
+			flush_args.flush_req_active =
+				kvcalloc(num_entries, sizeof(void *), GFP_ATOMIC);
+			if (!flush_args.flush_req_active) {
+				spin_unlock(&ctx->lock);
+				CAM_ERR(CAM_CTXT, "[%s][%d] : Flush array memory alloc fail",
+					ctx->dev_name, ctx->ctx_id);
+				rc = -ENOMEM;
+				goto end;
+			}
+
+			list_for_each_entry(req, &ctx->active_req_list, list) {
+				flush_args.flush_req_active[flush_args.num_req_active++] =
+					req->req_priv;
+			}
 		}
 		spin_unlock(&ctx->lock);
 
@@ -927,7 +961,6 @@ int32_t cam_context_flush_ctx_to_hw(struct cam_context *ctx)
 	INIT_LIST_HEAD(&temp_list);
 	spin_lock(&ctx->lock);
 	list_splice_init(&ctx->active_req_list, &temp_list);
-	INIT_LIST_HEAD(&ctx->active_req_list);
 	spin_unlock(&ctx->lock);
 
 	if (cam_debug_ctx_req_list & ctx->dev_id)
@@ -935,16 +968,13 @@ int32_t cam_context_flush_ctx_to_hw(struct cam_context *ctx)
 			"[%s][%d] : Moving all requests from active_list to temp_list",
 			ctx->dev_name, ctx->ctx_id);
 
-	while (true) {
-		spin_lock(&ctx->lock);
-		if (list_empty(&temp_list)) {
-			spin_unlock(&ctx->lock);
+	while (num_entries) {
+		if (list_empty(&temp_list))
 			break;
-		}
+
 		req = list_first_entry(&temp_list,
 			struct cam_ctx_request, list);
 		list_del_init(&req->list);
-		spin_unlock(&ctx->lock);
 
 		for (i = 0; i < req->num_out_map_entries; i++) {
 			if (req->out_map_entries[i].sync_id != -1) {
@@ -969,12 +999,11 @@ int32_t cam_context_flush_ctx_to_hw(struct cam_context *ctx)
 			cam_common_mem_free(req->packet);
 			req->packet = NULL;
 		}
+		req->ctx = NULL;
 
 		spin_lock(&ctx->lock);
 		list_add_tail(&req->list, &ctx->free_req_list);
 		spin_unlock(&ctx->lock);
-		req->ctx = NULL;
-
 		if (cam_debug_ctx_req_list & ctx->dev_id)
 			CAM_INFO(CAM_CTXT,
 				"[%s][%d] : Moving req[%llu] from temp_list to free_list",
@@ -982,27 +1011,35 @@ int32_t cam_context_flush_ctx_to_hw(struct cam_context *ctx)
 	}
 	mutex_unlock(&ctx->sync_mutex);
 
+	rc = 0;
 	CAM_DBG(CAM_CTXT, "[%s] X: NRT flush ctx", ctx->dev_name);
 
-	return 0;
+end:
+	kvfree(flush_args.flush_req_active);
+	kvfree(flush_args.flush_req_pending);
+	return rc;
 }
 
 int32_t cam_context_flush_req_to_hw(struct cam_context *ctx,
 	struct cam_flush_dev_cmd *cmd)
 {
 	struct cam_ctx_request *req = NULL;
-	struct cam_hw_flush_args flush_args;
+	struct cam_hw_flush_args flush_args = {0};
 	struct cam_sync_signal_param param;
-	uint32_t i;
+	uint32_t i = 0;
 	int32_t sync_id = 0;
 	int rc = 0;
 	bool free_req = false;
 
 	CAM_DBG(CAM_CTXT, "[%s] E: NRT flush req", ctx->dev_name);
 
-	memset(&flush_args, 0, sizeof(flush_args));
-	flush_args.num_req_pending = 0;
-	flush_args.num_req_active = 0;
+	flush_args.flush_req_pending = kvzalloc(sizeof(void *), GFP_KERNEL);
+	if (!flush_args.flush_req_pending) {
+		CAM_ERR(CAM_CTXT, "[%s][%d] : Flush array memory alloc fail",
+			ctx->dev_name, ctx->ctx_id);
+		rc = -ENOMEM;
+		goto end;
+	}
 	mutex_lock(&ctx->sync_mutex);
 	spin_lock(&ctx->lock);
 	list_for_each_entry(req, &ctx->pending_req_list, list) {
@@ -1026,6 +1063,13 @@ int32_t cam_context_flush_req_to_hw(struct cam_context *ctx,
 
 	if (ctx->hw_mgr_intf->hw_flush) {
 		if (!flush_args.num_req_pending) {
+			flush_args.flush_req_active = kvzalloc(sizeof(void *), GFP_KERNEL);
+			if (!flush_args.flush_req_active) {
+				CAM_ERR(CAM_CTXT, "[%s][%d] : Flush array memory alloc fail",
+					ctx->dev_name, ctx->ctx_id);
+				rc = -ENOMEM;
+				goto end;
+			}
 			spin_lock(&ctx->lock);
 			list_for_each_entry(req, &ctx->active_req_list, list) {
 				if (req->request_id != cmd->req_id)
@@ -1104,10 +1148,14 @@ int32_t cam_context_flush_req_to_hw(struct cam_context *ctx,
 							"pending_list");
 			}
 		}
+		rc = 0;
 	}
 	CAM_DBG(CAM_CTXT, "[%s] X: NRT flush req", ctx->dev_name);
 
-	return 0;
+end:
+	kvfree(flush_args.flush_req_active);
+	kvfree(flush_args.flush_req_pending);
+	return rc;
 }
 
 int32_t cam_context_flush_dev_to_hw(struct cam_context *ctx,
@@ -1542,7 +1590,7 @@ static void __cam_context_req_mini_dump(struct cam_ctx_request *req,
 		if (start_addr + bytes_written + bytes_required > end_addr)
 			goto end;
 
-		io_cfg = (struct cam_buf_io_cfg *)((uint32_t *)&packet->payload +
+		io_cfg = (struct cam_buf_io_cfg *)((uint32_t *)&packet->payload_flex +
 			    packet->io_configs_offset / 4);
 		req_md->io_cfg = (struct cam_buf_io_cfg *)(start_addr + bytes_written);
 		memcpy(req_md->io_cfg, io_cfg, bytes_required);

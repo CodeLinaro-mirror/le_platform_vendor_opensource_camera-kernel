@@ -3,10 +3,9 @@
  * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
-#include <linux/soc/qcom/msm_hw_fence.h>
-
 #include "cam_sync_synx.h"
 #if IS_REACHABLE(CONFIG_CAM_ENABLE_SOCCP)
+#include <linux/soc/qcom/msm_hw_fence.h>
 #include <synx_extension_api.h>
 #endif
 

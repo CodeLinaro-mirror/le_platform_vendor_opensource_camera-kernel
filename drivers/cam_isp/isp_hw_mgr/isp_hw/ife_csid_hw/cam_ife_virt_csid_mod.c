@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #include <linux/module.h>
 #include <linux/platform_device.h>
 #include <linux/mod_devicetable.h>
 #include <linux/component.h>
+#include <linux/of_device.h>
 
 #include "cam_debug_util.h"
 #include "cam_hw_intf.h"
@@ -1599,6 +1600,9 @@ int cam_ife_virt_csid_probe(struct platform_device *pdev)
 	int rc = 0;
 
 	CAM_INFO(CAM_ISP, "Adding VIRT IFE CSID component");
+
+	cam_soc_util_initialize_power_domain(&pdev->dev);
+
 	rc = component_add(&pdev->dev, &cam_ife_virt_csid_component_ops);
 	if (rc)
 		CAM_ERR(CAM_ISP, "failed to add component rc: %d", rc);
@@ -1606,10 +1610,19 @@ int cam_ife_virt_csid_probe(struct platform_device *pdev)
 	return rc;
 }
 
+#if KERNEL_VERSION(6, 10, 0) > LINUX_VERSION_CODE
 int cam_ife_virt_csid_remove(struct platform_device *pdev)
+#else
+void cam_ife_virt_csid_remove(struct platform_device *pdev)
+#endif
 {
 	component_del(&pdev->dev, &cam_ife_virt_csid_component_ops);
+
+	cam_soc_util_uninitialize_power_domain(&pdev->dev);
+
+#if KERNEL_VERSION(6, 10, 0) > LINUX_VERSION_CODE
 	return 0;
+#endif
 }
 
 static struct cam_ife_csid_core_info cam_ife_csid_lite_650_hw_info = {

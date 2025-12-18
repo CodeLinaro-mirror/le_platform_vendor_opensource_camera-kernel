@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only WITH Linux-syscall-note */
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #ifndef __UAPI_CAM_ISP_H__
@@ -467,7 +467,10 @@ struct cam_isp_in_port_info {
 	__u32                        hbi_cnt;
 	__u32                        reserved;
 	__u32                        num_out_res;
-	struct cam_isp_out_port_info data[1];
+	union {
+		struct cam_isp_out_port_info data[1];
+		__DECLARE_FLEX_ARRAY(struct cam_isp_out_port_info, data_flex);
+	};
 };
 
 /**
@@ -551,7 +554,10 @@ struct cam_isp_in_port_info_v2 {
 	__u32                           feature_flag;
 	__u32                           ife_res_1;
 	__u32                           ife_res_2;
-	struct cam_isp_out_port_info_v2 data[1];
+	union {
+		struct cam_isp_out_port_info_v2 data[1];
+		__DECLARE_FLEX_ARRAY(struct cam_isp_out_port_info_v2, data_flex);
+	};
 };
 
 /**
@@ -641,7 +647,10 @@ struct cam_isp_in_port_info_v3 {
 	__u32                           acquire_type;
 	__u32                           sensor_id;
 	__u32                           sensor_mode;
-	struct cam_isp_out_port_info_v3 data[1];
+	union {
+		struct cam_isp_out_port_info_v3 data[1];
+		__DECLARE_FLEX_ARRAY(struct cam_isp_out_port_info_v3, data_flex);
+	};
 };
 
 /**
@@ -696,7 +705,10 @@ struct cam_isp_port_hfr_config {
 struct cam_isp_resource_hfr_config {
 	__u32                          num_ports;
 	__u32                          reserved;
-	struct cam_isp_port_hfr_config port_hfr_config[1];
+	union {
+		struct cam_isp_port_hfr_config port_hfr_config[1];
+		__DECLARE_FLEX_ARRAY(struct cam_isp_port_hfr_config, port_hfr_config_flex);
+	};
 } __attribute__((packed));
 
 /**
@@ -784,7 +796,10 @@ struct cam_isp_dual_config {
 	__u32                             num_ports;
 	__u32                             reserved;
 	struct cam_isp_dual_split_params  split_params;
-	struct cam_isp_dual_stripe_config stripes[1];
+	union {
+		struct cam_isp_dual_stripe_config stripes[1];
+		__DECLARE_FLEX_ARRAY(struct cam_isp_dual_stripe_config, stripes_flex);
+	};
 } __attribute__((packed));
 
 /**
@@ -804,7 +819,10 @@ struct cam_isp_clock_config {
 	__u32                       num_rdi;
 	__u64                       left_pix_hz;
 	__u64                       right_pix_hz;
-	__u64                       rdi_hz[1];
+	union {
+		__u64                       rdi_hz[1];
+		__DECLARE_FLEX_ARRAY(__u64, rdi_hz_flex);
+	};
 } __attribute__((packed));
 
 /**
@@ -854,7 +872,10 @@ struct cam_isp_bw_config {
 	__u32                       num_rdi;
 	struct cam_isp_bw_vote      left_pix_vote;
 	struct cam_isp_bw_vote      right_pix_vote;
-	struct cam_isp_bw_vote      rdi_vote[1];
+	union {
+		struct cam_isp_bw_vote      rdi_vote[1];
+		__DECLARE_FLEX_ARRAY(struct cam_isp_bw_vote, rdi_vote_flex);
+	};
 } __attribute__((packed));
 
 /**
@@ -867,7 +888,10 @@ struct cam_isp_bw_config {
 struct cam_isp_bw_config_v2 {
 	__u32                             usage_type;
 	__u32                             num_paths;
-	struct cam_axi_per_path_bw_vote   axi_path[1];
+	union {
+		struct cam_axi_per_path_bw_vote   axi_path[1];
+		__DECLARE_FLEX_ARRAY(struct cam_axi_per_path_bw_vote, axi_path_flex);
+	};
 } __attribute__((packed));
 
 /**
@@ -1035,7 +1059,10 @@ struct cam_isp_sfe_scratch_buf_info {
 struct cam_isp_sfe_init_scratch_buf_config {
 	__u32  num_ports;
 	__u32  reserved;
-	struct cam_isp_sfe_scratch_buf_info port_scratch_cfg[1];
+	union {
+		struct cam_isp_sfe_scratch_buf_info port_scratch_cfg[1];
+		__DECLARE_FLEX_ARRAY(struct cam_isp_sfe_scratch_buf_info, port_scratch_cfg_flex);
+	};
 };
 
 /**
@@ -1131,7 +1158,10 @@ struct cam_isp_vfe_wm_config {
 struct cam_isp_vfe_out_config {
 	__u32                        num_ports;
 	__u32                        reserved;
-	struct cam_isp_vfe_wm_config wm_config[1];
+	union {
+		struct cam_isp_vfe_wm_config wm_config[1];
+		__DECLARE_FLEX_ARRAY(struct cam_isp_vfe_wm_config, wm_config_flex);
+	};
 };
 
 /**
@@ -1159,7 +1189,10 @@ struct cam_isp_tunnel_id_config {
 struct cam_isp_vfe_out_tunnel_id_config {
 	__u32                           version;
 	__u32                           num_ports;
-	struct cam_isp_tunnel_id_config tunnel_id_config[1];
+	union {
+		struct cam_isp_tunnel_id_config tunnel_id_config[1];
+		__DECLARE_FLEX_ARRAY(struct cam_isp_tunnel_id_config, tunnel_id_config_flex);
+	};
 };
 
 /**
@@ -1204,7 +1237,10 @@ struct cam_isp_sfe_wm_exp_order_config {
 struct cam_isp_sfe_exp_config {
 	__u32                                   num_ports;
 	__u32                                   reserved;
-	struct cam_isp_sfe_wm_exp_order_config  wm_config[1];
+	union {
+		struct cam_isp_sfe_wm_exp_order_config  wm_config[1];
+		__DECLARE_FLEX_ARRAY(struct cam_isp_sfe_wm_exp_order_config, wm_config_flex);
+	};
 };
 
 /**
@@ -1253,7 +1289,10 @@ struct cam_isp_wm_bw_limiter_config {
 struct cam_isp_out_rsrc_bw_limiter_config {
 	__u32                                   num_ports;
 	__u32                                   reserved;
-	struct cam_isp_wm_bw_limiter_config     bw_limiter_config[1];
+	union {
+		struct cam_isp_wm_bw_limiter_config     bw_limiter_config[1];
+		__DECLARE_FLEX_ARRAY(struct cam_isp_wm_bw_limiter_config, bw_limiter_config_flex);
+	};
 };
 
 /**
