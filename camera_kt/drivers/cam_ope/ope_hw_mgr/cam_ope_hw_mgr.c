@@ -3671,7 +3671,7 @@ static int cam_ope_mgr_hw_close_u(void *hw_priv, void *hw_close_args)
 	hw_mgr = hw_priv;
 	if (!hw_mgr->open_cnt) {
 		rc = -EINVAL;
-		CAM_ERR(CAM_OPE, "device is already closed");
+		CAM_DBG(CAM_OPE, "device is already closed");
 	} else {
 		hw_mgr->open_cnt--;
 	}

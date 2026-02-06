@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #include <linux/delay.h>
@@ -69,7 +69,7 @@ static int cam_isp_subdev_open(struct v4l2_subdev *sd,
 	cam_req_mgr_rwsem_read_op(CAM_SUBDEV_LOCK);
 	mutex_lock(&g_isp_dev.isp_mutex);
 	if (g_isp_dev.open_cnt >= 1) {
-		CAM_ERR_RATE_LIMIT(CAM_ISP, "ISP subdev is already opened");
+		CAM_INFO_RATE_LIMIT(CAM_ISP, "ISP subdev is already opened");
 		rc = -EALREADY;
 		goto end;
 	}

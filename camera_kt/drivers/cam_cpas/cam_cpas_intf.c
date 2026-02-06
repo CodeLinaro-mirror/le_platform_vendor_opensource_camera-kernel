@@ -689,7 +689,7 @@ static int __cam_cpas_subdev_close(struct v4l2_subdev *sd,
 
 	mutex_lock(&cpas_intf->intf_lock);
 	if (cpas_intf->open_cnt <= 0) {
-		CAM_WARN(CAM_CPAS, "device already closed, open_cnt: %d", cpas_intf->open_cnt);
+		CAM_DBG(CAM_CPAS, "device already closed, open_cnt: %d", cpas_intf->open_cnt);
 		mutex_unlock(&cpas_intf->intf_lock);
 		return 0;
 	}

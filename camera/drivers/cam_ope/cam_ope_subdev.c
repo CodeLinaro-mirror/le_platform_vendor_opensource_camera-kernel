@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #include <linux/delay.h>
@@ -89,7 +89,7 @@ static int cam_ope_subdev_open(struct v4l2_subdev *sd,
 
 	mutex_lock(&g_ope_dev.ope_lock);
 	if (g_ope_dev.open_cnt >= 1) {
-		CAM_ERR(CAM_OPE, "OPE subdev is already opened");
+		CAM_INFO(CAM_OPE, "OPE subdev is already opened");
 		rc = -EALREADY;
 		goto end;
 	}

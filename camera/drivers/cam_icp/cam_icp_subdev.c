@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022,2024, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #include <linux/delay.h>
@@ -159,7 +159,7 @@ static int cam_icp_subdev_open(struct v4l2_subdev *sd,
 
 	mutex_lock(&icp_dev->icp_lock);
 	if (icp_dev->open_cnt >= 1) {
-		CAM_ERR(CAM_ICP, "device[%s] is already opened, open count: %u",
+		CAM_INFO(CAM_ICP, "device[%s] is already opened, open count: %u",
 			sd->name, icp_dev->open_cnt);
 		rc = -EALREADY;
 		goto end;
