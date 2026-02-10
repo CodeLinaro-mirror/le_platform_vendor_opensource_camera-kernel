@@ -64,6 +64,9 @@ static long cam_eeprom_subdev_ioctl(struct v4l2_subdev *sd,
 
 		rc = cam_eeprom_subdev_close_internal(sd, NULL);
 		break;
+	case VIDIOC_QUERYCAP:
+		rc = -ENOIOCTLCMD;
+		break;
 	default:
 		rc = -ENOIOCTLCMD;
 		break;

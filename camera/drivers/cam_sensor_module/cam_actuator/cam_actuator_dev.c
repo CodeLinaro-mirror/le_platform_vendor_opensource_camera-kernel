@@ -82,6 +82,9 @@ static long cam_actuator_subdev_ioctl(struct v4l2_subdev *sd,
 
 		rc = cam_actuator_subdev_close_internal(sd, NULL);
 		break;
+	case VIDIOC_QUERYCAP:
+		rc = -ENOIOCTLCMD;
+		break;
 	default:
 		CAM_ERR_RATE_LIMIT(CAM_ACTUATOR, "Invalid ioctl cmd: %u", cmd);
 		rc = -ENOIOCTLCMD;
