@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #include <linux/module.h>
@@ -357,6 +357,7 @@ static int cam_lrme_mgr_util_prepare_hw_update_entries(
 static void cam_lrme_mgr_util_put_frame_req(
 	struct list_head *src_list,
 	struct cam_lrme_frame_request *frame_req,
+	int handle,
 	struct mutex *lock,
 	bool free_buffer)
 {
@@ -367,7 +368,7 @@ static void cam_lrme_mgr_util_put_frame_req(
 
 	mutex_lock(lock);
 	if (free_buffer)
-		cam_mem_put_cpu_buf(frame_req->hw_update_entries[0].handle);
+		cam_mem_put_cpu_buf(handle);
 
 	list_add_tail(&frame_req->frame_list, src_list);
 	mutex_unlock(lock);
@@ -526,6 +527,7 @@ static int cam_lrme_mgr_cb(void *data,
 	uint32_t evt_id = CAM_CTX_EVT_ID_ERROR;
 	struct cam_lrme_frame_request *frame_req;
 	struct cam_lrme_device *hw_device;
+	int handle;
 
 	if (!data || !cb_args) {
 		CAM_ERR(CAM_LRME, "Invalid input args");
@@ -536,10 +538,11 @@ static int cam_lrme_mgr_cb(void *data,
 	frame_req = cb_args->frame_req;
 
 	if (cb_args->cb_type & CAM_LRME_CB_PUT_FRAME) {
+		handle = frame_req->hw_update_entries[0].handle;
 		memset(frame_req, 0x0, sizeof(*frame_req));
 		INIT_LIST_HEAD(&frame_req->frame_list);
 		cam_lrme_mgr_util_put_frame_req(&hw_mgr->frame_free_list,
-				frame_req, &hw_mgr->free_req_lock, true);
+				frame_req, handle, &hw_mgr->free_req_lock, true);
 		cb_args->cb_type &= ~CAM_LRME_CB_PUT_FRAME;
 		frame_req = NULL;
 	}
@@ -579,10 +582,12 @@ static int cam_lrme_mgr_cb(void *data,
 		CAM_ERR(CAM_LRME, "No cb function");
 	}
 
+	handle = frame_req->hw_update_entries[0].handle;
 	memset(frame_req, 0x0, sizeof(*frame_req));
 	INIT_LIST_HEAD(&frame_req->frame_list);
 	cam_lrme_mgr_util_put_frame_req(&hw_mgr->frame_free_list,
 				frame_req,
+				handle,
 				&hw_mgr->free_req_lock, true);
 
 	rc = cam_lrme_mgr_util_schedule_frame_req(hw_mgr, hw_device);
@@ -732,6 +737,7 @@ static int cam_lrme_mgr_hw_flush(void *hw_mgr_priv, void *hw_flush_args)
 	uint32_t device_index;
 	struct cam_lrme_hw_flush_args lrme_flush_args;
 	uint32_t priority;
+	int handle;
 
 	if (!hw_mgr_priv || !hw_flush_args) {
 		CAM_ERR(CAM_LRME, "Invalid args %pK %pK",
@@ -755,14 +761,16 @@ static int cam_lrme_mgr_hw_flush(void *hw_mgr_priv, void *hw_flush_args)
 	req_list = (struct cam_lrme_frame_request **)args->flush_req_pending;
 	for (i = 0; i < args->num_req_pending; i++) {
 		frame_req = req_list[i];
+		handle = frame_req->hw_update_entries[0].handle;
 		memset(frame_req, 0x0, sizeof(*frame_req));
 		cam_lrme_mgr_util_put_frame_req(&hw_mgr->frame_free_list,
-			frame_req, &hw_mgr->free_req_lock, true);
+			frame_req, handle, &hw_mgr->free_req_lock, true);
 	}
 
 	req_list = (struct cam_lrme_frame_request **)args->flush_req_active;
 	for (i = 0; i < args->num_req_active; i++) {
 		frame_req = req_list[i];
+		handle = frame_req->hw_update_entries[0].handle;
 		priority = CAM_LRME_DECODE_PRIORITY(args->ctxt_to_hw_map);
 		mutex_lock((priority == CAM_LRME_PRIORITY_HIGH) ?
 			&hw_device->high_req_lock :
@@ -771,7 +779,7 @@ static int cam_lrme_mgr_hw_flush(void *hw_mgr_priv, void *hw_flush_args)
 			list_del_init(&frame_req->frame_list);
 			cam_lrme_mgr_util_put_frame_req(
 				&hw_mgr->frame_free_list,
-				frame_req,
+				frame_req, handle,
 				&hw_mgr->free_req_lock, true);
 		} else
 			req_to_flush = frame_req;
@@ -1029,11 +1037,15 @@ static int cam_lrme_mgr_hw_config(void *hw_mgr_priv,
 	if (priority == CAM_LRME_PRIORITY_HIGH) {
 		cam_lrme_mgr_util_put_frame_req(
 			&hw_device->frame_pending_list_high,
-			frame_req, &hw_device->high_req_lock, false);
+			frame_req,
+			frame_req->hw_update_entries[0].handle,
+			&hw_device->high_req_lock, false);
 	} else {
 		cam_lrme_mgr_util_put_frame_req(
 			&hw_device->frame_pending_list_normal,
-			frame_req, &hw_device->normal_req_lock, false);
+			frame_req,
+			frame_req->hw_update_entries[0].handle,
+			&hw_device->normal_req_lock, false);
 	}
 
 	CAM_DBG(CAM_LRME, "schedule req %llu", frame_req->req_id);
