@@ -665,6 +665,7 @@ struct cam_ife_csid_ver2_common_reg_info {
 	uint32_t early_eof_supported;
 	uint32_t global_reset;
 	uint32_t aup_rup_supported;
+	uint32_t rdi_epoch_config_not_supported;
 	uint32_t only_master_rup;
 	uint32_t sfe_ipp_input_rdi_res;
 	uint32_t phy_sel_base_idx;

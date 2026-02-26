@@ -2479,6 +2479,7 @@ int cam_ife_csid_ver2_get_hw_caps(void *hw_priv,
 	hw_caps->version_incr = csid_reg->cmn_reg->version_incr;
 	hw_caps->global_reset_en = csid_reg->cmn_reg->global_reset;
 	hw_caps->aup_rup_en = csid_reg->cmn_reg->aup_rup_supported;
+	hw_caps->rdi_epoch_config_not_supported = csid_reg->cmn_reg->rdi_epoch_config_not_supported;
 	hw_caps->only_master_rup = csid_reg->cmn_reg->only_master_rup;
 	hw_caps->is_lite = soc_private->is_ife_csid_lite;
 	hw_caps->sfe_ipp_input_rdi_res = csid_reg->cmn_reg->sfe_ipp_input_rdi_res;

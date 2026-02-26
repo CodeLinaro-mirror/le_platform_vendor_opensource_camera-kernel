@@ -119,6 +119,7 @@ struct cam_ife_csid_ver1_common_reg_info {
 	uint32_t early_eof_supported;
 	uint32_t global_reset;
 	uint32_t aup_rup_supported;
+	uint32_t rdi_epoch_config_not_supported;
 
 	/* Masks */
 	uint32_t ipp_irq_mask_all;

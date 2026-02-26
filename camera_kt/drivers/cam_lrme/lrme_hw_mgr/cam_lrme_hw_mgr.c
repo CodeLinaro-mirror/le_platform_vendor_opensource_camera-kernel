@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2025, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #include <linux/module.h>
@@ -354,12 +354,22 @@ static int cam_lrme_mgr_util_prepare_hw_update_entries(
 
 static void cam_lrme_mgr_util_put_frame_req(
 	struct list_head *src_list,
-	struct list_head *list,
-	spinlock_t *lock)
+	struct cam_lrme_frame_request *frame_req,
+	spinlock_t *lock,
+	bool free_buffer)
 {
+	if (!frame_req) {
+		CAM_ERR(CAM_LRME, "Invalid frame_req");
+		return;
+	}
+
 	spin_lock(lock);
-	list_add_tail(list, src_list);
+	list_add_tail(&frame_req->frame_list, src_list);
 	spin_unlock(lock);
+
+	if (free_buffer)
+		cam_mem_put_cpu_buf(frame_req->hw_update_entries[0].handle);
+
 }
 
 static int cam_lrme_mgr_util_get_frame_req(
@@ -533,8 +543,8 @@ static int cam_lrme_mgr_cb(void *data,
 		memset(frame_req, 0x0, sizeof(*frame_req));
 		INIT_LIST_HEAD(&frame_req->frame_list);
 		cam_lrme_mgr_util_put_frame_req(&hw_mgr->frame_free_list,
-				&frame_req->frame_list,
-				&hw_mgr->free_req_lock);
+				frame_req,
+				&hw_mgr->free_req_lock, true);
 		cb_args->cb_type &= ~CAM_LRME_CB_PUT_FRAME;
 		frame_req = NULL;
 	}
@@ -576,8 +586,8 @@ static int cam_lrme_mgr_cb(void *data,
 	memset(frame_req, 0x0, sizeof(*frame_req));
 	INIT_LIST_HEAD(&frame_req->frame_list);
 	cam_lrme_mgr_util_put_frame_req(&hw_mgr->frame_free_list,
-				&frame_req->frame_list,
-				&hw_mgr->free_req_lock);
+				frame_req,
+				&hw_mgr->free_req_lock, true);
 
 	rc = cam_lrme_mgr_util_schedule_frame_req(hw_mgr, hw_device);
 
@@ -766,7 +776,7 @@ static int cam_lrme_mgr_hw_flush(void *hw_mgr_priv, void *hw_flush_args)
 		frame_req = req_list[i];
 		memset(frame_req, 0x0, sizeof(*frame_req));
 		cam_lrme_mgr_util_put_frame_req(&hw_mgr->frame_free_list,
-			&frame_req->frame_list, &hw_mgr->free_req_lock);
+			frame_req, &hw_mgr->free_req_lock, true);
 	}
 
 	req_list = (struct cam_lrme_frame_request **)args->flush_req_active;
@@ -780,8 +790,8 @@ static int cam_lrme_mgr_hw_flush(void *hw_mgr_priv, void *hw_flush_args)
 			list_del_init(&frame_req->frame_list);
 			cam_lrme_mgr_util_put_frame_req(
 				&hw_mgr->frame_free_list,
-				&frame_req->frame_list,
-				&hw_mgr->free_req_lock);
+				frame_req,
+				&hw_mgr->free_req_lock, true);
 		} else
 			req_to_flush = frame_req;
 		spin_unlock((priority == CAM_LRME_PRIORITY_HIGH) ?
@@ -1038,11 +1048,11 @@ static int cam_lrme_mgr_hw_config(void *hw_mgr_priv,
 	if (priority == CAM_LRME_PRIORITY_HIGH) {
 		cam_lrme_mgr_util_put_frame_req(
 			&hw_device->frame_pending_list_high,
-			&frame_req->frame_list, &hw_device->high_req_lock);
+			frame_req, &hw_device->high_req_lock, false);
 	} else {
 		cam_lrme_mgr_util_put_frame_req(
 			&hw_device->frame_pending_list_normal,
-			&frame_req->frame_list, &hw_device->normal_req_lock);
+			frame_req, &hw_device->normal_req_lock, false);
 	}
 
 	CAM_DBG(CAM_LRME, "schedule req %llu", frame_req->req_id);

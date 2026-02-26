@@ -61,6 +61,9 @@ static long cam_tpg_subdev_ioctl(struct v4l2_subdev *sd,
 		cam_tpg_shutdown(tpg_dev);
 		mutex_unlock(&tpg_dev->mutex);
 		break;
+	case VIDIOC_QUERYCAP:
+		rc = -ENOIOCTLCMD;
+		break;
 	default:
 		CAM_ERR_RATE_LIMIT(CAM_TPG, "Wrong ioctl : %d", cmd);
 		rc = -ENOIOCTLCMD;

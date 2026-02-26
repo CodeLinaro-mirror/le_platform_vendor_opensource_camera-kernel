@@ -1,20 +1,21 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
-
 #ifndef _CAM_IFE_CSID_LITE17X_H_
 #define _CAM_IFE_CSID_LITE17X_H_
 
-#include "cam_ife_csid_dev.h"
+#include <linux/module.h>
 #include "cam_ife_csid_common.h"
 #include "cam_ife_csid_hw_ver1.h"
+#include "cam_ife_csid_dev.h"
+#include "camera_main.h"
 
 #define CAM_CSID_LITE_DRV_NAME                    "csid_lite"
 
-static  struct cam_ife_csid_ver1_path_reg_info
-	cam_ife_csid_lite_17x_rdi_0_reg_info = {
-
+static struct cam_ife_csid_ver1_path_reg_info
+			cam_ife_csid_lite_17x_rdi_0_reg_info = {
 	.irq_status_addr                       = 0x30,
 	.irq_mask_addr                         = 0x34,
 	.irq_clear_addr                        = 0x38,
@@ -51,8 +52,11 @@ static  struct cam_ife_csid_ver1_path_reg_info
 	.timestamp_curr1_eof_addr              = 0x2a4,
 	.timestamp_prev0_eof_addr              = 0x2a8,
 	.timestamp_prev1_eof_addr              = 0x2ac,
+	/* configurations */
 	.byte_cntr_ping_addr                   = 0x2e0,
 	.byte_cntr_pong_addr                   = 0x2e4,
+	.crop_v_en_shift_val                   = 6,
+	.crop_h_en_shift_val                   = 5,
 	.halt_mode_internal                    = 0,
 	.halt_mode_global                      = 1,
 	.halt_mode_shift                       = 2,
@@ -62,17 +66,14 @@ static  struct cam_ife_csid_ver1_path_reg_info
 	.halt_cmd_shift                        = 0,
 	.packing_fmt_shift_val                 = 30,
 	.plain_fmt_shift_val                   = 10,
-	.crop_v_en_shift_val                   = 6,
-	.crop_h_en_shift_val                   = 5,
 	.timestamp_en_shift_val                = 2,
 	.format_measure_en_shift_val           = 1,
-	.fatal_err_mask                        = 0x4,
+	.fatal_err_mask                        = 0x6004,
 	.non_fatal_err_mask                    = 0xe000,
 };
 
-static  struct cam_ife_csid_ver1_path_reg_info
-	cam_ife_csid_lite_17x_rdi_1_reg_info = {
-
+static struct cam_ife_csid_ver1_path_reg_info
+			cam_ife_csid_lite_17x_rdi_1_reg_info = {
 	.irq_status_addr                       = 0x40,
 	.irq_mask_addr                         = 0x44,
 	.irq_clear_addr                        = 0x48,
@@ -124,11 +125,12 @@ static  struct cam_ife_csid_ver1_path_reg_info
 	.crop_h_en_shift_val                   = 5,
 	.timestamp_en_shift_val                = 2,
 	.format_measure_en_shift_val           = 1,
+	.fatal_err_mask                        = 0x4,
+	.non_fatal_err_mask                    = 0xe000,
 };
 
-static  struct cam_ife_csid_ver1_path_reg_info
-	cam_ife_csid_lite_17x_rdi_2_reg_info = {
-
+static struct cam_ife_csid_ver1_path_reg_info
+			cam_ife_csid_lite_17x_rdi_2_reg_info = {
 	.irq_status_addr                       = 0x50,
 	.irq_mask_addr                         = 0x54,
 	.irq_clear_addr                        = 0x58,
@@ -181,11 +183,12 @@ static  struct cam_ife_csid_ver1_path_reg_info
 	.crop_h_en_shift_val                   = 5,
 	.timestamp_en_shift_val                = 2,
 	.format_measure_en_shift_val           = 1,
+	.fatal_err_mask                        = 0x4,
+	.non_fatal_err_mask                    = 0xe000,
 };
 
-static  struct cam_ife_csid_ver1_path_reg_info
-	cam_ife_csid_lite_17x_rdi_3_reg_info = {
-
+static struct cam_ife_csid_ver1_path_reg_info
+			cam_ife_csid_lite_17x_rdi_3_reg_info = {
 	.irq_status_addr                       = 0x60,
 	.irq_mask_addr                         = 0x64,
 	.irq_clear_addr                        = 0x68,
@@ -238,16 +241,16 @@ static  struct cam_ife_csid_ver1_path_reg_info
 	.crop_h_en_shift_val                   = 5,
 	.timestamp_en_shift_val                = 2,
 	.format_measure_en_shift_val           = 1,
+	.fatal_err_mask                        = 0x4,
+	.non_fatal_err_mask                    = 0xe000,
 };
 
-static  struct cam_ife_csid_csi2_rx_reg_info
-	cam_ife_csid_lite_17x_csi2_reg_info = {
-
+static struct cam_ife_csid_csi2_rx_reg_info
+			cam_ife_csid_lite_17x_csi2_reg_info = {
 	.irq_status_addr                       = 0x20,
 	.irq_mask_addr                         = 0x24,
 	.irq_clear_addr                        = 0x28,
 	.irq_set_addr                          = 0x2c,
-
 	/*CSI2 rx control */
 	.cfg0_addr                             = 0x100,
 	.cfg1_addr                             = 0x104,
@@ -285,14 +288,23 @@ static  struct cam_ife_csid_csi2_rx_reg_info
 	.capture_cphy_pkt_dt_shift             = 20,
 	.capture_cphy_pkt_vc_shift             = 26,
 	.phy_num_mask                          = 0x3,
+	.vc_mask                               = 0x7C00000,
+	.dt_mask                               = 0x3f0000,
+	.wc_mask                               = 0xffff,
+	.calc_crc_mask                         = 0xffff,
+	.expected_crc_mask                     = 0xffff,
+	.ecc_correction_shift_en               = 0,
+	.lane_num_shift                        = 0,
+	.lane_cfg_shift                        = 4,
+	.phy_type_shift                        = 24,
+	.phy_num_shift                         = 20,
 	.fatal_err_mask                        = 0x78000,
 	.part_fatal_err_mask                   = 0x1801800,
 	.non_fatal_err_mask                    = 0x380000,
 };
 
-
 static struct cam_ife_csid_ver1_tpg_reg_info
-		cam_ife_csid_lite_17x_tpg_reg_info = {
+			cam_ife_csid_lite_17x_tpg_reg_info = {
 	/*CSID TPG control */
 	.ctrl_addr                             = 0x600,
 	.vc_cfg0_addr                          = 0x604,
@@ -311,21 +323,20 @@ static struct cam_ife_csid_ver1_tpg_reg_info
 	.cgen_n_xy_addr                        = 0x660,
 	.cgen_n_y1_addr                        = 0x664,
 	.cgen_n_y2_addr                        = 0x668,
-
 	/* configurations */
 	.dtn_cfg_offset                        = 0xc,
 	.cgen_cfg_offset                       = 0x20,
 	.cpas_ife_reg_offset                   = 0x28,
 	.hbi                                   = 0x740,
 	.vbi                                   = 0x3FF,
-	.ctrl_cfg                              = 0x408007,
 	.lfsr_seed                             = 0x12345678,
+	.ctrl_cfg                              = 0x408007,
+	.line_interleave_mode                  = 0x1,
 	.color_bar                             = 1,
 	.num_frames                            = 0,
-	.line_interleave_mode                  = 0x1,
+	.num_active_dt                         = 0,
 	.payload_mode                          = 0x8,
 	.num_active_lanes_mask                 = 0x30,
-	.num_active_dt                         = 0,
 	.fmt_shift                             = 16,
 	.num_frame_shift                       = 16,
 	.width_shift                           = 16,
@@ -337,10 +348,8 @@ static struct cam_ife_csid_ver1_tpg_reg_info
 	.hbi_shift                             = 0,
 };
 
-
-static  struct cam_ife_csid_ver1_common_reg_info
-	cam_csid_lite_17x_cmn_reg_info = {
-
+static struct cam_ife_csid_ver1_common_reg_info
+			cam_csid_lite_17x_cmn_reg_info = {
 	.hw_version_addr                       = 0x0,
 	.cfg0_addr                             = 0x4,
 	.ctrl_addr                             = 0x8,
@@ -360,8 +369,7 @@ static  struct cam_ife_csid_ver1_common_reg_info
 	.version_incr                          = 0,
 	.num_rdis                              = 4,
 	.num_pix                               = 0,
-	.timestamp_strobe_val                  = 0x2,
-	.timestamp_stb_sel_shift_val           = 0,
+	.num_ppp                               = 0,
 	.rst_sw_reg_stb                        = 1,
 	.rst_hw_reg_stb                        = 0x1e,
 	.rst_sw_hw_reg_stb                     = 0x1f,
@@ -380,11 +388,16 @@ static  struct cam_ife_csid_ver1_common_reg_info
 	.crop_line_end_mask                    = 0xffff,
 	.ipp_irq_mask_all                      = 0x7FFF,
 	.rdi_irq_mask_all                      = 0x7FFF,
-	.ppp_irq_mask_all                      = 0xFFFF,
+	.ppp_irq_mask_all                      = 0x0,
+	.measure_en_hbi_vbi_cnt_mask           = 0xC,
+	.measure_pixel_line_en_mask            = 0x3,
+	.timestamp_strobe_val                  = 0x2,
+	.timestamp_stb_sel_shift_val           = 0,
 	.format_measure_height_mask_val        = 0xFFFF,
 	.format_measure_height_shift_val       = 0x10,
 	.format_measure_width_mask_val         = 0xFFFF,
 	.format_measure_width_shift_val        = 0x0,
+	.rdi_epoch_config_not_supported        = 1,
 };
 
 static  struct cam_ife_csid_ver1_reg_info cam_ife_csid_lite_17x_reg_info = {

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #ifndef _CAM_VFE_HW_INTF_H_
@@ -369,6 +369,8 @@ struct cam_vfe_bus_irq_evt_payload {
 	uint32_t                    ccif_violation_status;
 	uint32_t                    overflow_status;
 	uint32_t                    image_size_violation_status;
+	uint32_t                    comp_error_status;
+	uint32_t                    comp_overwrite_error_status;
 	uint32_t                    evt_id;
 	uint32_t                    irq_reg_val[CAM_IFE_BUS_IRQ_REGISTERS_MAX];
 	struct cam_isp_timestamp    ts;

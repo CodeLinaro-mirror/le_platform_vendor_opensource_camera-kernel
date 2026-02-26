@@ -731,6 +731,9 @@ static long cam_cpas_subdev_ioctl(struct v4l2_subdev *sd,
 	case CAM_SD_SHUTDOWN:
 		rc = __cam_cpas_subdev_close(sd, NULL);
 		break;
+	case VIDIOC_QUERYCAP:
+		rc = -ENOIOCTLCMD;
+		break;
 	default:
 		CAM_ERR(CAM_CPAS,
 			"Invalid command %d for CPAS! from pid %d, comm %s",

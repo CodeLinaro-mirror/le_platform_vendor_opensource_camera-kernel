@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2025, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #include <linux/module.h>
@@ -339,6 +339,7 @@ int cam_mem_get_cpu_buf(int32_t buf_handle, uintptr_t *vaddr_ptr, size_t *len)
 	if (tbl.bufq[idx].kmdvaddr && kref_get_unless_zero(&tbl.bufq[idx].krefcount)) {
 		*vaddr_ptr = tbl.bufq[idx].kmdvaddr;
 		*len = tbl.bufq[idx].len;
+		rc = 0;
 	} else {
 		CAM_ERR(CAM_MEM, "No KMD access requested, kmdvddr= %pK, idx= %d, buf_handle= 0x%x",
 			(void *)tbl.bufq[idx].kmdvaddr, idx, buf_handle);
@@ -346,7 +347,7 @@ int cam_mem_get_cpu_buf(int32_t buf_handle, uintptr_t *vaddr_ptr, size_t *len)
 	}
 end:
 	mutex_unlock(&tbl.bufq[idx].q_lock);
-	return 0;
+	return rc;
 }
 
 int cam_mem_mgr_cache_ops(struct cam_mem_cache_ops_cmd *cmd)
@@ -1453,14 +1454,55 @@ void cam_mem_put_cpu_buf(int32_t buf_handle)
 			"Called unmap from here, buf_handle: %u, idx: %d", buf_handle, idx);
 	} else if (krefcount == 0) {
 		CAM_ERR(CAM_MEM,
-			"Unbalanced release Called buf_handle: %u, idx: %d",
-			tbl.bufq[idx].buf_handle, idx);
+			"Unbalanced release Called buf_handle: %u, idx: %d kref: %d",
+			tbl.bufq[idx].buf_handle, idx, krefcount);
 	}
 
 end:
 	mutex_unlock(&tbl.bufq[idx].q_lock);
 }
 
+void cam_mem_put_kref(int32_t buf_handle)
+{
+	int idx;
+	uint32_t krefcount = 0, urefcount = 0;
+	uint64_t ms, hrs, min, sec;
+
+	if (!buf_handle) {
+		CAM_ERR(CAM_MEM, "Invalid buf_handle");
+		return;
+	}
+
+	idx = CAM_MEM_MGR_GET_HDL_IDX(buf_handle);
+	if (idx >= CAM_MEM_BUFQ_MAX || idx <= 0) {
+		CAM_ERR(CAM_MEM, "idx: %d not valid", idx);
+		return;
+	}
+
+	mutex_lock(&tbl.bufq[idx].q_lock);
+	if (tbl.bufq[idx].active && (buf_handle == tbl.bufq[idx].buf_handle)) {
+		urefcount = kref_read(&tbl.bufq[idx].urefcount);
+		krefcount = kref_read(&tbl.bufq[idx].krefcount);
+
+		if (urefcount == 0) {
+			goto warn;
+		} else
+			kref_put(&tbl.bufq[idx].krefcount, cam_mem_util_unmap_dummy);
+	}
+	mutex_unlock(&tbl.bufq[idx].q_lock);
+	return;
+warn:
+	CAM_CONVERT_TIMESTAMP_FORMAT((tbl.bufq[idx].timestamp), hrs, min, sec, ms);
+	CAM_ERR(CAM_MEM,
+		"%llu:%llu:%llu:%llu idx %d fd %d size %llu active %d buf_handle %d krefCount %d urefCount %d",
+		hrs, min, sec, ms, idx, tbl.bufq[idx].fd,
+		tbl.bufq[idx].len, tbl.bufq[idx].active, tbl.bufq[idx].buf_handle,
+		krefcount, urefcount);
+	CAM_ERR(CAM_MEM, "Buffer unmap called from UMD before KMD , not unmapping!");
+	mutex_unlock(&tbl.bufq[idx].q_lock);
+
+}
+EXPORT_SYMBOL_GPL(cam_mem_put_kref);
 
 int cam_mem_mgr_release(struct cam_mem_mgr_release_cmd *cmd)
 {

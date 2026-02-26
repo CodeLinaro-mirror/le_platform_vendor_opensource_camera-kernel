@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #include <linux/slab.h>
@@ -776,6 +776,10 @@ int cam_vfe_top_process_cmd(void *device_priv, uint32_t cmd_type,
 		break;
 	case CAM_ISP_HW_CMD_APPLY_CLK_BW_UPDATE:
 		rc = cam_vfe_top_apply_clk_bw_update(&top_priv->top_common, cmd_args, arg_size);
+		break;
+	case CAM_ISP_HW_CMD_GET_SET_PRIM_SOF_TS_ADDR:
+		/* Not supported for V2 */
+		rc = 0;
 		break;
 	default:
 		rc = -EINVAL;

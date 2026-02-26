@@ -110,6 +110,7 @@ enum cam_ife_csid_secondary_evt_type {
  * @only_master_rup:       flag to indicate if only master RUP
  * @camif_irq_support:     flag to indicate if CSID supports CAMIF irq
  * @is_ife_sfe_mapped:     flag to indicate if IFE & SFE are one-one mapped
+ * @rdi_epoch_config_not_supported: flag to indicate whether Epoch on rdi is supported or not
  */
 struct cam_ife_csid_hw_caps {
 	uint32_t      num_rdis;
@@ -125,6 +126,7 @@ struct cam_ife_csid_hw_caps {
 	bool          only_master_rup;
 	bool          camif_irq_support;
 	bool          is_ife_sfe_mapped;
+	bool          rdi_epoch_config_not_supported;
 };
 
 struct cam_isp_out_port_generic_info {

@@ -30,7 +30,7 @@
 	"data_type, slave_addr(8-bit write address in hex, e.g., 0xc0)\n"\
 	"Write format: w/W, reg_addr(hex, e.g., 0x300a), reg_value(hex), "\
 	"delay, addr_type, data_type, slave_addr(8-bit write address in hex, e.g., 0xc0)\n"
-
+#define MAX_TIME_DELAY_MS 2000
 
 
 struct cam_sensor_pwr_sysfs_attr {
@@ -162,18 +162,22 @@ static ssize_t sensor_pwr_store(struct cam_sensor_ctrl_t *ctrl,
 static ssize_t sensor_name_show(struct cam_sensor_ctrl_t *sensor, char *buf)
 {
 	int  count = 0;
+	int  cci_id = 0;
 
 	if (sensor) {
 		mutex_lock(&(sensor->cam_sensor_mutex));
 
-		CAM_DBG(CAM_CCI, "cci_id=%d cci_master=%d",
-				sensor->io_master_info.cci_client->cci_device,
-				sensor->io_master_info.cci_client->cci_i2c_master);
+		cci_id = ((uint32_t)MASTER_MAX * sensor->io_master_info.cci_client->cci_device)
+					+ sensor->io_master_info.cci_client->cci_i2c_master;
 
-		count = scnprintf(buf, PAGE_SIZE, "%s_cam-cci%d_master%d\n",
-				sensor->sensor_name,
+		CAM_DBG(CAM_CCI, "cci_dev=%d cci_master=%d cci_id=%d",
 				sensor->io_master_info.cci_client->cci_device,
-				sensor->io_master_info.cci_client->cci_i2c_master);
+				sensor->io_master_info.cci_client->cci_i2c_master,
+				cci_id);
+
+		count = scnprintf(buf, PAGE_SIZE, "%s_cam-cci%d\n",
+				sensor->sensor_name,
+				cci_id);
 
 		mutex_unlock(&(sensor->cam_sensor_mutex));
 		return count;
@@ -263,21 +267,26 @@ int32_t cam_sensor_add_device(void *ctrl_struct)
 		}
 	}
 
-	scnprintf(buff, sizeof(buff), "slot%d",
+	if (!sensor->sysfs_kobj.state_initialized) {
+
+		scnprintf(buff, sizeof(buff), "slot%d",
 			sensor->soc_info.index);
 
-	error = kobject_init_and_add(&sensor->sysfs_kobj, &cam_sensor_pwr_sysfs_ktype,
+		error = kobject_init_and_add(&sensor->sysfs_kobj, &cam_sensor_pwr_sysfs_ktype,
 					cam_pwr_base_kobject, buff);
-	if (error) {
-		CAM_ERR(CAM_CCI, "KOBJ_INIT AND ADD FAILED");
-		return -ENOMEM;
-	}
+		if (error) {
+			CAM_ERR(CAM_CCI, "KOBJ_INIT AND ADD FAILED");
+			return -ENOMEM;
+		}
 
-	error = sysfs_create_files(&sensor->sysfs_kobj,
-			cam_sensor_pwr_sysfs_attr_list);
-	if (error) {
-		CAM_ERR(CAM_CCI, "failed to create the cam file in /sys/kernel/");
-		return error;
+		error = sysfs_create_files(&sensor->sysfs_kobj,
+				cam_sensor_pwr_sysfs_attr_list);
+		if (error) {
+			CAM_ERR(CAM_CCI, "failed to create the cam file in /sys/kernel/");
+			return error;
+		}
+	} else {
+		CAM_ERR(CAM_CCI, "sysfs object is already initialized");
 	}
 
 	return 0;
@@ -334,6 +343,7 @@ static int32_t cam_cci_parse_data(const char *p_line,
 	struct cam_sensor_i2c_reg_array *reg_array = reg_list->reg_setting;
 	int32_t bus_id;
 	uint32_t slave_addr;
+	int32_t  time_delay;
 
 	if (!strlen(p_line))
 		return -EINVAL;
@@ -356,9 +366,16 @@ static int32_t cam_cci_parse_data(const char *p_line,
 		*is_read = false;
 
 		rc = sscanf(p_line+2, "%x,%x,%d,%d,%d,%x",
-				&reg_array->reg_addr,  &reg_array->reg_data, &reg_array->delay,
+				&reg_array->reg_addr,  &reg_array->reg_data, &time_delay,
 				&reg_list->addr_type, &reg_list->data_type,
 				&slave_addr);
+		if (time_delay < 0) {
+			reg_array->delay = 0;
+		} else if (time_delay > MAX_TIME_DELAY_MS) {
+			reg_array->delay = MAX_TIME_DELAY_MS;
+		} else {
+			reg_array->delay = time_delay;
+		}
 		if (rc == NUM_OF_CCI_WRITE_PARAMS) {
 			rc = cam_cci_parse_master(
 					cci_dev_id, master_id,

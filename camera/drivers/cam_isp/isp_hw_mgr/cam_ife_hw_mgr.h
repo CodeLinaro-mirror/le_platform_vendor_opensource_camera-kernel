@@ -675,6 +675,7 @@ enum cam_isp_irq_inject_common_param_pos {
  * @min_clk_threshold:     Min sfe clock
  * @offline_reconfig:      offline ISP need to reconfigure or not
  * @offline_outport_sync:  Offline ISP HW needs to check outport to sync with correct hw
+ * @rdi_epoch_config_not_supported:    is RDI epoch config supported
  */
 struct cam_ife_hw_mgr {
 	struct cam_isp_hw_mgr          mgr_common;
@@ -722,6 +723,7 @@ struct cam_ife_hw_mgr {
 	uint32_t                         bytes_per_clk;
 	bool                             offline_reconfig;
 	bool                             offline_outport_sync;
+	bool                             rdi_epoch_config_not_supported;
 };
 
 /**

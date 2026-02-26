@@ -193,6 +193,26 @@ static void cam_ope_free_io_config(struct cam_ope_request *req)
 	}
 }
 
+static void cam_ope_free_cpu_buf(struct cam_ope_request *req)
+{
+	if (!req)
+		return;
+
+	// Only release KMD buffer if it was acquired and not already released
+	if (req->ope_kmd_buf.cpu_addr && req->ope_kmd_buf.mem_handle) {
+		cam_mem_put_cpu_buf(req->ope_kmd_buf.mem_handle);
+		req->ope_kmd_buf.cpu_addr = 0;
+		req->ope_kmd_buf.mem_handle = 0;
+	}
+
+	// Only release debug buffer if it was acquired and not already released
+	if (req->ope_debug_buf.cpu_addr && req->ope_debug_buf.mem_handle) {
+		cam_mem_put_cpu_buf(req->ope_debug_buf.mem_handle);
+		req->ope_debug_buf.cpu_addr = 0;
+		req->ope_debug_buf.mem_handle = 0;
+	}
+}
+
 static void cam_ope_device_timer_stop(struct cam_ope_hw_mgr *hw_mgr)
 {
 	if (hw_mgr->clk_info.watch_dog) {
@@ -1740,6 +1760,8 @@ static void cam_ope_ctx_cdm_callback(uint32_t handle, void *userdata,
 	if (ctx->ctx_state != OPE_CTX_STATE_ACQUIRED) {
 		CAM_ERR(CAM_OPE, "ctx %u is in %d state",
 			ctx->ctx_id, ctx->ctx_state);
+		if (ope_req)
+			cam_ope_free_cpu_buf(ope_req);
 		mutex_unlock(&ctx->ctx_mutex);
 		return;
 	}
@@ -1796,6 +1818,7 @@ static void cam_ope_ctx_cdm_callback(uint32_t handle, void *userdata,
 	ctx->req_cnt--;
 
 	buf_data.request_id = ope_req->request_id;
+	cam_ope_free_cpu_buf(ope_req);
 	ope_req->request_id = 0;
 	cam_free_clear((void *)ctx->req_list[req_id]->cdm_cmd);
 	ctx->req_list[req_id]->cdm_cmd = NULL;
@@ -2319,6 +2342,8 @@ static int cam_ope_mgr_process_cmd_buf_req(struct cam_ope_hw_mgr *hw_mgr,
 					ope_request->ope_kmd_buf.iova_cdm_addr);
 				} else if (cmd_buf->cmd_buf_usage ==
 					OPE_CMD_BUF_DEBUG) {
+					ope_request->ope_debug_buf.mem_handle =
+						cmd_buf->mem_handle;
 					ope_request->ope_debug_buf.cpu_addr =
 						cpu_addr;
 					ope_request->ope_debug_buf.iova_addr =
@@ -2332,7 +2357,9 @@ static int cam_ope_mgr_process_cmd_buf_req(struct cam_ope_hw_mgr *hw_mgr,
 					CAM_DBG(CAM_OPE, "dbg buf = %x",
 					ope_request->ope_debug_buf.cpu_addr);
 				}
-				cam_mem_put_cpu_buf(cmd_buf->mem_handle);
+				if ((cmd_buf->cmd_buf_usage != OPE_CMD_BUF_KMD) &&
+					(cmd_buf->cmd_buf_usage != OPE_CMD_BUF_DEBUG))
+					cam_mem_put_cpu_buf(cmd_buf->mem_handle);
 				break;
 			}
 			case OPE_CMD_BUF_SCOPE_STRIPE: {
@@ -2443,6 +2470,7 @@ static int cam_ope_mgr_process_cmd_desc(struct cam_ope_hw_mgr *hw_mgr,
 	if (rc) {
 		CAM_ERR(CAM_OPE, "Process OPE cmd io request is failed: %d",
 			rc);
+		cam_ope_free_cpu_buf(ope_request);
 		goto free_buf;
 	}
 
@@ -3485,6 +3513,7 @@ static int cam_ope_mgr_prepare_hw_update(void *hw_priv,
 	return rc;
 
 free_buf:
+	cam_ope_free_cpu_buf(ope_req);
 	cam_common_mem_free(ope_cmd_buf_addr);
 end:
 	cam_ope_mgr_put_cmd_buf(packet);
@@ -3514,6 +3543,7 @@ static int cam_ope_mgr_handle_config_err(
 	ctx_data->ctxt_event_cb(ctx_data->context_priv, CAM_CTX_EVT_ID_ERROR,
 		&buf_data);
 
+	cam_ope_free_cpu_buf(ope_req);
 	req_idx = ope_req->req_idx;
 	ope_req->request_id = 0;
 	cam_free_clear((void *)ctx_data->req_list[req_idx]->cdm_cmd);
@@ -3693,6 +3723,7 @@ static int cam_ope_mgr_flush_req(struct cam_ope_ctx *ctx_data,
 {
 	int idx;
 	int64_t request_id;
+	struct cam_ope_request *ope_req;
 
 	request_id = *(int64_t *)flush_args->flush_req_pending[0];
 	for (idx = 0; idx < CAM_CTX_REQ_MAX; idx++) {
@@ -3701,7 +3732,8 @@ static int cam_ope_mgr_flush_req(struct cam_ope_ctx *ctx_data,
 
 		if (ctx_data->req_list[idx]->request_id != request_id)
 			continue;
-
+		ope_req = ctx_data->req_list[idx];
+		cam_ope_free_cpu_buf(ope_req);
 		ctx_data->req_list[idx]->request_id = 0;
 		cam_free_clear((void *)ctx_data->req_list[idx]->cdm_cmd);
 		ctx_data->req_list[idx]->cdm_cmd = NULL;
@@ -3719,6 +3751,7 @@ static int cam_ope_mgr_flush_all(struct cam_ope_ctx *ctx_data,
 {
 	int i, rc;
 	struct cam_ope_hw_mgr *hw_mgr = ope_hw_mgr;
+	struct cam_ope_request *ope_req;
 
 	rc = cam_cdm_flush_hw(ctx_data->ope_cdm.cdm_handle);
 
@@ -3734,7 +3767,8 @@ static int cam_ope_mgr_flush_all(struct cam_ope_ctx *ctx_data,
 	for (i = 0; i < CAM_CTX_REQ_MAX; i++) {
 		if (!ctx_data->req_list[i])
 			continue;
-
+		ope_req = ctx_data->req_list[i];
+		cam_ope_free_cpu_buf(ope_req);
 		ctx_data->req_list[i]->request_id = 0;
 		cam_free_clear((void *)ctx_data->req_list[i]->cdm_cmd);
 		ctx_data->req_list[i]->cdm_cmd = NULL;

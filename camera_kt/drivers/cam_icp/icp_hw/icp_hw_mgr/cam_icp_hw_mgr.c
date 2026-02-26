@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2023-2025, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #include <linux/uaccess.h>
@@ -4488,7 +4488,7 @@ static int cam_icp_packet_generic_blob_handler(void *user_data,
 
 	switch (blob_type) {
 	case CAM_ICP_CMD_GENERIC_BLOB_CLK:
-		CAM_WARN_RATE_LIMIT_CUSTOM(CAM_PERF, 300, 1,
+		CAM_DBG(CAM_PERF,
 			"Using deprecated blob type GENERIC_BLOB_CLK");
 		if (blob_size != sizeof(struct cam_icp_clk_bw_request)) {
 			CAM_ERR(CAM_ICP, "Mismatch blob size %d expected %lu",

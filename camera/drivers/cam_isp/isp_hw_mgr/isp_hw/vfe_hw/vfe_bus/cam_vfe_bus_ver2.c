@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #include <linux/ratelimit.h>
@@ -1284,9 +1284,6 @@ static int cam_vfe_bus_start_wm(
 			return -EINVAL;
 		}
 	}
-	/* enabling Wm configuratons are taken care in update_wm().
-	 * i.e enable wm only if io buffers are allocated
-	 */
 
 	CAM_DBG(CAM_ISP, "WM res %d width = %d, height = %d", rsrc_data->index,
 		rsrc_data->width, rsrc_data->height);
@@ -1297,6 +1294,10 @@ static int cam_vfe_bus_start_wm(
 	CAM_DBG(CAM_ISP, "enable WM res %d offset 0x%x val 0x%x",
 		rsrc_data->index, (uint32_t) rsrc_data->hw_regs->cfg,
 		rsrc_data->en_cfg);
+
+	/* enable wm at start */
+	cam_io_w_mb(rsrc_data->en_cfg,
+			common_data->mem_base + rsrc_data->hw_regs->cfg);
 
 	wm_res->res_state = CAM_ISP_RESOURCE_STATE_STREAMING;
 
@@ -1464,20 +1465,31 @@ static int cam_vfe_bus_err_bottom_half(void *handler_priv,
 	if (val & 0x0800000)
 		CAM_INFO(CAM_ISP, "DISP YC 16:1 violation");
 
-	cam_vfe_bus_put_evt_payload(common_data, &evt_payload);
+	err_evt_info.err_type = CAM_VFE_IRQ_STATUS_VIOLATION;
+
+	if (evt_payload->comp_error_status) {
+		err_evt_info.err_type = CAM_VFE_IRQ_STATUS_ERR_COMP;
+		val = evt_payload->comp_error_status;
+		CAM_ERR(CAM_ISP, "comp_error_status = 0x%x", val);
+	}
+	if (evt_payload->comp_overwrite_error_status) {
+		err_evt_info.err_type = CAM_VFE_IRQ_STATUS_COMP_OWRT;
+		val = evt_payload->comp_overwrite_error_status;
+		CAM_ERR(CAM_ISP, "comp_overwrite_error_status = 0x%x", val);
+	}
 
 	evt_info.hw_type = CAM_ISP_HW_TYPE_VFE;
 	evt_info.hw_idx = common_data->core_index;
 	evt_info.res_type = CAM_ISP_RESOURCE_VFE_OUT;
 	evt_info.res_id = CAM_VFE_BUS_VER2_VFE_OUT_MAX;
 
-	err_evt_info.err_type = CAM_VFE_IRQ_STATUS_VIOLATION;
 	evt_info.event_data = (void *)&err_evt_info;
 
 	if (common_data->event_cb)
 		common_data->event_cb(NULL, CAM_ISP_HW_EVENT_ERROR,
 			(void *)&evt_info);
 
+	cam_vfe_bus_put_evt_payload(common_data, &evt_payload);
 	return 0;
 }
 
@@ -1687,9 +1699,11 @@ static int cam_vfe_bus_acquire_comp_grp(
 		}
 	}
 
-	CAM_DBG(CAM_ISP, "Comp Grp type %u", rsrc_data->comp_grp_type);
-
 	rsrc_data->acquire_dev_cnt++;
+
+	CAM_DBG(CAM_ISP, "Comp Grp id %d, bus_comp_grp_id %d, type %u, acquire_dev_cnt %d",
+			out_port_info->comp_grp_id, bus_comp_grp_id,
+			rsrc_data->comp_grp_type, rsrc_data->acquire_dev_cnt);
 	*comp_grp = comp_grp_local;
 
 	return rc;
@@ -1758,7 +1772,7 @@ static int cam_vfe_bus_release_comp_grp(
 			CAM_VFE_BUS_VER2_COMP_GRP_0 &&
 			in_rsrc_data->comp_grp_type <=
 			CAM_VFE_BUS_VER2_COMP_GRP_5)
-			list_add_tail(&comp_grp->list,
+			list_add(&comp_grp->list,
 				&ver2_bus_priv->free_comp_grp);
 	}
 
@@ -1992,6 +2006,7 @@ static int cam_vfe_bus_init_comp_grp(uint32_t index,
 	comp_grp->res_state = CAM_ISP_RESOURCE_STATE_AVAILABLE;
 	INIT_LIST_HEAD(&comp_grp->list);
 
+	rsrc_data->acquire_dev_cnt = 0;
 	rsrc_data->comp_grp_type   = index;
 	rsrc_data->common_data     = &ver2_bus_priv->common_data;
 	rsrc_data->hw_regs         = &ver2_hw_info->comp_grp_reg[index];
@@ -2072,6 +2087,7 @@ static int cam_vfe_bus_acquire_vfe_out(void *bus_priv, void *acquire_args,
 	struct cam_vfe_hw_vfe_out_acquire_args *out_acquire_args;
 	struct cam_isp_resource_node           *rsrc_node = NULL;
 	struct cam_vfe_bus_ver2_vfe_out_data   *rsrc_data = NULL;
+	struct cam_vfe_bus_ver2_comp_grp_data  *comp_rsrc_data;
 	uint32_t                                secure_caps = 0, mode;
 
 	if (!bus_priv || !acquire_args) {
@@ -2162,6 +2178,10 @@ static int cam_vfe_bus_acquire_vfe_out(void *bus_priv, void *acquire_args,
 				vfe_out_res_id, rc);
 			return rc;
 		}
+		comp_rsrc_data = rsrc_data->comp_grp->res_priv;
+		out_acquire_args->comp_grp_id =	comp_rsrc_data->comp_grp_type;
+		CAM_DBG(CAM_ISP, "out_acquire_args->comp_grp_id %d",
+				out_acquire_args->comp_grp_id);
 	}
 
 	/* Reserve WM */
@@ -2604,6 +2624,12 @@ static int cam_vfe_bus_error_irq_top_half(uint32_t evt_id,
 	evt_payload->debug_status_0 = cam_io_r_mb(
 		bus_priv->common_data.mem_base +
 		bus_priv->common_data.common_reg->debug_status_0);
+	evt_payload->comp_error_status = cam_io_r_mb(
+		bus_priv->common_data.mem_base +
+		bus_priv->common_data.common_reg->comp_error_status);
+	evt_payload->comp_overwrite_error_status = cam_io_r_mb(
+		bus_priv->common_data.mem_base +
+		bus_priv->common_data.common_reg->comp_ovrwr_status);
 
 	th_payload->evt_payload_priv = evt_payload;
 

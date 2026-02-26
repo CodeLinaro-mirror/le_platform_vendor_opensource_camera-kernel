@@ -1,12 +1,14 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #ifndef _CAM_VFE170_H_
 #define _CAM_VFE170_H_
 
 #include "cam_vfe_camif_ver2.h"
+#include "cam_vfe_camif_lite_ver2.h"
 #include "cam_vfe_bus_ver2.h"
 #include "cam_irq_controller.h"
 #include "cam_vfe_top_ver2.h"
@@ -74,8 +76,34 @@ static struct cam_vfe_camif_reg_data vfe_170_camif_reg_data = {
 	.reg_update_irq_mask             = 0x00000010,
 	.eof_irq_mask                    = 0x00000002,
 	.error_irq_mask0                 = 0x0003FC00,
-	.error_irq_mask1                 = 0x0FFF7E80,
+	.error_irq_mask1                 = 0xEFFF7E80,
+	.subscribe_irq_mask0             = 0x00000017,
+	.subscribe_irq_mask1             = 0x00000000,
 	.enable_diagnostic_hw            = 0x1,
+};
+
+static struct cam_vfe_camif_lite_ver2_reg vfe170_camif_lite_reg = {
+	.camif_lite_cmd                = 0x00000FC0,
+	.camif_lite_config             = 0x00000FC4,
+	.lite_skip_period              = 0x00000FC8,
+	.lite_irq_subsample_pattern    = 0x00000FCC,
+	.lite_epoch_irq                = 0x00000FD0,
+	.reg_update_cmd                = 0x000004AC,
+};
+
+static struct cam_vfe_camif_lite_ver2_reg_data vfe170_camif_lite_reg_data = {
+	.dual_pd_reg_update_cmd_data     = 0x20,
+	.lite_epoch_line_cfg             = 0x00140014,
+	.lite_sof_irq_mask               = 0x00040000,
+	.lite_epoch0_irq_mask            = 0x00100000,
+	.dual_pd_reg_upd_irq_mask        = 0x04000000,
+	.lite_eof_irq_mask               = 0x00080000,
+	.lite_err_irq_mask0              = 0x00400000,
+	.lite_err_irq_mask1              = 0x00004100,
+	.lite_subscribe_irq_mask0        = 0x001C0000,
+	.lite_subscribe_irq_mask1        = 0x0,
+	.extern_reg_update_shift         = 4,
+	.dual_pd_path_sel_shift          = 24,
 };
 
 static struct cam_vfe_top_ver2_reg_offset_module_ctrl lens_170_reg = {
@@ -127,6 +155,13 @@ static struct cam_vfe_rdi_ver2_reg vfe170_rdi_reg = {
 	.reg_update_cmd           = 0x000004AC,
 };
 
+static struct cam_vfe_rdi_common_reg_data vfe170_rdi_reg_data = {
+	.subscribe_irq_mask0      = 0x780001E0,
+	.subscribe_irq_mask1      = 0x0,
+	.error_irq_mask0          = 0x0,
+	.error_irq_mask1          = 0x3C,
+};
+
 static struct cam_vfe_rdi_reg_data  vfe_170_rdi_0_data = {
 	.reg_update_cmd_data      = 0x2,
 	.sof_irq_mask             = 0x8000000,
@@ -171,14 +206,6 @@ struct cam_vfe_top_dump_data vfe170_dump_data = {
 	},
 };
 
-static struct cam_vfe_rdi_overflow_status vfe170_rdi_irq_status = {
-	.rdi0_overflow_mask = 0x8,
-	.rdi1_overflow_mask = 0x10,
-	.rdi2_overflow_mask = 0x18,
-	.rdi3_overflow_mask = 0x20,
-	.rdi_overflow_mask  = 0x3c,
-};
-
 static struct cam_vfe_top_ver2_hw_info vfe170_top_hw_info = {
 	.common_reg = &vfe170_top_common_reg,
 	.camif_hw_info = {
@@ -187,14 +214,14 @@ static struct cam_vfe_top_ver2_hw_info vfe170_top_hw_info = {
 		.reg_data       = &vfe_170_camif_reg_data,
 		},
 	.camif_lite_hw_info = {
-		.common_reg     = NULL,
-		.camif_lite_reg = NULL,
-		.reg_data       = NULL,
+		.common_reg     = &vfe170_top_common_reg,
+		.camif_lite_reg = &vfe170_camif_lite_reg,
+		.reg_data       = &vfe170_camif_lite_reg_data,
 		},
 	.rdi_hw_info = {
 		.common_reg      = &vfe170_top_common_reg,
 		.rdi_reg         = &vfe170_rdi_reg,
-		.rdi_irq_status  = &vfe170_rdi_irq_status,
+		.common_reg_data = &vfe170_rdi_reg_data,
 		.reg_data = {
 			&vfe_170_rdi_0_data,
 			&vfe_170_rdi_1_data,
@@ -202,12 +229,13 @@ static struct cam_vfe_top_ver2_hw_info vfe170_top_hw_info = {
 			NULL,
 			},
 		},
-	.num_mux = 4,
+	.num_mux = 5,
 	.mux_type = {
 		CAM_VFE_CAMIF_VER_2_0,
 		CAM_VFE_RDI_VER_1_0,
 		CAM_VFE_RDI_VER_1_0,
 		CAM_VFE_RDI_VER_1_0,
+		CAM_VFE_CAMIF_LITE_VER_2_0,
 	},
 	.dump_data = &vfe170_dump_data,
 };
@@ -886,9 +914,8 @@ static struct cam_vfe_hw_info cam_vfe170_hw_info = {
 	.camif_version                 = CAM_VFE_CAMIF_VER_2_0,
 	.camif_reg                     = &vfe170_camif_reg,
 
-	.camif_lite_version            = 0,
-	.camif_lite_reg                = NULL,
-
+	.camif_lite_version            = CAM_VFE_CAMIF_LITE_VER_2_0,
+	.camif_lite_reg                = &vfe170_camif_lite_reg,
 };
 
 #endif /* _CAM_VFE170_H_ */

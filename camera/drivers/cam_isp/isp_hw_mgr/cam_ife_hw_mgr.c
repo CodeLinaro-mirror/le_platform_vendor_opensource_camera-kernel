@@ -2330,6 +2330,8 @@ int cam_ife_hw_mgr_acquire_res_ife_out_rdi(
 			comp_grp = &c_ctx->vfe_bus_comp_grp[index];
 			comp_grp->res_id[comp_grp->num_res] = vfe_out_res_id;
 			comp_grp->num_res++;
+			CAM_DBG(CAM_ISP, "index %d comp_grp->num_res %d",
+					index, comp_grp->num_res);
 		}
 		break;
 	}
@@ -2527,6 +2529,11 @@ skip_get_ife_out_res:
 					comp_grp->res_id[comp_grp->num_res] =
 						ife_out_res->hw_res[j]->res_id;
 					comp_grp->num_res++;
+					CAM_DBG(CAM_ISP,
+							"index %d update_only %d num_res %d ctx:%u",
+							index, update_only, comp_grp->num_res,
+							c_ctx->ctx_index);
+
 				}
 			}
 
@@ -5844,6 +5851,8 @@ static int cam_ife_mgr_acquire_get_unified_structure_v0(
 		in_port->data[i].split_point  = in->data_flex[i].split_point;
 		in_port->data[i].secure_mode  = in->data_flex[i].secure_mode;
 		in_port->data[i].reserved     = in->data_flex[i].reserved;
+		CAM_DBG(CAM_ISP, "res_type 0x%x comp_grp_id %d", in_port->data[i].res_type,
+				in_port->data[i].comp_grp_id);
 	}
 
 	return 0;
@@ -5967,6 +5976,8 @@ static int cam_ife_mgr_acquire_get_unified_structure_v3(
 		in_port->data[i].secure_mode  = in->data_flex[i].secure_mode;
 		in_port->data[i].wm_mode      = in->data_flex[i].wm_mode;
 		in_port->data[i].hw_context_id   = in->data_flex[i].context_id;
+		CAM_DBG(CAM_ISP, "res_type 0x%x comp_grp_id %d", in_port->data[i].res_type,
+				in_port->data[i].comp_grp_id);
 	}
 
 	return 0;
@@ -6098,6 +6109,8 @@ static int cam_ife_mgr_acquire_get_unified_structure_v2(
 		in_port->data[i].comp_grp_id  = in->data_flex[i].comp_grp_id;
 		in_port->data[i].split_point  = in->data_flex[i].split_point;
 		in_port->data[i].secure_mode  = in->data_flex[i].secure_mode;
+		CAM_DBG(CAM_ISP, "res_type 0x%x comp_grp_id %d", in_port->data[i].res_type,
+				in_port->data[i].comp_grp_id);
 	}
 
 	return 0;
@@ -15318,11 +15331,25 @@ static int cam_ife_mgr_int_cmd(void                        *hw_mgr_priv,
 			isp_hw_cmd_args->u.sof_irq_enable);
 		break;
 	case CAM_ISP_HW_MGR_CMD_CTX_TYPE:
+		CAM_DBG(CAM_ISP, "Is rdi_epoch_config_not_supported : %d",
+				hw_mgr->rdi_epoch_config_not_supported);
 		if (c_ctx->flags.is_fe_enabled && c_ctx->flags.is_offline)
 			isp_hw_cmd_args->u.ctx_info.type = CAM_ISP_CTX_OFFLINE;
 		else if (c_ctx->flags.is_fe_enabled && !c_ctx->flags.is_offline &&
 				c_ctx->ctx_type != CAM_IFE_CTX_TYPE_SFE)
 			isp_hw_cmd_args->u.ctx_info.type = CAM_ISP_CTX_FS2;
+		/*
+		 * For older tagets, RDI does not support EPOCH configuration,
+		 * so unified state machine is not applicable and use RDI-only
+		 * ISP context state machine for RDI use cases.
+		 *
+		 * On newer targets, RDI supports EPOCH configuration and can use
+		 * the unified ISP context state machine (PIX/RDI).
+		 */
+		else if ((c_ctx->flags.is_rdi_only_context ||
+				c_ctx->flags.is_lite_context) &&
+				(hw_mgr->rdi_epoch_config_not_supported))
+			isp_hw_cmd_args->u.ctx_info.type = CAM_ISP_CTX_RDI;
 		else
 			isp_hw_cmd_args->u.ctx_info.type = CAM_ISP_CTX_PIX;
 		if (hw_mgr->csid_aup_rup_en)
@@ -17006,20 +17033,20 @@ static int cam_ife_hw_mgr_handle_hw_buf_done(
 	CAM_DBG(CAM_ISP,
 		"Buf done for %s: %d res_id: 0x%x last consumed addr: 0x%x ctx: %u",
 		((event_info->hw_type == CAM_ISP_HW_TYPE_SFE) ? "SFE" : "IFE"),
-		event_info->hw_idx, event_info->res_id,
+		event_info->hw_idx, bufdone_evt_info->res_id,
 		bufdone_evt_info->last_consumed_addr, c_ctx->ctx_index);
 
 	/* Check scratch for sHDR/FS use-cases */
 	if (c_ctx->flags.is_sfe_fs || c_ctx->flags.is_sfe_shdr) {
 		rc = cam_ife_hw_mgr_check_for_scratch_buf_done(ife_hw_mgr_ctx,
-			event_info->hw_type, event_info->res_id,
+			event_info->hw_type, bufdone_evt_info->res_id,
 			bufdone_evt_info->last_consumed_addr);
 		if (rc)
 			return 0;
 	}
 
 	buf_done_event_data.hw_type = event_info->hw_type;
-	buf_done_event_data.resource_handle = event_info->res_id;
+	buf_done_event_data.resource_handle = bufdone_evt_info->res_id;
 	buf_done_event_data.last_consumed_addr = bufdone_evt_info->last_consumed_addr;
 	buf_done_event_data.comp_group_id = bufdone_evt_info->comp_grp_id;
 
@@ -17028,8 +17055,9 @@ static int cam_ife_hw_mgr_handle_hw_buf_done(
 
 	if (buf_done_event_data.resource_handle > 0 && ife_hwr_irq_wm_done_cb) {
 		CAM_DBG(CAM_ISP,
-			"Notify ISP context for %u handles in ctx: %u",
-			buf_done_event_data.resource_handle, c_ctx->ctx_index);
+			"Notify ISP context for %u handles in ctx: %u comp_grp_id %d",
+			buf_done_event_data.resource_handle, c_ctx->ctx_index,
+			buf_done_event_data.comp_group_id);
 		ife_hwr_irq_wm_done_cb(ife_hw_mgr_ctx->cb_priv,
 			CAM_ISP_HW_EVENT_DONE, (void *)&buf_done_event_data);
 	}
@@ -17293,6 +17321,8 @@ static int cam_ife_hw_mgr_sort_dev_with_caps(
 			ife_hw_mgr->csid_hw_caps[i].global_reset_en;
 		ife_hw_mgr->csid_aup_rup_en =
 			ife_hw_mgr->csid_hw_caps[i].aup_rup_en;
+		ife_hw_mgr->rdi_epoch_config_not_supported =
+			ife_hw_mgr->csid_hw_caps[i].rdi_epoch_config_not_supported;
 		ife_hw_mgr->csid_camif_irq_support =
 			ife_hw_mgr->csid_hw_caps[i].camif_irq_support;
 	}

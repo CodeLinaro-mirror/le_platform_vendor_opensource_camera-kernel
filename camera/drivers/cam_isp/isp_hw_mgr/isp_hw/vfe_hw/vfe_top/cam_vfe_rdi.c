@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #include <linux/slab.h>
@@ -414,6 +414,7 @@ static int cam_vfe_rdi_handle_irq_bottom_half(void *handler_priv,
 	struct cam_hw_soc_info              *soc_info = NULL;
 	struct cam_vfe_soc_private          *soc_private = NULL;
 	struct timespec64                    ts;
+	struct cam_isp_sof_ts_data           sof_and_boot_time;
 
 	if (!handler_priv || !evt_payload_priv) {
 		CAM_ERR(CAM_ISP, "Invalid params");
@@ -430,6 +431,9 @@ static int cam_vfe_rdi_handle_irq_bottom_half(void *handler_priv,
 	irq_status0 = payload->irq_reg_val[CAM_IFE_IRQ_CAMIF_REG_STATUS0];
 	irq_status1 = payload->irq_reg_val[CAM_IFE_IRQ_CAMIF_REG_STATUS1];
 
+	sof_and_boot_time.boot_time = payload->ts.mono_time;
+	sof_and_boot_time.sof_ts = payload->ts.sof_ts;
+
 	evt_info.hw_type  = CAM_ISP_HW_TYPE_VFE;
 	evt_info.hw_idx   = rdi_node->hw_intf->hw_idx;
 	evt_info.res_id   = rdi_node->res_id;
@@ -443,6 +447,7 @@ static int cam_vfe_rdi_handle_irq_bottom_half(void *handler_priv,
 			payload->ts.mono_time.tv_sec;
 		rdi_priv->sof_ts.tv_nsec =
 			payload->ts.mono_time.tv_nsec;
+		evt_info.event_data = (void *)&sof_and_boot_time;
 		if (rdi_priv->event_cb)
 			rdi_priv->event_cb(rdi_priv->priv,
 				CAM_ISP_HW_EVENT_SOF, (void *)&evt_info);

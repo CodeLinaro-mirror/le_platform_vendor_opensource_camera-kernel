@@ -299,6 +299,7 @@ int cam_ife_csid_ver1_get_hw_caps(void *hw_priv,
 	hw_caps->version_incr = csid_reg->cmn_reg->version_incr;
 	hw_caps->global_reset_en = csid_reg->cmn_reg->global_reset;
 	hw_caps->aup_rup_en = csid_reg->cmn_reg->aup_rup_supported;
+	hw_caps->rdi_epoch_config_not_supported = csid_reg->cmn_reg->rdi_epoch_config_not_supported;
 	hw_caps->is_lite = soc_private->is_ife_csid_lite;
 
 	CAM_DBG(CAM_ISP,
@@ -3469,6 +3470,7 @@ static int cam_ife_csid_ver1_get_time_stamp(
 	struct cam_ife_csid_ver1_reg_info *csid_reg;
 	struct timespec64 ts;
 	uint32_t curr_0_sof_addr, curr_1_sof_addr;
+	uint32_t prev_0_sof_addr, prev_1_sof_addr;
 
 	timestamp_args = (struct cam_csid_get_time_stamp_args *)cmd_args;
 	res = timestamp_args->node_res;
@@ -3495,10 +3497,14 @@ static int cam_ife_csid_ver1_get_time_stamp(
 	case CAM_IFE_PIX_PATH_RES_IPP:
 		curr_0_sof_addr = csid_reg->ipp_reg->timestamp_curr0_sof_addr;
 		curr_1_sof_addr = csid_reg->ipp_reg->timestamp_curr1_sof_addr;
+		prev_0_sof_addr = csid_reg->ipp_reg->timestamp_prev0_sof_addr;
+		prev_1_sof_addr = csid_reg->ipp_reg->timestamp_prev1_sof_addr;
 		break;
 	case CAM_IFE_PIX_PATH_RES_PPP:
 		curr_0_sof_addr = csid_reg->ppp_reg->timestamp_curr0_sof_addr;
 		curr_1_sof_addr = csid_reg->ppp_reg->timestamp_curr1_sof_addr;
+		prev_0_sof_addr = csid_reg->ppp_reg->timestamp_prev0_sof_addr;
+		prev_1_sof_addr = csid_reg->ppp_reg->timestamp_prev1_sof_addr;
 		break;
 	case CAM_IFE_PIX_PATH_RES_RDI_0:
 	case CAM_IFE_PIX_PATH_RES_RDI_1:
@@ -3511,12 +3517,29 @@ static int cam_ife_csid_ver1_get_time_stamp(
 		curr_1_sof_addr =
 			csid_reg->rdi_reg
 			[res->res_id]->timestamp_curr1_sof_addr;
+		prev_0_sof_addr =
+			csid_reg->rdi_reg
+			[res->res_id]->timestamp_prev0_sof_addr;
+		prev_1_sof_addr =
+			csid_reg->rdi_reg
+			[res->res_id]->timestamp_prev1_sof_addr;
 	break;
 	default:
 		CAM_ERR(CAM_ISP, "CSID:%d invalid res %d",
 			csid_hw->hw_intf->hw_idx, res->res_id);
 		return -EINVAL;
 	}
+
+	time_hi = cam_io_r_mb(soc_info->reg_map[0].mem_base +
+			prev_1_sof_addr);
+	time_lo = cam_io_r_mb(soc_info->reg_map[0].mem_base +
+			prev_0_sof_addr);
+	timestamp_args->prev_time_stamp_val = (time_hi << 32) | time_lo;
+
+	timestamp_args->prev_time_stamp_val = mul_u64_u32_div(
+		timestamp_args->prev_time_stamp_val,
+		CAM_IFE_CSID_QTIMER_MUL_FACTOR,
+		CAM_IFE_CSID_QTIMER_DIV_FACTOR);
 
 	time_hi = cam_io_r_mb(soc_info->reg_map[0].mem_base +
 			curr_1_sof_addr);
@@ -3788,6 +3811,10 @@ static int cam_ife_csid_ver1_process_cmd(void *hw_priv,
 		break;
 	case CAM_ISP_HW_CMD_CSID_CHANGE_HALT_MODE:
 		rc = cam_ife_csid_halt(csid_hw, cmd_args);
+		break;
+	case CAM_ISP_HW_CMD_GET_SET_PRIM_SOF_TS_ADDR:
+		/* Not supported for V1 */
+		rc = 0;
 		break;
 	case CAM_ISP_HW_CMD_CSID_DISCARD_INIT_FRAMES:
 		/* Not supported for V1 */

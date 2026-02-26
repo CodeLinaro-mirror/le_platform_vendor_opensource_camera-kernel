@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #include <linux/slab.h>
@@ -762,6 +762,7 @@ static int cam_vfe_camif_handle_irq_bottom_half(void *handler_priv,
 	uint32_t                              val;
 	struct cam_isp_hw_error_event_info    err_evt_info;
 	struct timespec64                     ts;
+	struct cam_isp_sof_ts_data            sof_and_boot_time;
 
 	if (!handler_priv || !evt_payload_priv) {
 		CAM_ERR(CAM_ISP, "Invalid params");
@@ -800,8 +801,12 @@ static int cam_vfe_camif_handle_irq_bottom_half(void *handler_priv,
 	}
 
 	if (irq_status0 & camif_priv->reg_data->sof_irq_mask) {
+		sof_and_boot_time.boot_time = payload->ts.mono_time;
+		sof_and_boot_time.sof_ts = payload->ts.sof_ts;
+		evt_info.event_data = &sof_and_boot_time;
+
 		if ((camif_priv->enable_sof_irq_debug) &&
-			(camif_priv->irq_debug_cnt <=
+				(camif_priv->irq_debug_cnt <=
 			CAM_VFE_CAMIF_IRQ_SOF_DEBUG_CNT_MAX)) {
 			CAM_INFO_RATE_LIMIT(CAM_ISP, "Received SOF");
 

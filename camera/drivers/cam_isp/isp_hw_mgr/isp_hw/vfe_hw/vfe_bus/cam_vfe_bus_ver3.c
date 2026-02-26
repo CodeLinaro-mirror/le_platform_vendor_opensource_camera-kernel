@@ -3583,6 +3583,7 @@ static int cam_vfe_bus_ver3_update_wm(void *priv, void *cmd_args,
 	uint32_t frame_inc = 0, val, num_wm = 0;
 	uint32_t iova_addr, iova_offset, image_buf_offset = 0, stride, slice_h;
 	dma_addr_t iova;
+	int rc = 0;
 
 	update_buf = (struct cam_isp_hw_get_cmd_update *) cmd_args;
 	bus_priv = (struct cam_vfe_bus_ver3_priv  *) priv;
@@ -3604,6 +3605,7 @@ static int cam_vfe_bus_ver3_update_wm(void *priv, void *cmd_args,
 		return -EINVAL;
 	}
 
+	mutex_lock(&vfe_out_data->common_data->bus_mutex);
 	reg_val_pair = &vfe_out_data->common_data->io_buf_update[0];
 	if (update_buf->use_scratch_cfg) {
 		CAM_DBG(CAM_ISP, "VFE:%u Using scratch for IFE out_type: %u",
@@ -3622,7 +3624,8 @@ static int cam_vfe_bus_ver3_update_wm(void *priv, void *cmd_args,
 			CAM_ERR(CAM_ISP,
 				"VFE:%u reg_val_pair %d exceeds the array limit %zu",
 				bus_priv->common_data.core_index, j, MAX_REG_VAL_PAIR_SIZE);
-			return -ENOMEM;
+			rc = -ENOMEM;
+			goto end;
 		}
 
 		wm_data = vfe_out_data->wm_res[i].res_priv;
@@ -3730,7 +3733,8 @@ static int cam_vfe_bus_ver3_update_wm(void *priv, void *cmd_args,
 				CAM_ERR(CAM_ISP,
 					"VFE:%u No UBWC register to configure.",
 					bus_priv->common_data.core_index);
-				return -EINVAL;
+				rc = -EINVAL;
+				goto end;
 			}
 			if (wm_data->ubwc_updated) {
 				wm_data->ubwc_updated = false;
@@ -3837,7 +3841,8 @@ static int cam_vfe_bus_ver3_update_wm(void *priv, void *cmd_args,
 			CAM_ERR(CAM_ISP,
 				"VFE:%u Failed! Buf size:%d insufficient, expected size:%d",
 				bus_priv->common_data.core_index, update_buf->cmd.size, size);
-			return -ENOMEM;
+			rc = -ENOMEM;
+			goto end;
 		}
 
 		cdm_util_ops->cdm_write_regrandom(
@@ -3852,8 +3857,9 @@ static int cam_vfe_bus_ver3_update_wm(void *priv, void *cmd_args,
 			num_wm, bus_priv->common_data.core_index);
 		update_buf->cmd.used_bytes = 0;
 	}
-
-	return 0;
+end:
+	mutex_unlock(&vfe_out_data->common_data->bus_mutex);
+	return rc;
 }
 
 static int cam_vfe_bus_ver3_update_hfr(void *priv, void *cmd_args,
@@ -3868,6 +3874,7 @@ static int cam_vfe_bus_ver3_update_hfr(void *priv, void *cmd_args,
 	uint32_t *reg_val_pair;
 	uint32_t num_regval_pairs = 0;
 	uint32_t  i, j, size = 0, num_wm = 0;
+	int rc = 0;
 
 	update_hfr =  (struct cam_isp_hw_get_cmd_update *) cmd_args;
 	bus_priv = (struct cam_vfe_bus_ver3_priv  *) priv;
@@ -3881,6 +3888,7 @@ static int cam_vfe_bus_ver3_update_hfr(void *priv, void *cmd_args,
 	}
 
 	cdm_util_ops = vfe_out_data->common_data->cdm_util_ops;
+	mutex_lock(&vfe_out_data->common_data->bus_mutex);
 	reg_val_pair = &vfe_out_data->common_data->io_buf_update[0];
 	hfr_cfg = (struct cam_isp_port_hfr_config *)update_hfr->data;
 	num_wm = cam_vfe_bus_ver3_get_num_wm(vfe_out_data);
@@ -3890,7 +3898,8 @@ static int cam_vfe_bus_ver3_update_hfr(void *priv, void *cmd_args,
 			CAM_ERR(CAM_ISP,
 				"VFE:%u reg_val_pair %d exceeds the array limit %zu",
 				bus_priv->common_data.core_index, j, MAX_REG_VAL_PAIR_SIZE);
-			return -ENOMEM;
+			rc = -ENOMEM;
+			goto end;
 		}
 
 		wm_data = vfe_out_data->wm_res[i].res_priv;
@@ -3961,7 +3970,8 @@ static int cam_vfe_bus_ver3_update_hfr(void *priv, void *cmd_args,
 			CAM_ERR(CAM_ISP,
 				"VFE:%u Failed! Buf size:%d insufficient, expected size:%d",
 				bus_priv->common_data.core_index, update_hfr->cmd.size, size);
-			return -ENOMEM;
+			rc = -ENOMEM;
+			goto end;
 		}
 
 		cdm_util_ops->cdm_write_regrandom(
@@ -3976,8 +3986,9 @@ static int cam_vfe_bus_ver3_update_hfr(void *priv, void *cmd_args,
 			"VFE:%u No reg val pairs. num_wms: %u",
 			 bus_priv->common_data.core_index, num_wm);
 	}
-
-	return 0;
+end:
+	mutex_unlock(&vfe_out_data->common_data->bus_mutex);
+	return rc;
 }
 
 static int cam_vfe_bus_ver3_update_ubwc_config_v2(void *cmd_args)
@@ -4279,6 +4290,7 @@ static int cam_vfe_bus_update_bw_limiter(
 	uint32_t                                 *reg_val_pair, num_regval_pairs = 0;
 	uint32_t                                  i, j, size = 0, num_wm = 0;
 	bool                                      limiter_enabled = false;
+	int                                       rc = 0;
 
 	wm_config_update = (struct cam_isp_hw_get_cmd_update *) cmd_args;
 	wm_bw_limit_cfg  = (struct cam_isp_wm_bw_limiter_config  *)
@@ -4292,6 +4304,7 @@ static int cam_vfe_bus_update_bw_limiter(
 	}
 
 	cdm_util_ops = vfe_out_data->common_data->cdm_util_ops;
+	mutex_lock(&vfe_out_data->common_data->bus_mutex);
 	reg_val_pair = &vfe_out_data->common_data->io_buf_update[0];
 	num_wm = cam_vfe_bus_ver3_get_num_wm(vfe_out_data);
 	for (i = 0, j = 0; i < num_wm; i++) {
@@ -4300,7 +4313,8 @@ static int cam_vfe_bus_update_bw_limiter(
 				"VFE:%u reg_val_pair %d exceeds the array limit %zu for WM idx %d",
 				vfe_out_data->common_data->core_index, j,
 				MAX_REG_VAL_PAIR_SIZE, i);
-			return -ENOMEM;
+			rc = -ENOMEM;
+			goto end;
 		}
 
 		/* Num WMs needs to match max planes */
@@ -4318,7 +4332,8 @@ static int cam_vfe_bus_update_bw_limiter(
 				"VFE:%u WM: %d %s has no support for bw limiter",
 				vfe_out_data->common_data->core_index, wm_data->index,
 				vfe_out_data->wm_res[i].res_name);
-			return -EINVAL;
+			rc = -EINVAL;
+			goto end;
 		}
 
 		counter_limit = wm_bw_limit_cfg->counter_limit[i];
@@ -4365,7 +4380,8 @@ add_reg_pair:
 				"VFE:%u Failed! Buf size:%d insufficient, expected size:%d",
 				vfe_out_data->common_data->core_index,
 				wm_config_update->cmd.size, size);
-			return -ENOMEM;
+			rc = -ENOMEM;
+			goto end;
 		}
 
 		cdm_util_ops->cdm_write_regrandom(
@@ -4382,7 +4398,9 @@ add_reg_pair:
 	}
 
 	vfe_out_data->limiter_enabled = limiter_enabled;
-	return 0;
+end:
+	mutex_unlock(&vfe_out_data->common_data->bus_mutex);
+	return rc;
 }
 
 static int cam_vfe_bus_ver3_mc_ctxt_sel(

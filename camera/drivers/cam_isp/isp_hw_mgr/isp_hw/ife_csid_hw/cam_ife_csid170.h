@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 #ifndef _CAM_IFE_CSID_170_H_
 #define _CAM_IFE_CSID_170_H_
@@ -64,7 +65,7 @@ static struct cam_ife_csid_ver1_path_reg_info
 	.halt_immediate                 = 2,
 	.halt_cmd_shift                 = 0,
 	.early_eof_en_shift_val         = 29,
-	.timestamp_en_shift_val         = 2,
+	.timestamp_en_shift_val         = 1,
 	.format_measure_en_shift_val    = 0,
 	.fatal_err_mask                 = 0x4,
 	.non_fatal_err_mask             = 0xe000,
@@ -120,7 +121,7 @@ static struct cam_ife_csid_ver1_path_reg_info
 	.plain_fmt_shift_val             = 10,
 	.crop_v_en_shift_val             = 6,
 	.crop_h_en_shift_val             = 5,
-	.timestamp_en_shift_val          = 1,
+	.timestamp_en_shift_val          = 2,
 	.format_measure_en_shift_val     = 1,
 	.fatal_err_mask                  = 0x4,
 	.non_fatal_err_mask              = 0xe000,
@@ -176,7 +177,7 @@ static struct cam_ife_csid_ver1_path_reg_info
 	.plain_fmt_shift_val             = 10,
 	.crop_v_en_shift_val             = 6,
 	.crop_h_en_shift_val             = 5,
-	.timestamp_en_shift_val          = 1,
+	.timestamp_en_shift_val          = 2,
 	.format_measure_en_shift_val     = 1,
 	.fatal_err_mask                  = 0x4,
 	.non_fatal_err_mask              = 0xe000,
@@ -233,7 +234,7 @@ static struct cam_ife_csid_ver1_path_reg_info
 	.plain_fmt_shift_val             = 10,
 	.crop_v_en_shift_val             = 6,
 	.crop_h_en_shift_val             = 5,
-	.timestamp_en_shift_val          = 1,
+	.timestamp_en_shift_val          = 2,
 	.format_measure_en_shift_val     = 1,
 	.fatal_err_mask                  = 0x4,
 	.non_fatal_err_mask              = 0xe000,
@@ -385,12 +386,14 @@ static struct cam_ife_csid_ver1_common_reg_info
 	.rdi_irq_mask_all                = 0x7FFF,
 	.ppp_irq_mask_all                = 0x0,
 	.measure_en_hbi_vbi_cnt_mask     = 0xC,
+	.measure_pixel_line_en_mask      = 0x3,
 	.timestamp_strobe_val            = 0x2,
 	.timestamp_stb_sel_shift_val     = 0,
 	.format_measure_height_mask_val  = 0xFFFF,
 	.format_measure_height_shift_val = 0x10,
 	.format_measure_width_mask_val   = 0xFFFF,
 	.format_measure_width_shift_val  = 0x0,
+	.rdi_epoch_config_not_supported  = 1,
 };
 
 static struct cam_ife_csid_ver1_reg_info cam_ife_csid_170_reg_info = {

@@ -509,6 +509,7 @@ static long cam_private_ioctl(struct file *file, void *fh,
 		struct cam_req_mgr_sched_request_v3 *sched_req;
 		struct cam_req_mgr_sched_request_v3 crm_sched_req;
 		int sched_req_size;
+		int num_links = 0;
 
 		if (k_ioctl->size < 0)
 			return -EINVAL;
@@ -519,11 +520,14 @@ static long cam_private_ioctl(struct file *file, void *fh,
 			return -EFAULT;
 		}
 
-		if (crm_sched_req.num_links > MAXIMUM_LINKS_PER_SESSION)
+		num_links = crm_sched_req.num_links;
+
+		if ((num_links > MAXIMUM_LINKS_PER_SESSION) ||
+			(num_links < 0))
 			return -EINVAL;
 
 		sched_req_size = sizeof(struct cam_req_mgr_sched_request_v3) +
-			((crm_sched_req.num_links) * sizeof(__signed__ int));
+			((num_links) * sizeof(__signed__ int));
 
 		if (k_ioctl->size != sched_req_size)
 			return -EINVAL;
@@ -538,6 +542,8 @@ static long cam_private_ioctl(struct file *file, void *fh,
 			sched_req = NULL;
 			return -EFAULT;
 		}
+
+		crm_sched_req.num_links = num_links;
 
 		rc = cam_req_mgr_schedule_request_v3(sched_req);
 		kfree(sched_req);
