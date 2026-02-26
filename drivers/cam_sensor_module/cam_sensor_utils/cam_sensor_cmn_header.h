@@ -153,6 +153,8 @@ enum cam_sensor_packet_opcodes {
 	CAM_SENSOR_PACKET_OPCODE_SENSOR_CONFIG,
 	CAM_SENSOR_PACKET_OPCODE_SENSOR_STREAMOFF,
 	CAM_SENSOR_PACKET_OPCODE_SENSOR_READ,
+	CAM_SENSOR_PACKET_OPCODE_SENSOR_REG_BANK_UNLOCK,
+	CAM_SENSOR_PACKET_OPCODE_SENSOR_REG_BANK_LOCK,
 	CAM_SENSOR_PACKET_OPCODE_SENSOR_NOP = 127
 };
 
@@ -223,7 +225,8 @@ enum cam_sensor_i2c_cmd_type {
 	CAM_SENSOR_I2C_WRITE_SEQ,
 	CAM_SENSOR_I2C_READ_RANDOM,
 	CAM_SENSOR_I2C_READ_SEQ,
-	CAM_SENSOR_I2C_POLL
+	CAM_SENSOR_I2C_POLL,
+	CAM_SENSOR_I2C_SET_I2C_INFO
 };
 
 struct common_header {
@@ -288,6 +291,7 @@ struct cam_sensor_i2c_seq_reg {
 struct i2c_settings_list {
 	struct cam_sensor_i2c_reg_setting i2c_settings;
 	struct cam_sensor_i2c_seq_reg seq_settings;
+	struct cam_cmd_i2c_info slave_info;
 	enum cam_sensor_i2c_cmd_type op_code;
 	struct list_head list;
 };
@@ -305,6 +309,8 @@ struct i2c_data_settings {
 	struct i2c_settings_array streamoff_settings;
 	struct i2c_settings_array read_settings;
 	struct i2c_settings_array *per_frame;
+	struct i2c_settings_array reg_bank_unlock_settings;
+	struct i2c_settings_array reg_bank_lock_settings;
 };
 
 struct cam_sensor_power_ctrl_t {
@@ -323,6 +329,7 @@ struct cam_camera_slave_info {
 	uint16_t sensor_id_reg_addr;
 	uint16_t sensor_id;
 	uint16_t sensor_id_mask;
+	uint8_t  i2c_freq_mode;
 };
 
 struct msm_sensor_init_params {

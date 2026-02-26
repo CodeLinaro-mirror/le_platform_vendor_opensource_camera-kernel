@@ -433,7 +433,8 @@ static inline void __cam_isp_ctx_move_req_to_free_list(
 	CAM_DBG(CAM_ISP,
 		"Free req id: %lld, ctx_idx: %u, link: 0x%x",
 		req->request_id, ctx->ctx_id, ctx->link_hdl);
-	cam_mem_put_kref(kmd_cmd_buff_info->handle);
+	if (kmd_cmd_buff_info->cpu_addr)
+		cam_mem_put_kref(kmd_cmd_buff_info->handle);
 
 	list_add_tail(&req->list, &ctx->free_req_list);
 }
@@ -494,7 +495,8 @@ static int __cam_isp_ctx_enqueue_init_request(
 				req_isp_new->num_cfg);
 
 			kmd_buff_old = &(req_isp_old->hw_update_data.kmd_cmd_buff_info);
-			cam_mem_put_kref(kmd_buff_old->handle);
+			if (kmd_buff_old->cpu_addr)
+				cam_mem_put_kref(kmd_buff_old->handle);
 
 			req_isp_old->num_cfg += req_isp_new->num_cfg;
 
@@ -3611,7 +3613,7 @@ static int __cam_isp_ctx_config_dev_in_top_state(
 	struct cam_hw_cmd_args           hw_cmd_args;
 	struct cam_isp_hw_cmd_args       isp_hw_cmd_args;
 	uint32_t                         packet_opcode = 0;
-
+	struct cam_kmd_buf_info *kmd_cmd_buff_info = NULL;
 	CAM_DBG(CAM_ISP, "get free request object......");
 
 	/* get free request */
@@ -3647,7 +3649,7 @@ static int __cam_isp_ctx_config_dev_in_top_state(
 		((size_t)cmd->offset >= len - sizeof(struct cam_packet))) {
 		CAM_ERR(CAM_ISP, "invalid buff length: %zu or offset", len);
 		rc = -EINVAL;
-		goto free_req;
+		goto free_req_pkt;
 	}
 
 	remain_len -= (size_t)cmd->offset;
@@ -3671,7 +3673,7 @@ static int __cam_isp_ctx_config_dev_in_top_state(
 		&hw_cmd_args);
 	if (rc) {
 		CAM_ERR(CAM_ISP, "HW command failed");
-		goto free_req;
+		goto free_req_pkt;
 	}
 
 	packet_opcode = isp_hw_cmd_args.u.packet_op_code;
@@ -3683,7 +3685,7 @@ static int __cam_isp_ctx_config_dev_in_top_state(
 			"request %lld has been flushed, reject packet",
 			packet->header.request_id);
 		rc = -EBADR;
-		goto free_req;
+		goto free_req_pkt;
 	}
 
 	/* preprocess the configuration */
@@ -3787,10 +3789,13 @@ put_ref:
 				req_isp->fence_map_out[i].sync_id);
 	}
 free_req:
+	kmd_cmd_buff_info = &(req_isp->hw_update_data.kmd_cmd_buff_info);
+	if (kmd_cmd_buff_info->cpu_addr)
+		cam_mem_put_kref(kmd_cmd_buff_info->handle);
+free_req_pkt:
 	spin_lock_bh(&ctx->lock);
-	__cam_isp_ctx_move_req_to_free_list(ctx, req);
+	list_add_tail(&req->list, &ctx->free_req_list);
 	spin_unlock_bh(&ctx->lock);
-
 	cam_mem_put_cpu_buf((int32_t) cmd->packet_handle);
 	return rc;
 }
