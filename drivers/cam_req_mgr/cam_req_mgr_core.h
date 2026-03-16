@@ -39,6 +39,7 @@
 #define SYNC_LINK_SOF_CNT_MAX_LMT 1
 
 #define MAXIMUM_LINKS_PER_SESSION  64
+#define CAM_CRM_MAX_IFE_DEV 2
 
 #define MAXIMUM_RETRY_ATTEMPTS 3
 
@@ -49,6 +50,15 @@
 #define VERSION_3  3
 #define CAM_REQ_MGR_MAX_TRIGGERS   2
 #define MAX_LINKS_PER_SESSION_V2   16
+
+/**
+ * enum crm_qtvm_status
+ * @codes: to identify state of QTVM
+ */
+enum crm_qtvm_status {
+	CRM_QTVM_STATUS_POWERUP,
+	CRM_QTVM_STATUS_CRASHED,
+};
 
 /**
  * enum crm_req_eof_trigger_type
@@ -425,6 +435,8 @@ struct cam_req_mgr_connected_device {
  * @curr_setting         : Current setting ID applied on the link
  * @new_setting_period_packet : New setting period and pattern received from UMD for UL path
  * @is_new_setting_available  : Flag to indicate if new setting is available from UMD
+ * @qtvm_wait_for_unlink : Flag to indicate if QTVM crash handling is waiting for unlink
+ * @num_trigger_devices       : Number of trigger devices
  */
 struct cam_req_mgr_core_link {
 	int32_t                              link_hdl;
@@ -472,6 +484,8 @@ struct cam_req_mgr_core_link {
 	bool                                 is_new_setting_available;
 	bool                                 is_setting_period_valid;
 	bool                                 is_setting_sticky;
+	bool                                 qtvm_wait_for_unlink;
+	uint32_t                             num_trigger_devices;
 };
 
 /**
@@ -512,14 +526,22 @@ struct cam_req_mgr_core_session {
 /**
  * struct cam_req_mgr_core_device
  * - Core camera request manager data struct
- * @session_head : list head holding sessions
- * @crm_lock     : mutex lock to protect session creation & destruction
- * @recovery_on_apply_fail : Recovery on apply failure using debugfs.
+ * @session_head                 : list head holding sessions
+ * @crm_lock                     : mutex lock to protect session creation & destruction
+ * @recovery_on_apply_fail       : Recovery on apply failure using debugfs.
+ * @qtvm_crash_secure_link_count : Count of secure links at QTVM crash
+ * @qtvm_link_cleanup_pending    : Flag used to defer secure link cleanup to QTVM power up event
+ * @qtvm_status                  : Status of qtvm
+ * @qtvm_crash_complete          : Conditional wait variable for qtvm crash complete
  */
 struct cam_req_mgr_core_device {
 	struct list_head             session_head;
 	struct mutex                 crm_lock;
 	bool                         recovery_on_apply_fail;
+	uint32_t                     qtvm_crash_secure_link_count;
+	bool                         qtvm_link_cleanup_pending;
+	uint32_t                     qtvm_status;
+	struct completion            qtvm_crash_complete;
 };
 
 /**
@@ -762,6 +784,22 @@ int cam_req_mgr_batch_request(struct cam_batch_config_dev_cmd *cmd);
  * @cmd: Command payload for batch configure device
  */
 int cam_req_mgr_batch_request_v2(struct cam_batch_config_dev_cmd *cmd);
+
+/**
+ * crm_register_qtvm_callback()
+ * @brief: register cb into qtvm/hypervisor to get notified of GH_VM events.
+ *
+ * @return   : 0 on success, negative in case of failure
+ */
+int crm_register_qtvm_callback(void);
+
+/**
+ * crm_unregister_qtvm_callback()
+ * @brief: un-register cb from qtvm/hypervisor
+ *
+ * @return   : 0 on success, negative in case of failure
+ */
+int crm_unregister_qtvm_callback(void);
 
 int cam_req_mgr_fast_crop_sync_cmd(struct cam_req_mgr_fast_crop_sync *fast_crop_sync_info);
 

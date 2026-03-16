@@ -403,6 +403,54 @@ int cam_synx_batch_update_hwfence_queue(struct cam_sync_hw_fence_res_info  *hwfe
 	return rc;
 }
 
+int cam_synx_obj_batch_signal(struct cam_sync_hw_fence_res_info  *hwfence_info)
+{
+	int rc = -EINVAL, i;
+	uint32_t batch_size, idx;
+	struct synx_signal_n_params params;
+	struct synx_signal_indv_params *indv_params;
+	struct synx_session *session_hdl;
+	struct cam_synx_obj_row *row = NULL;
+
+	params.type = SYNX_SIGNAL_ARR_PARAMS;
+
+	params.arr.num_fences = hwfence_info->num_fences;
+	batch_size = params.arr.num_fences * sizeof(struct synx_signal_indv_params);
+	params.arr.list = kzalloc(batch_size, GFP_KERNEL);
+
+	if (!params.arr.list) {
+		CAM_ERR(CAM_SYNX, "mem alloc failed, requested size: %d", batch_size);
+		return -ENOMEM;
+	}
+
+	/* All synx hdls have same session hdl */
+	if (cam_synx_obj_find_obj_in_table(hwfence_info->synx_hdls[0], &idx)) {
+		CAM_ERR(CAM_SYNX, "Failed to find synx obj: %d", hwfence_info->synx_hdls[0]);
+		rc = -EINVAL;
+		goto cleanup;
+	}
+
+	spin_lock_bh(&g_cam_synx_obj_dev->row_spinlocks[idx]);
+	row = &g_cam_synx_obj_dev->rows[idx];
+	session_hdl = row->session_hdl;
+	spin_unlock_bh(&g_cam_synx_obj_dev->row_spinlocks[idx]);
+
+	for (i = 0; i < params.arr.num_fences; i++) {
+		CAM_DBG(CAM_SYNC, "Signaling fences: %u", hwfence_info->synx_hdls[i]);
+		indv_params = &params.arr.list[i];
+		indv_params->h_synx = hwfence_info->synx_hdls[i];
+		indv_params->flags = SYNX_SIGNAL_IMMEDIATE;
+		indv_params->status = SYNX_STATE_SIGNALED_CANCEL;
+	}
+	rc = synx_signal_n(session_hdl, &params);
+	if (rc)
+		CAM_ERR(CAM_SYNC, "synx_signal_n failed for batch of fences, rc: %d", rc);
+
+cleanup:
+	kfree(params.arr.list);
+	return rc;
+}
+
 int cam_synx_obj_batch_release(struct cam_sync_hw_fence_res_info  *hwfence_info)
 {
 	int rc = -EINVAL;
@@ -435,7 +483,8 @@ int cam_synx_obj_batch_release(struct cam_sync_hw_fence_res_info  *hwfence_info)
 	if (cam_synx_obj_find_obj_in_table(hwfence_info->synx_hdls[0], &idx)) {
 		CAM_ERR(CAM_SYNX, "Failed to find synx obj: %d",
 			hwfence_info->synx_hdls[0]);
-		return -EINVAL;
+		rc = -EINVAL;
+		goto cleanup;
 	}
 
 	spin_lock_bh(&g_cam_synx_obj_dev->row_spinlocks[idx]);
@@ -444,6 +493,7 @@ int cam_synx_obj_batch_release(struct cam_sync_hw_fence_res_info  *hwfence_info)
 	spin_unlock_bh(&g_cam_synx_obj_dev->row_spinlocks[idx]);
 
 	for (i = 0; i < params.arr.num_objs; i++) {
+		CAM_DBG(CAM_SYNX, "Releasing fence: %u", hwfence_info->synx_hdls[i]);
 		indv_params = &params.arr.list[i];
 		indv_params->h_synx = hwfence_info->synx_hdls[i];
 		indv_params->result = result[i];
@@ -462,8 +512,10 @@ int cam_synx_obj_batch_release(struct cam_sync_hw_fence_res_info  *hwfence_info)
 	}
 
 	for (i = 0; i < params.arr.num_objs; i++) {
-		if (cam_synx_obj_find_obj_in_table(hwfence_info->synx_hdls[i], &idx))
-			return -EINVAL;
+		if (cam_synx_obj_find_obj_in_table(hwfence_info->synx_hdls[i], &idx)) {
+			rc = -EINVAL;
+			goto cleanup;
+		}
 
 		spin_lock_bh(&g_cam_synx_obj_dev->row_spinlocks[idx]);
 		row = &g_cam_synx_obj_dev->rows[idx];
@@ -472,6 +524,7 @@ int cam_synx_obj_batch_release(struct cam_sync_hw_fence_res_info  *hwfence_info)
 		spin_unlock_bh(&g_cam_synx_obj_dev->row_spinlocks[idx]);
 	}
 
+cleanup:
 	kfree(result);
 	kfree(params.arr.list);
 	return rc;
@@ -534,6 +587,10 @@ end:
 }
 #else
 int cam_synx_batch_update_hwfence_queue(struct cam_sync_hw_fence_res_info  *hwfence_info)
+{
+	return -EOPNOTSUPP;
+}
+int cam_synx_obj_batch_signal(struct cam_sync_hw_fence_res_info  *hwfence_info)
 {
 	return -EOPNOTSUPP;
 }
@@ -1026,7 +1083,13 @@ void cam_synx_obj_close(void)
 	int i, rc = 0;
 	struct cam_synx_obj_row *row = NULL;
 	struct synx_callback_params cb_params;
+#ifdef CONFIG_SYNX_BATCH_API
+	struct synx_signal_n_params params;
+	struct synx_signal_indv_params indv_params_local[1];
 
+	memset(&params, 0, sizeof(params));
+	memset(indv_params_local, 0, sizeof(indv_params_local));
+#endif
 	mutex_lock(&g_cam_synx_obj_dev->dev_lock);
 	for (i = 0; i < CAM_SYNX_MAX_OBJS; i++) {
 		spin_lock_bh(&g_cam_synx_obj_dev->row_spinlocks[i]);
@@ -1036,7 +1099,7 @@ void cam_synx_obj_close(void)
 			spin_unlock_bh(&g_cam_synx_obj_dev->row_spinlocks[i]);
 			continue;
 		}
-		CAM_DBG(CAM_SYNX, "Releasing synx_obj: %d[%s]",
+		CAM_DBG(CAM_SYNX, "Releasing synx_obj: %u[%s]",
 			row->synx_obj, row->name);
 
 		/* If registered for cb, remove cb */
@@ -1059,8 +1122,31 @@ void cam_synx_obj_close(void)
 			spin_unlock_bh(&g_cam_synx_obj_dev->row_spinlocks[i]);
 		}
 		/* Signal and release the synx obj */
-		if (row->state != CAM_SYNX_OBJ_STATE_SIGNALED)
-			__cam_synx_signal_util(NULL, row->synx_obj, SYNX_STATE_SIGNALED_CANCEL);
+		if (row->state != CAM_SYNX_OBJ_STATE_SIGNALED) {
+#ifdef CONFIG_SYNX_BATCH_API
+			if (row->session_hdl) {
+				params.type = SYNX_SIGNAL_ARR_PARAMS;
+				params.arr.num_fences = 1;
+				params.arr.list = indv_params_local;
+
+				indv_params_local[0].h_synx = row->synx_obj;
+				indv_params_local[0].flags = SYNX_SIGNAL_IMMEDIATE;
+				indv_params_local[0].status = SYNX_STATE_SIGNALED_CANCEL;
+
+				rc = synx_signal_n(row->session_hdl, &params);
+			} else {
+				rc = __cam_synx_signal_util(g_cam_synx_obj_dev->session_handle,
+					row->synx_obj, SYNX_STATE_SIGNALED_CANCEL);
+			}
+#else
+			rc = __cam_synx_signal_util((row->session_hdl ? row->session_hdl :
+				g_cam_synx_obj_dev->session_handle), row->synx_obj,
+				SYNX_STATE_SIGNALED_CANCEL);
+#endif
+			if (rc)
+				CAM_ERR(CAM_SYNX, "Failed to signal synx %u", row->synx_obj);
+		}
+
 		synx_release((row->session_hdl ? row->session_hdl :
 			g_cam_synx_obj_dev->session_handle), row->synx_obj);
 

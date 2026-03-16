@@ -727,7 +727,7 @@ static int cam_actuator_handle_event_controlled_info(
 			CAM_IS_NULL_TO_STR(a_ctrl));
 		return -EINVAL;
 	}
-	a_ctrl->is_trigger_mode = true;
+	a_ctrl->is_precise_actuator_control = true;
 	a_ctrl->frame_event.frame_event = event_control_info->event_name;
 	a_ctrl->actuator_trigger_data.line_no = event_control_info->value;
 	CAM_DBG(CAM_ACTUATOR,
@@ -1090,7 +1090,8 @@ int32_t cam_actuator_i2c_pkt_parse(struct cam_actuator_ctrl_t *a_ctrl,
 		offset = (uint32_t *)&csl_packet->payload_flex;
 		offset += (csl_packet->cmd_buf_offset / sizeof(uint32_t));
 		cmd_desc = (struct cam_cmd_buf_desc *)(offset);
-		if (a_ctrl->is_trigger_mode && a_ctrl->cam_act_state == CAM_ACTUATOR_START) {
+		if (a_ctrl->is_precise_actuator_control &&
+				a_ctrl->cam_act_state == CAM_ACTUATOR_START) {
 			i2c_data = &(a_ctrl->i2c_data);
 			cci_settings =
 				&i2c_data->per_frame_event_settings[csl_packet->header.request_id %
@@ -1137,7 +1138,7 @@ int32_t cam_actuator_i2c_pkt_parse(struct cam_actuator_ctrl_t *a_ctrl,
 			case CAMERA_SENSOR_CMD_TYPE_I2C_INFO:
 				CAM_DBG(CAM_ACTUATOR,
 					"Received slave info buffer");
-				a_ctrl->is_trigger_mode = false;
+				a_ctrl->is_precise_actuator_control = false;
 				rc = cam_actuator_slaveInfo_pkt_parser(
 					a_ctrl, cmd_buf, remain_len);
 				if (rc < 0) {
@@ -1162,7 +1163,8 @@ int32_t cam_actuator_i2c_pkt_parse(struct cam_actuator_ctrl_t *a_ctrl,
 				}
 				break;
 			default:
-				if (a_ctrl->is_trigger_mode && a_ctrl->cam_act_state == CAM_ACTUATOR_START) {
+				if (a_ctrl->is_precise_actuator_control &&
+						a_ctrl->cam_act_state == CAM_ACTUATOR_START) {
 					if (a_ctrl->cci_contextId == CONTEXT_ID_MAX) {
 						rc = cam_actuator_get_cci_contextid(a_ctrl);
 						if (rc < 0) {
@@ -1217,7 +1219,8 @@ int32_t cam_actuator_i2c_pkt_parse(struct cam_actuator_ctrl_t *a_ctrl,
 			}
 			cam_mem_put_cpu_buf(cmd_desc[i].mem_handle);
 		}
-		if (a_ctrl->is_trigger_mode && a_ctrl->cam_act_state == CAM_ACTUATOR_START) {
+		if (a_ctrl->is_precise_actuator_control &&
+				a_ctrl->cam_act_state == CAM_ACTUATOR_START) {
 			cci_settings->request_id = csl_packet->header.request_id;
 			rc = cam_actuator_fill_event_data(cci_settings);
 			if (rc < 0) {
@@ -1273,7 +1276,7 @@ int32_t cam_actuator_i2c_pkt_parse(struct cam_actuator_ctrl_t *a_ctrl,
 		}
 		a_ctrl->setting_apply_state = ACT_APPLY_SETTINGS_NOW;
 		i2c_data = &(a_ctrl->i2c_data);
-		if (a_ctrl->is_trigger_mode) {
+		if (a_ctrl->is_precise_actuator_control) {
 			cci_settings =
 				&i2c_data->per_frame_event_settings[csl_packet->header.request_id %
 						MAX_PER_FRAME_ARRAY];
@@ -1330,7 +1333,7 @@ int32_t cam_actuator_i2c_pkt_parse(struct cam_actuator_ctrl_t *a_ctrl,
 		}
 		a_ctrl->setting_apply_state = ACT_APPLY_SETTINGS_LATER;
 		i2c_data = &(a_ctrl->i2c_data);
-		if (a_ctrl->is_trigger_mode) {
+		if (a_ctrl->is_precise_actuator_control) {
 			cci_settings =
 				&i2c_data->per_frame_event_settings[csl_packet->header.request_id %
 						MAX_PER_FRAME_ARRAY];
@@ -1472,7 +1475,7 @@ void cam_actuator_shutdown(struct cam_actuator_ctrl_t *a_ctrl)
 		return;
 
 	if (a_ctrl->io_master_info.master_type == CCI_MASTER) {
-		if(a_ctrl->is_trigger_mode) {
+		if (a_ctrl->is_precise_actuator_control) {
 			if (a_ctrl->cci_contextId < CONTEXT_ID_MAX) {
 				rc = camera_io_contextid_release(&(a_ctrl->io_master_info),
 						a_ctrl->cci_contextId, FALSE);
@@ -1581,7 +1584,8 @@ int32_t cam_actuator_no_crm_apply_req_lock(
 	request_id = actuator_req_id % MAX_PER_FRAME_ARRAY;
 
 	trace_cam_apply_req("Actuator", a_ctrl->soc_info.index, actuator_req_id, apply->link_hdl);
-	if (a_ctrl->is_trigger_mode && (a_ctrl->setting_apply_state = ACT_APPLY_SETTINGS_LATER)) {
+	if (a_ctrl->is_precise_actuator_control &&
+			(a_ctrl->setting_apply_state == ACT_APPLY_SETTINGS_LATER)) {
 		struct cci_trigger_cam_setting_array *cci_set =
 			a_ctrl->i2c_data.per_frame_event_settings;
 		if (cci_set != NULL) {
@@ -1794,7 +1798,7 @@ int32_t cam_actuator_driver_cmd(struct cam_actuator_ctrl_t *a_ctrl,
 		rc = cam_destroy_device_hdl(a_ctrl->bridge_intf.device_hdl);
 		if (rc < 0)
 			CAM_ERR(CAM_ACTUATOR, "destroying the device hdl");
-		a_ctrl->is_trigger_mode = false;
+		a_ctrl->is_precise_actuator_control = false;
 		a_ctrl->bridge_intf.device_hdl = -1;
 		a_ctrl->bridge_intf.link_hdl = -1;
 		a_ctrl->bridge_intf.session_hdl = -1;
@@ -1849,7 +1853,7 @@ int32_t cam_actuator_driver_cmd(struct cam_actuator_ctrl_t *a_ctrl,
 			goto release_mutex;
 		}
 
-		if (a_ctrl->is_trigger_mode) {
+		if (a_ctrl->is_precise_actuator_control) {
 			if (a_ctrl->cci_contextId < CONTEXT_ID_MAX) {
 				rc = camera_io_contextid_release(&(a_ctrl->io_master_info),
 						a_ctrl->cci_contextId, FALSE);
@@ -1912,7 +1916,7 @@ int32_t cam_actuator_driver_cmd(struct cam_actuator_ctrl_t *a_ctrl,
 		}
 
 		if (a_ctrl->setting_apply_state ==
-			ACT_APPLY_SETTINGS_NOW && !a_ctrl->is_trigger_mode) {
+			ACT_APPLY_SETTINGS_NOW && !a_ctrl->is_precise_actuator_control) {
 			rc = cam_actuator_apply_settings(a_ctrl,
 				&a_ctrl->i2c_data.init_settings);
 			if ((rc == -EAGAIN) &&

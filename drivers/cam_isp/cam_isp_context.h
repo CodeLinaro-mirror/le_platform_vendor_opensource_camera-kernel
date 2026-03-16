@@ -508,6 +508,7 @@ struct cam_isp_context_prev_req_info {
  * @fast_crop_en:              Fast crop enable flag
  * @dual_trigger:              Indicates if its dual trigger scenario
  * @error_recovery_en:         Error recovery enable flag
+ * @is_tpg_enabled:            Flag to indicate if TPG device is present in the link
  */
 struct cam_isp_context {
 	struct cam_context              *base;
@@ -607,6 +608,7 @@ struct cam_isp_context {
 	bool                                    fast_crop_en;
 	bool                                    dual_trigger;
 	bool                                    error_recovery_en;
+	bool                                    is_tpg_enabled;
 };
 
 /**

@@ -234,7 +234,7 @@ struct cam_ife_hw_mgr_ctx_flags {
 	bool   dump_on_error;
 	bool   is_aeb_mode;
 	bool   rdi_lcr_en;
-	bool   sys_cache_usage[CAM_LLCC_MAX];
+	bool   sys_cache_usage[CAM_LLCC_SMALL_2 + 1];
 	bool   hybrid_acquire;
 	bool   secure_mode;
 	bool   is_independent_crm_mode;
@@ -504,7 +504,7 @@ struct cam_isp_bus_hw_caps {
  * @scid:                    Cache slice ID
  */
 struct cam_isp_sys_cache_info {
-	enum cam_sys_cache_config_types type;
+	uint32_t                        type;
 	int32_t                         scid;
 };
 
@@ -580,7 +580,7 @@ struct cam_ife_hw_mgr {
 	struct cam_ife_hw_mgr_debug      debug_cfg;
 	struct cam_isp_bus_hw_caps       isp_bus_caps;
 	struct cam_isp_hw_path_port_map  path_port_map;
-	struct cam_isp_sys_cache_info    sys_cache_info[CAM_LLCC_MAX];
+	struct cam_isp_sys_cache_info    sys_cache_info[CAM_LLCC_SMALL_2 + 1];
 	uint32_t                         num_caches_found;
 	uint32_t                         phy_ref_cnt[CAM_IFE_MAX_PHY_ID + 1];
 	uint32_t                         sec_phy_ref_cnt[CAM_IFE_MAX_PHY_ID + 1];

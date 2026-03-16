@@ -108,3 +108,11 @@ config SPECTRA_SECURE_CAMNOC_REG_UPDATE
 	   feature that allows the HLOS to configure
 	   camnoc registers through HYP to avoid
 	   potential security issues.
+
+config SPECTRA_LLCC_STALING
+	bool "enable camera new LLCC staling feature"
+	help
+	  This will enable to call LLCC driver cache notification API
+	  and increment count API.
+	  Which will enable LLCC staling feature,based on counter
+	  invalidate the cache slice.

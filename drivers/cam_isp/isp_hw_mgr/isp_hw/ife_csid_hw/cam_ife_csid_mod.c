@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #include <linux/module.h>
@@ -24,6 +24,7 @@
 #include "cam_ife_csid636.h"
 #include "cam_ife_csid736.h"
 #include "cam_ife_csid634.h"
+#include "cam_ife_csid634_110.h"
 
 #define CAM_CSID_DRV_NAME                    "csid"
 
@@ -103,6 +104,12 @@ static struct cam_ife_csid_core_info cam_ife_csid634_hw_info = {
 
 };
 
+static struct cam_ife_csid_core_info cam_ife_csid634_110_hw_info = {
+	.csid_reg = &cam_ife_csid_634_110_reg_info,
+	.sw_version  = CAM_IFE_CSID_VER_2_0,
+
+};
+
 static const struct of_device_id cam_ife_csid_dt_match[] = {
 
 	{
@@ -164,6 +171,10 @@ static const struct of_device_id cam_ife_csid_dt_match[] = {
 	{
 		.compatible = "qcom,csid634",
 		.data = &cam_ife_csid634_hw_info,
+	},
+	{
+		.compatible = "qcom,csid634_110",
+		.data = &cam_ife_csid634_110_hw_info,
 	},
 	{},
 };

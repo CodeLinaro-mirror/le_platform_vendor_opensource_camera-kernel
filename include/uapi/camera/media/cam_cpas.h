@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only WITH Linux-syscall-note */
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #ifndef __UAPI_CAM_CPAS_H__
@@ -76,6 +76,41 @@
 #define CAM_NO_COHERENCY              1
 #define CAM_DMA_COHERENT              2
 #define CAM_DMA_COHERENT_HINT_CACHED  3
+
+/* Total number of sys cache */
+#define CAM_NUM_SYS_CACHE    20
+
+/* sys cache type */
+#define CAM_LLCC_SMALL_1                   0
+#define CAM_LLCC_SMALL_2                   1
+#define CAM_LLCC_LARGE_1                   2
+#define CAM_LLCC_LARGE_2                   3
+#define CAM_LLCC_LARGE_3                   4
+#define CAM_LLCC_LARGE_4                   5
+#define CAM_LLCC_OFE_IP                    6
+#define CAM_LLCC_IPE_RT_IP                 7
+#define CAM_LLCC_IPE_SRT_IP                8
+#define CAM_LLCC_IPE_RT_RF                 9
+#define CAM_LLCC_IPE_SRT_RF                10
+#define CAM_LLCC_IPE_SRT_STRIPE_OVERLAP    11
+#define CAM_LLCC_IPE_RT_STRIPE_OVERLAP     12
+#define CAM_LLCC_OFE_STRIPE_OVERLAP        13
+#define CAM_LLCC_IPE_TO_VIDEO              14
+#define CAM_LLCC_IPE_TO_CSC                15
+
+/* cam sys cache llcc staling mode */
+#define CAM_LLCC_STALING_MODE_CAPACITY    1
+#define CAM_LLCC_STALING_MODE_NOTIFY      2
+
+
+/* cam sys cache operating type */
+#define CAM_LLCC_NOTIFY_STALING_EVICT         1
+#define CAM_LLCC_NOTIFY_STALING_FORGET        2
+
+/* cam cpas query type */
+#define CAM_CPAS_QUERY_BLOB_BASE       CAM_COMMON_QUERY_BLOB_END
+#define CAM_CPAS_QUERY_BLOB_V4        (CAM_CPAS_QUERY_BLOB_BASE + 1)
+#define CAM_CPAS_QUERY_BLOB_SYSCACHE  (CAM_CPAS_QUERY_BLOB_BASE + 2)
 
 /**
  * struct cam_cpas_fuse_value - CPAS fuse value
@@ -180,6 +215,38 @@ struct cam_cpas_query_cap_v4 {
 };
 
 /**
+ * struct cam_cpas_sys_cache_cap - sys cache payload information
+ *
+ * @version         : struct version
+ * @scid_id         : sys cache id
+ * @scid_num        : sys cache number
+ * @concur_usage    : concurrent usage
+ *
+ */
+struct cam_cpas_sys_cache_cap {
+	__u32                      version;
+	__u32                      scid_id;
+	__u32                      scid_num;
+	__u32                      concur_usage;
+	__u32                      num_valid_params;
+	__u32                      valid_param_mask;
+	__u32                      params[10];
+};
+
+/**
+ * struct cam_cpas_sys_cache_query - cache query capability payload
+ *
+ * @num_cache         : number of cache
+ * @reserved          : reserved paramas
+ * @sys_cache_cap     : information of sys cache
+ */
+struct cam_cpas_sys_cache_query {
+	__u32                             num_cache;
+	__u32                             reserved;
+	struct cam_cpas_sys_cache_cap     sys_cache_cap[CAM_NUM_SYS_CACHE];
+};
+
+/**
  * struct cam_axi_per_path_bw_vote - Per path bandwidth vote information
  *
  * @usage_data               client usage data (left/right/rdi)
@@ -202,6 +269,51 @@ struct cam_axi_per_path_bw_vote {
 	__u64                      mnoc_ib_bw;
 	__u64                      ddr_ab_bw;
 	__u64                      ddr_ib_bw;
+};
+
+/**
+ * struct cam_sys_cache_config - sys cache config information
+ *
+ * @version                struct version
+ * @scid_id                cache scid id
+ * @activate               sys cache need to activate or not
+ * @deactivate             to deactivate any specific sys cache
+ * @staling_distance       staling distance used for notification
+ * @llcc_staling_mode      staling mode evict/forget
+ * @llcc_staling_op_type   operation type capacity/notify
+ * @change_params          this parameter to tell param change needed or not
+ * @num_valid_params:      Number of valid params
+ * @valid_param_mask:      Valid param mask
+ * @params:                params
+ */
+struct cam_sys_cache_config {
+	__u32                       version;
+	__u32                       scid_id;
+	__u32                       activate;
+	__u32                       deactivate;
+	__u32                       staling_distance;
+	__s32                       llcc_staling_mode;
+	__s32                       llcc_staling_op_type;
+	__u32                       change_params;
+	__u32                       num_valid_params;
+	__u32                       valid_param_mask;
+	__u32                       params[6];
+};
+
+/**
+ * struct cam_sys_cache_config_request - sys cache config request
+ *
+ * @num:                   num of cache
+ * @reserved:              reserved params
+ * @sys_cache_config:      sys cache config data
+ */
+struct cam_sys_cache_config_request {
+	__u32                       num;
+	__u32                       reserved;
+	union {
+		struct cam_sys_cache_config sys_cache_config[1];
+		__DECLARE_FLEX_ARRAY(struct cam_sys_cache_config, sys_cache_config_flex);
+	};
 };
 
 #endif /* __UAPI_CAM_CPAS_H__ */

@@ -131,6 +131,15 @@ int cam_synx_obj_import_dma_fence(const char *name, uint32_t flags, void *fence,
 int cam_synx_obj_release(struct cam_synx_obj_release_params *release_params);
 
 /**
+ * @brief Signal a batch of synx objects
+ *
+ * @param hwfence_info : Synx objects signal info
+ *
+ * @return 0 upon success, negative value otherwise
+ */
+int cam_synx_obj_batch_signal(struct cam_sync_hw_fence_res_info  *hwfence_info);
+
+/**
  * @brief Release a batch of synx objects
  *
  * @param hwfence_info : Synx objects release info

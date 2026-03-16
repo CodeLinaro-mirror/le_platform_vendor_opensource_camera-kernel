@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #include <linux/module.h>
@@ -19,6 +19,7 @@
 #include "cam_vfe636.h"
 #include "cam_vfe736.h"
 #include "cam_vfe634.h"
+#include "cam_vfe634_110.h"
 #include "cam_vfe_lite17x.h"
 #include "cam_vfe_lite48x.h"
 #include "cam_vfe_lite65x.h"
@@ -27,6 +28,7 @@
 #include "cam_vfe_lite68x.h"
 #include "cam_vfe_lite78x.h"
 #include "cam_vfe_lite634.h"
+#include "cam_vfe_lite634_110.h"
 #include "cam_vfe_hw_intf.h"
 #include "cam_vfe_core.h"
 #include "cam_vfe_dev.h"
@@ -90,6 +92,10 @@ static const struct of_device_id cam_vfe_dt_match[] = {
 		.data = &cam_vfe634_hw_info,
 	},
 	{
+		.compatible = "qcom,vfe634_110",
+		.data = &cam_vfe634_110_hw_info,
+	},
+	{
 		.compatible = "qcom,vfe-lite170",
 		.data = &cam_vfe_lite17x_hw_info,
 	},
@@ -136,6 +142,10 @@ static const struct of_device_id cam_vfe_dt_match[] = {
 	{
 		.compatible = "qcom,vfe-lite634",
 		.data = &cam_vfe_lite634_hw_info,
+	},
+	{
+		.compatible = "qcom,vfe-lite634_110",
+		.data = &cam_vfe_lite634_110_hw_info,
 	},
 	{}
 };

@@ -143,6 +143,27 @@ struct cam_sync_signal_param {
 	void       *fh;
 };
 
+
+/**
+ * @brief: Wrapper function to signal and release batch of pending fences
+ *
+ * @param hwfence_info : struct to hold information of fences which need
+ *                       to be signaled and released
+ *
+ * @return Status of operation. Zero in case of success.
+ */
+int cam_sync_release_pending_fences(struct cam_sync_hw_fence_res_info *hwfence_info);
+
+/**
+ * @brief: Signals a batch of fences
+ *
+ * @param hwfence_info : struct to hold information of fences which need
+ *                       to be signaled
+ *
+ * @return Status of operation. Zero in case of success.
+ */
+int cam_sync_signal_batch_fences(struct cam_sync_hw_fence_res_info *hwfence_info);
+
 /**
  * @brief: Releases a batch of fences
  *

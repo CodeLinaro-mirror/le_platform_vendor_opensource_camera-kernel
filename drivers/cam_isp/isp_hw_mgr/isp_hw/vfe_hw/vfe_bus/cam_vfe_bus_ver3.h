@@ -485,6 +485,7 @@ struct cam_vfe_bus_ver3_wm_resource_data {
 	uint32_t             height;
 	uint32_t             stride;
 	uint32_t             format;
+	uint32_t             image_offset;
 	enum cam_vfe_bus_ver3_packer_format pack_fmt;
 
 	uint32_t             burst_len;

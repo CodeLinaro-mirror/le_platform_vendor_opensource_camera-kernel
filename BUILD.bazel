@@ -172,3 +172,7 @@ config_setting(
     name = "neo61",
     flag_values = {":project_name": "neo61"},
 )
+config_setting(
+    name = "pikachu",
+    flag_values = {":project_name": "pikachu"},
+)

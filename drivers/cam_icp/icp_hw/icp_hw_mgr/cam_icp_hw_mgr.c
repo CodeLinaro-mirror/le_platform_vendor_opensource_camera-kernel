@@ -87,6 +87,8 @@ static int cam_icp_mgr_restart_icp(struct cam_icp_hw_mgr *hw_mgr);
 
 #define ICP_NUM_MEM_REGIONS_FOR_GLOBAL_CNTR 1
 
+#define ICP_NUM_MEM_REGIONS_FOR_LLCC 1
+
 static int cam_icp_dump_io_cfg(struct cam_icp_hw_ctx_data *ctx_data,
 	int32_t buf_handle, uint32_t size)
 {
@@ -1794,6 +1796,56 @@ static int cam_icp_update_cpas_vote(struct cam_icp_hw_mgr *hw_mgr,
 	return rc;
 }
 
+static void cam_icp_cpas_reset_sys_cache(
+	struct cam_icp_hw_ctx_data *ctx_data)
+{
+	int i;
+	struct cam_icp_sys_cache_cfg *sys_cache_cfg;
+
+	sys_cache_cfg = &ctx_data->sys_cache_cfg;
+	for (i = 0; i < sys_cache_cfg->num; i++) {
+		if (sys_cache_cfg->scid_cfg[i].activated)
+			CAM_ERR(CAM_ICP, "probably scid = %d  deactivation failed",
+				sys_cache_cfg->scid_cfg[i].scid_id);
+
+		sys_cache_cfg->scid_cfg[i].scid_id = 0;
+		sys_cache_cfg->scid_cfg[i].staling_distance = 0;
+		sys_cache_cfg->scid_cfg[i].llcc_staling_mode = 0;
+		sys_cache_cfg->scid_cfg[i].llcc_staling_op_type = 0;
+		sys_cache_cfg->scid_cfg[i].activated = false;
+	}
+
+	CAM_DBG(CAM_ICP, "resetting completed of total number of sys cache %d",
+		sys_cache_cfg->num);
+	sys_cache_cfg->num = 0;
+}
+
+static int cam_icp_cpas_deactivate_llcc(
+	struct cam_icp_hw_ctx_data *ctx_data)
+{
+	int i, rc = 0;
+	int rc1 = 0;
+	struct cam_icp_sys_cache_cfg *sys_cache_cfg;
+
+	sys_cache_cfg = &ctx_data->sys_cache_cfg;
+	for (i = 0; i < sys_cache_cfg->num; i++) {
+		if (sys_cache_cfg->scid_cfg[i].activated) {
+			rc = cam_cpas_deactivate_llcc(sys_cache_cfg->scid_cfg[i].scid_id);
+			if (rc) {
+				CAM_ERR(CAM_ICP,
+					"llcc staling activation is failing cache: %d rc = %d",
+					sys_cache_cfg->scid_cfg[i].scid_id, rc);
+				rc1 = rc;
+			} else {
+				sys_cache_cfg->scid_cfg[i].activated = false;
+			}
+		}
+	}
+
+	cam_icp_cpas_reset_sys_cache(ctx_data);
+	return rc1;
+}
+
 static int cam_icp_mgr_ipe_bps_clk_update(struct cam_icp_hw_mgr *hw_mgr,
 	struct cam_icp_hw_ctx_data *ctx_data, int idx)
 {
@@ -2983,6 +3035,10 @@ static void cam_icp_free_hfi_mem(void)
 
 	cam_smmu_unmap_phy_mem_region(icp_hw_mgr.iommu_hdl, CAM_SMMU_REGION_QDSS, 0);
 
+	if (icp_hw_mgr.fw_based_sys_caching)
+		cam_smmu_unmap_phy_mem_region(icp_hw_mgr.iommu_hdl, CAM_SMMU_REGION_DEVICE,
+			CAM_SMMU_SUBREGION_LLCC_REGISTER);
+
 	/* Skip freeing if not mapped */
 	if (icp_hw_mgr.synx_signaling_en) {
 		cam_smmu_unmap_phy_mem_region(icp_hw_mgr.iommu_hdl, CAM_SMMU_REGION_FWUNCACHED,
@@ -3126,6 +3182,29 @@ static int cam_icp_allocate_qdss_mem(void)
 	icp_hw_mgr.hfi_mem.qdss_buf.len = len;
 	icp_hw_mgr.hfi_mem.qdss_buf.iova = iova;
 	icp_hw_mgr.hfi_mem.qdss_buf.smmu_hdl = icp_hw_mgr.iommu_hdl;
+
+	CAM_DBG(CAM_ICP, "iova: %llx, len: %zu", iova, len);
+
+	return rc;
+}
+
+static int cam_icp_allocate_llcc_register_mem(struct cam_icp_hw_mgr *hw_mgr)
+{
+	int rc;
+	size_t len;
+	dma_addr_t iova;
+
+	rc = cam_smmu_map_phy_mem_region(hw_mgr->iommu_hdl,
+		CAM_SMMU_REGION_DEVICE,
+		CAM_SMMU_SUBREGION_LLCC_REGISTER, &iova, &len);
+	if (rc) {
+		CAM_ERR(CAM_ICP, "Failed in alloc llcc mem rc %d", rc);
+		return rc;
+	}
+
+	hw_mgr->hfi_mem.llcc_reg.len = len;
+	hw_mgr->hfi_mem.llcc_reg.iova = iova;
+	hw_mgr->hfi_mem.llcc_reg.smmu_hdl = hw_mgr->iommu_hdl;
 
 	CAM_DBG(CAM_ICP, "iova: %llx, len: %zu", iova, len);
 
@@ -3521,10 +3600,29 @@ static int cam_icp_allocate_hfi_mem(void)
 	rc = cam_smmu_get_region_info(icp_hw_mgr.iommu_hdl,
 		CAM_SMMU_REGION_DEVICE, &icp_hw_mgr.hfi_mem.device);
 	if (!rc) {
+		if (icp_hw_mgr.fw_based_sys_caching) {
+			rc = cam_icp_allocate_llcc_register_mem(&icp_hw_mgr);
+			if (rc) {
+				CAM_ERR(CAM_ICP, "Unable to allocate llcc memory rc %d", rc);
+				if (fwuncached_region_exists) {
+					cam_mem_mgr_free_memory_region(
+						&icp_hw_mgr.hfi_mem.fw_uncached_generic);
+					goto qtbl_alloc_failed;
+				} else {
+					goto get_io_mem_failed;
+				}
+			}
+		}
+
 		/* Allocate sync global mem & hwmutex for IPC */
 		if (icp_hw_mgr.synx_signaling_en) {
 			rc = cam_icp_allocate_mem_for_fence_signaling();
 			if (rc) {
+				if (icp_hw_mgr.fw_based_sys_caching) {
+					cam_smmu_unmap_phy_mem_region(icp_hw_mgr.iommu_hdl,
+						CAM_SMMU_REGION_DEVICE,
+						CAM_SMMU_SUBREGION_LLCC_REGISTER);
+				}
 				if (fwuncached_region_exists) {
 					cam_mem_mgr_free_memory_region(
 						&icp_hw_mgr.hfi_mem.fw_uncached_generic);
@@ -3538,6 +3636,11 @@ static int cam_icp_allocate_hfi_mem(void)
 		/* Allocate global cntr mem */
 		rc = cam_icp_allocate_device_global_cnt_mem();
 		if (rc) {
+			if (icp_hw_mgr.fw_based_sys_caching) {
+				cam_smmu_unmap_phy_mem_region(icp_hw_mgr.iommu_hdl,
+					CAM_SMMU_REGION_DEVICE,
+					CAM_SMMU_SUBREGION_LLCC_REGISTER);
+			}
 			if (icp_hw_mgr.synx_signaling_en) {
 				cam_smmu_unmap_phy_mem_region(icp_hw_mgr.iommu_hdl,
 					CAM_SMMU_REGION_DEVICE,
@@ -3571,6 +3674,7 @@ static int cam_icp_allocate_hfi_mem(void)
 	}
 
 	return rc;
+
 get_io_mem_failed:
 	cam_mem_mgr_free_memory_region(&icp_hw_mgr.hfi_mem.sec_heap);
 sec_heap_alloc_failed:
@@ -4160,6 +4264,7 @@ static int cam_icp_mgr_release_ctx(struct cam_icp_hw_mgr *hw_mgr, int ctx_id)
 	cam_icp_mgr_abort_handle(&hw_mgr->ctx_data[ctx_id]);
 	cam_icp_mgr_destroy_handle(&hw_mgr->ctx_data[ctx_id]);
 	cam_icp_mgr_cleanup_ctx(&hw_mgr->ctx_data[ctx_id]);
+	cam_icp_cpas_deactivate_llcc(&hw_mgr->ctx_data[ctx_id]);
 
 	hw_mgr->ctx_data[ctx_id].fw_handle = 0;
 	hw_mgr->ctx_data[ctx_id].scratch_mem_size = 0;
@@ -4569,6 +4674,9 @@ static int cam_icp_mgr_send_memory_region_info(
 	if (hw_mgr->synx_signaling_en)
 		num_regions += ICP_NUM_MEM_REGIONS_FOR_SYNX;
 
+	if (hw_mgr->fw_based_sys_caching)
+		num_regions += ICP_NUM_MEM_REGIONS_FOR_LLCC;
+
 	payload_size = sizeof(struct hfi_cmd_prop) +
 		(sizeof(struct hfi_cmd_config_mem_regions)) +
 		(sizeof(struct hfi_cmd_mem_region_info) * (num_regions - 1));
@@ -4655,6 +4763,24 @@ static int cam_icp_mgr_send_memory_region_info(
 
 	CAM_DBG(CAM_ICP, "Global_cntr[0x%x:0x%x]",
 		hw_mgr->hfi_mem.global_cntr.iova, hw_mgr->hfi_mem.global_cntr.len);
+
+	if (hw_mgr->fw_based_sys_caching) {
+		/* Update ipc llcc mem */
+		region_info->region_info[region_info->num_valid_regions].region_id =
+			HFI_MEM_REGION_ID_LLCC_REGISTER;
+		region_info->region_info[region_info->num_valid_regions].region_type =
+			HFI_MEM_REGION_TYPE_DEVICE;
+		region_info->region_info[region_info->num_valid_regions].start_addr =
+			hw_mgr->hfi_mem.llcc_reg.iova;
+		region_info->region_info[region_info->num_valid_regions].size =
+			hw_mgr->hfi_mem.llcc_reg.len;
+
+		region_info->num_valid_regions++;
+
+		CAM_DBG(CAM_ICP,
+			"LLCC mem regions iova[0x%x:0x%x] len[0x%x:0x%x]",
+			hw_mgr->hfi_mem.llcc_reg.iova, hw_mgr->hfi_mem.llcc_reg.len);
+	}
 
 	CAM_DBG(CAM_ICP,
 		"Mem region property payload size: %zu num_regions: %u",
@@ -5521,6 +5647,102 @@ end:
 	return rc;
 }
 
+static bool cam_icp_sys_cache_scid_params_changed(
+	struct cam_icp_scid_cfg *current_info,
+	struct cam_sys_cache_config *blob_info)
+{
+	if ((current_info->staling_distance != blob_info->staling_distance) ||
+		(current_info->llcc_staling_op_type != blob_info->llcc_staling_op_type) ||
+		(current_info->llcc_staling_mode != blob_info->llcc_staling_mode))
+		return true;
+	else
+		return false;
+}
+
+static int cam_icp_llcc_sys_cache_config_util(
+	struct cam_icp_hw_ctx_data *ctx_data,
+	struct cam_icp_scid_cfg *current_info,
+	struct cam_sys_cache_config *blob_info, bool scid_match)
+{
+	int rc = 0;
+
+	if (!scid_match) {
+		current_info->scid_id = blob_info->scid_id;
+		current_info->staling_distance = blob_info->staling_distance;
+		current_info->llcc_staling_mode = blob_info->llcc_staling_mode;
+		current_info->llcc_staling_op_type = blob_info->llcc_staling_op_type;
+		current_info->activated = false;
+		ctx_data->sys_cache_cfg.num++;
+	}
+
+	CAM_DBG(CAM_ICP,
+		"scid_match = %d, current_info details scid_id = %d staling_distance = %d  staling_mode = %d op_type = %d activated = %d",
+		scid_match, current_info->scid_id, current_info->staling_distance,
+		current_info->llcc_staling_mode, current_info->llcc_staling_op_type,
+		current_info->activated);
+
+	if (blob_info->deactivate) {
+		if (current_info->activated) {
+			rc = cam_cpas_deactivate_llcc(current_info->scid_id);
+			if (rc) {
+				CAM_ERR(CAM_ICP,
+					"llcc activation is failing cache: %d rc = %d",
+					current_info->scid_id, rc);
+				goto end;
+			}
+			current_info->activated = false;
+			CAM_DBG(CAM_ICP, "llcc deactivate is success activated = %d",
+				current_info->activated);
+		} else {
+			CAM_ERR(CAM_ICP, "scid = %d already in deactivated state",
+				current_info->scid_id);
+		}
+	}
+
+	if (blob_info->change_params) {
+		if (!current_info->activated) {
+			current_info->scid_id = blob_info->scid_id;
+			current_info->staling_distance = blob_info->staling_distance;
+			current_info->llcc_staling_mode = blob_info->llcc_staling_mode;
+			current_info->llcc_staling_op_type =
+				blob_info->llcc_staling_op_type;
+			rc = cam_cpas_configure_staling_llcc(current_info->scid_id,
+				current_info->llcc_staling_mode,
+				current_info->llcc_staling_op_type,
+				current_info->staling_distance);
+			if (rc) {
+				CAM_ERR(CAM_ICP,
+					"llcc staling configuration is failing cache: %d mode %d op_type %d staling_distance %d",
+					current_info->scid_id, current_info->llcc_staling_mode,
+					current_info->llcc_staling_op_type,
+					current_info->staling_distance);
+				goto end;
+			}
+			CAM_DBG(CAM_ICP, "llcc configuration is success rc = %d change_params = %d",
+				rc, blob_info->change_params);
+		} else if (cam_icp_sys_cache_scid_params_changed(current_info, blob_info)) {
+			CAM_ERR(CAM_ICP, "configuration of llcc cache is failed scid = %d",
+				current_info->scid_id);
+		}
+	}
+
+	if (blob_info->activate && (!current_info->activated)) {
+		rc = cam_cpas_activate_llcc(current_info->scid_id);
+		if (rc) {
+			CAM_ERR(CAM_ICP,
+				"llcc staling activation is failing cache: %d",
+				current_info->scid_id);
+			goto end;
+		}
+		current_info->activated = true;
+		CAM_DBG(CAM_ICP, "llcc activation is success rc = %d activated = %d",
+				rc, current_info->activated);
+	}
+
+end:
+	return rc;
+}
+
 static int cam_icp_packet_generic_blob_handler(void *user_data,
 	uint32_t blob_type, uint32_t blob_size, uint8_t *blob_data)
 {
@@ -5531,11 +5753,14 @@ static int cam_icp_packet_generic_blob_handler(void *user_data,
 	struct cam_cmd_mem_regions *cmd_mem_regions;
 	struct icp_cmd_generic_blob *blob;
 	struct cam_icp_hw_ctx_data *ctx_data;
+	struct cam_sys_cache_config_request *sys_cache_blob_info;
+	struct cam_icp_sys_cache_cfg *sys_cache_cfg;
 	uint32_t index;
-	size_t io_buf_size, clk_update_size;
+	size_t io_buf_size, clk_update_size, scid_blob_size;
 	int rc = 0;
 	uintptr_t pResource;
-	uint32_t i = 0;
+	uint32_t i = 0, j;
+	bool scid_match;
 
 	if (!blob_data || (blob_size == 0)) {
 		CAM_ERR(CAM_ICP, "Invalid blob info %pK %d", blob_data,
@@ -5716,10 +5941,69 @@ static int cam_icp_packet_generic_blob_handler(void *user_data,
 		}
 		break;
 
+	case CAM_ICP_CMD_GENERIC_BLOB_SYSCACHE_CONFIG:
+		if (blob_size < sizeof(struct cam_sys_cache_config_request)) {
+			CAM_ERR(CAM_ICP, "%s: Mismatch blob size %d expected %lu",
+				ctx_data->ctx_id_string, blob_size,
+				sizeof(struct cam_sys_cache_config_request));
+			return -EINVAL;
+		}
+
+		sys_cache_blob_info = (struct cam_sys_cache_config_request *)blob_data;
+		scid_blob_size = sizeof(struct cam_sys_cache_config_request) +
+			((sys_cache_blob_info->num - 1) *
+			sizeof(struct cam_sys_cache_config));
+
+		if (blob_size < scid_blob_size) {
+			CAM_ERR(CAM_ICP, "%s: Invalid blob size: %u",
+				ctx_data->ctx_id_string, blob_size);
+			return -EINVAL;
+		}
+
+		sys_cache_cfg = &ctx_data->sys_cache_cfg;
+
+		CAM_DBG(CAM_ICP, "num of blob cache config = %d sys cache config = %d",
+			sys_cache_blob_info->num, sys_cache_cfg->num);
+
+		for (j = 0; j < sys_cache_blob_info->num; j++) {
+			scid_match = false;
+			for (i = 0; i < sys_cache_cfg->num; i++) {
+				if (sys_cache_cfg->scid_cfg[i].scid_id ==
+					sys_cache_blob_info->sys_cache_config_flex[j].scid_id) {
+					scid_match = true;
+					CAM_DBG(CAM_ICP,
+						"matched scid = %d, old param: i = %d, op_type: %d mode: %d staling distance = %d",
+						sys_cache_cfg->scid_cfg[i].scid_id, i,
+						sys_cache_cfg->scid_cfg[i].llcc_staling_op_type,
+						sys_cache_cfg->scid_cfg[i].llcc_staling_mode,
+						sys_cache_cfg->scid_cfg[i].staling_distance);
+					CAM_DBG(CAM_ICP,
+						"new param: j = %d, op_type: %d mode: %d staling distance = %d",
+						j, sys_cache_blob_info->sys_cache_config_flex[j]
+							.llcc_staling_op_type,
+						sys_cache_blob_info->sys_cache_config_flex[j]
+							.llcc_staling_mode,
+						sys_cache_blob_info->sys_cache_config_flex[j]
+							.staling_distance);
+					break;
+				}
+			}
+
+			rc = cam_icp_llcc_sys_cache_config_util(
+				ctx_data, &sys_cache_cfg->scid_cfg[i],
+				&sys_cache_blob_info->sys_cache_config_flex[j], scid_match);
+			if (rc) {
+				CAM_ERR(CAM_ICP, "%d: llcc cache configuration failed %d",
+					sys_cache_blob_info->sys_cache_config_flex[j].scid_id, rc);
+			}
+		}
+		break;
+
 	default:
 		CAM_WARN(CAM_ICP, "Invalid blob type %d", blob_type);
 		break;
 	}
+
 	return rc;
 }
 
@@ -6131,6 +6415,7 @@ static int cam_icp_mgr_flush_all(struct cam_icp_hw_ctx_data *ctx_data,
 	bool clear_in_resource = false;
 
 	hfi_frame_process = &ctx_data->hfi_frame_process;
+	cam_icp_cpas_deactivate_llcc(ctx_data);
 	for (idx = 0; idx < CAM_FRAME_CMD_MAX; idx++) {
 		if (!hfi_frame_process->request_id[idx])
 			continue;
@@ -7296,6 +7581,7 @@ static int cam_icp_mgr_alloc_devs(struct device_node *np)
 	icp_hw_mgr.icp_pc_flag = of_property_read_bool(np, "icp_pc_en");
 	icp_hw_mgr.icp_use_pil = of_property_read_bool(np, "icp_use_pil");
 	icp_hw_mgr.synx_signaling_en = of_property_read_bool(np, "synx_signaling_en");
+	icp_hw_mgr.fw_based_sys_caching = cam_cpas_is_fw_based_sys_caching_supported();
 
 	return 0;
 
@@ -7648,6 +7934,8 @@ void cam_icp_hw_mgr_deinit(void)
 	cam_icp_mgr_destroy_wq();
 	cam_icp_mgr_free_devs();
 	mutex_destroy(&icp_hw_mgr.hw_mgr_mutex);
-	for (i = 0; i < CAM_ICP_CTX_MAX; i++)
+	for (i = 0; i < CAM_ICP_CTX_MAX; i++) {
 		mutex_destroy(&icp_hw_mgr.ctx_data[i].ctx_mutex);
+		cam_icp_cpas_deactivate_llcc(&icp_hw_mgr.ctx_data[i]);
+	}
 }

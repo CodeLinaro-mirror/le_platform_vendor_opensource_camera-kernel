@@ -562,6 +562,7 @@ int cam_vfe_process_cmd(void *hw_priv, uint32_t cmd_type,
 	case CAM_ISP_HW_CMD_GET_SESSION_COOKIE:
 	case CAM_ISP_HW_CMD_GET_SRC_GRP:
 	case CAM_ISP_HW_CMD_CHECK_AND_CLEAR_BUS_VIOLATION:
+	case CAM_ISP_HW_CMD_WM_CONFIG_UPDATE_V2:
 		rc = core_info->vfe_bus->hw_ops.process_cmd(
 			core_info->vfe_bus->bus_priv, cmd_type, cmd_args,
 			arg_size);

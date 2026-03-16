@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #ifndef _CAM_CPAS_API_H_
@@ -178,6 +178,7 @@ enum cam_cpas_hw_version {
 	CAM_CPAS_TITAN_636_V100 = 0x636100,
 	CAM_CPAS_TITAN_736_V100 = 0x736100,
 	CAM_CPAS_TITAN_634_V100 = 0x634100,
+	CAM_CPAS_TITAN_634_V110 = 0x634110,
 	CAM_CPAS_TITAN_MAX
 };
 
@@ -245,16 +246,6 @@ enum cam_camnoc_irq_type {
 	CAM_CAMNOC_IRQ_IPE_BPS_UBWC_DECODE_ERROR,
 	CAM_CAMNOC_IRQ_IPE_BPS_UBWC_ENCODE_ERROR,
 	CAM_CAMNOC_IRQ_AHB_TIMEOUT,
-};
-
-
-/**
- * enum cam_sys_cache_config_types - Enum for camera llc's
- */
-enum cam_sys_cache_config_types {
-	CAM_LLCC_SMALL_1 = 0,
-	CAM_LLCC_SMALL_2 = 1,
-	CAM_LLCC_MAX = 2,
 };
 
 /**
@@ -802,7 +793,7 @@ int cam_cpas_notify_event(const char *identifier_string,
  * @return slice id, -1 for invalid id.
  *
  */
-int cam_cpas_get_scid(enum cam_sys_cache_config_types  type);
+int cam_cpas_get_scid(uint32_t        type);
 
 
 /**
@@ -825,7 +816,7 @@ int cam_cpas_get_global_timer_info(struct cam_cpas_global_timer_info *mem_info);
  * @return 0 for success.
  *
  */
-int cam_cpas_activate_llcc(enum cam_sys_cache_config_types type);
+int cam_cpas_activate_llcc(uint32_t type);
 
 /**
  * cam_cpas_deactivate_llcc()
@@ -837,7 +828,46 @@ int cam_cpas_activate_llcc(enum cam_sys_cache_config_types type);
  * @return 0 for success.
  *
  */
-int cam_cpas_deactivate_llcc(enum cam_sys_cache_config_types type);
+int cam_cpas_deactivate_llcc(uint32_t type);
+
+/**
+ * cam_cpas_configure_staling_llcc()
+ *
+ * @brief:             Configure cache staling mode by setting the
+ *                     staling_mode and corresponding params
+ *
+ * @type:              Cache type, For example cache types are
+ *                     CAM_LLCC_SMALL_1/CAM_LLCC_SMALL_2/CAM_LLCC_IPE_SRT_IP/CAM_LLCC_IPE_RT_RF/...
+ * @mode_param:        camera llcc's stalling mode params, possible allowed values
+ *                     CAM_LLCC_STALING_MODE_CAPACITY/CAM_LLCC_STALING_MODE_NOTIFY
+ * @operation_type:    cache operation type, possible allowed values are
+ *                     CAM_LLCC_NOTIFY_STALING_EVICT/CAM_LLCC_NOTIFY_STALING_FORGET
+ * @stalling_distance: llcc sys cache stalling distance
+ *
+ * @return 0 for success.
+ *
+ */
+int cam_cpas_configure_staling_llcc(
+	uint32_t type,
+	uint32_t mode_param,
+	uint32_t operation_type,
+	uint32_t staling_distance);
+
+/**
+ * cam_cpas_notif_increment_staling_counter()
+ *
+ * @brief: This will increment the stalling counter
+ *         depends on what operation it does.
+ *         The operation mode what we have setup in other function.
+ *
+ * @type:  Cache type, For example cache types are
+ *         CAM_LLCC_SMALL_1/CAM_LLCC_SMALL_2/CAM_LLCC_IPE_SRT_IP/CAM_LLCC_IPE_RT_RF/...
+ *
+ * @return 0 for success.
+ *
+ */
+int cam_cpas_notif_increment_staling_counter(
+	uint32_t type);
 
 /**
  * cam_cpas_dump_camnoc_buff_fill_info()
@@ -877,5 +907,22 @@ int cam_cpas_gdsc_get_put(uint32_t sensor_index, bool enable);
  * @return 0 on Success
  */
 int cam_cpas_set_ife_core_clk_gate_value(uint32_t hw_index, bool is_power_on);
+
+/**
+ * cam_cpas_is_notif_staling_supported()
+ *
+ * @brief: API to check stalling feature is supported or not
+ *
+ * @return rue if supported
+ */
+bool cam_cpas_is_notif_staling_supported(void);
+
+/**
+ * cam_cpas_is_fw_based_sys_caching_supported()
+ *
+ * @brief: API to return true if feature is supported
+ * @return true or false
+ */
+bool cam_cpas_is_fw_based_sys_caching_supported(void);
 
 #endif /* _CAM_CPAS_API_H_ */

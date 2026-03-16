@@ -774,7 +774,8 @@ static int cam_res_mgr_parse_dt_shared_gpio(
 		return -EINVAL;
 	}
 
-	dt->num_shared_gpio = of_gpio_named_count(of_node, "gpios-shared");
+	dt->num_shared_gpio = of_count_phandle_with_args(dev->of_node,
+		"gpios-shared", "#gpio-cells");
 	if (dt->num_shared_gpio <=  0) {
 		CAM_DBG(CAM_RES, "Cannot find any shared gpios");
 		return -ENODEV;
@@ -791,7 +792,13 @@ static int cam_res_mgr_parse_dt_shared_gpio(
 	CAM_DBG(CAM_RES, "gpios-shared count: %d", dt->num_shared_gpio);
 
 	for (i = 0; i < dt->num_shared_gpio; i++) {
-		dt->shared_gpio[i] = of_get_named_gpio_flags(of_node, "gpios-shared", i, NULL);
+		dt->shared_gpio[i] = of_get_named_gpio(dev->of_node,
+			"gpios-shared", i);
+		if (dt->shared_gpio[i] < 0) {
+			CAM_ERR(CAM_RES, "Failed to get shared gpio at index %d, rc = %d",
+				i, dt->shared_gpio[i]);
+			return -EINVAL;
+		}
 		CAM_DBG(CAM_RES, "gpios-shared[%d] = %d", i, dt->shared_gpio[i]);
 	}
 
@@ -807,8 +814,9 @@ static int cam_res_mgr_parse_dt_shared_pinctrl_gpio(
 	struct cam_res_mgr_dt *dt = &cam_res->dt;
 
 	of_node = dev->of_node;
-	dt->num_shared_pctrl_gpio = of_gpio_named_count(of_node,
-		"gpios-shared-pinctrl");
+	dt->num_shared_pctrl_gpio = of_count_phandle_with_args(dev->of_node,
+		"gpios-shared-pinctrl", "#gpio-cells");
+
 	if (dt->num_shared_pctrl_gpio <= 0) {
 		CAM_DBG(CAM_RES,
 			"Not found any shared pinctrl res");
@@ -837,8 +845,13 @@ static int cam_res_mgr_parse_dt_shared_pinctrl_gpio(
 		"gpios-shared-pinctrl count: %d", dt->num_shared_pctrl_gpio);
 
 	for (i = 0; i < dt->num_shared_pctrl_gpio; i++) {
-		dt->shared_pctrl_gpio[i] = of_get_named_gpio_flags(of_node,
-				"gpios-shared-pinctrl", i , NULL);
+		dt->shared_pctrl_gpio[i] = of_get_named_gpio(dev->of_node,
+			"gpios-shared-pinctrl", i);
+		if (dt->shared_pctrl_gpio[i] < 0) {
+			CAM_ERR(CAM_RES, "Failed to get shared pinctrl gpio at index %d, rc = %d",
+				i, dt->shared_pctrl_gpio[i]);
+			return -EINVAL;
+		}
 		CAM_DBG(CAM_RES, "gpios-shared-pinctrl[%d] = %d", i, dt->shared_pctrl_gpio[i]);
 	}
 

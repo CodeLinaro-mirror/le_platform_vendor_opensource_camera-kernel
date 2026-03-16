@@ -22,6 +22,14 @@
 #include "cam_ois_dev.h"
 #include "cam_sensor_dev.h"
 
+#if (KERNEL_VERSION(6, 12, 0) <= LINUX_VERSION_CODE)
+#define CAM_GET_CLIENT_ENV_OBJECT(env) get_client_env_object(env)
+#define CAM_TRUSTED_CAMERA_UID CTrustedCameraDriver_UID
+#else
+#define CAM_GET_CLIENT_ENV_OBJECT(env) smci_get_client_env_object(env)
+#define CAM_TRUSTED_CAMERA_UID CTRUSTEDCAMERADRIVER_UID
+#endif
+
 int cam_smmu_fetch_csf_version(struct cam_csf_version *csf_version)
 {
 #ifdef CONFIG_SECURE_CAMERA_25
@@ -140,14 +148,14 @@ int cam_csiphy_notify_secure_mode(struct csiphy_device *csiphy_dev,
 			return -EINVAL;
 		}
 
-		rc = smci_get_client_env_object(&client_env);
+		rc = CAM_GET_CLIENT_ENV_OBJECT(&client_env);
 		if (rc) {
 			CAM_ERR(CAM_CSIPHY, "Failed getting mink env object, rc: %d", rc);
 			rc = -EINVAL;
 			return rc;
 		}
 
-		rc = smci_clientenv_open(client_env, CTRUSTEDCAMERADRIVER_UID, &sc_object);
+		rc = smci_clientenv_open(client_env, CAM_TRUSTED_CAMERA_UID, &sc_object);
 		if (rc) {
 			CAM_ERR(CAM_CSIPHY, "Failed getting mink sc_object, rc: %d", rc);
 			rc = -EINVAL;
@@ -214,13 +222,13 @@ int cam_isp_notify_secure_unsecure_port(struct port_info *sec_unsec_port_info)
 	int rc = 0;
 	struct smci_object client_env, sc_object;
 
-	rc = smci_get_client_env_object(&client_env);
+	rc = CAM_GET_CLIENT_ENV_OBJECT(&client_env);
 	if (rc) {
 		CAM_ERR(CAM_ISP, "Failed getting mink env object, rc: %d", rc);
 		return rc;
 	}
 
-	rc = smci_clientenv_open(client_env, CTRUSTEDCAMERADRIVER_UID, &sc_object);
+	rc = smci_clientenv_open(client_env, CAM_TRUSTED_CAMERA_UID, &sc_object);
 	if (rc) {
 		CAM_ERR(CAM_ISP, "Failed getting mink sc_object, rc: %d", rc);
 		goto release_client;
@@ -308,13 +316,13 @@ int cam_isp_notify_secure_unsecure_port(struct port_info *sec_unsec_port_info)
 	int rc = 0;
 	struct smci_object client_env, sc_object;
 
-	rc = smci_get_client_env_object(&client_env);
+	rc = CAM_GET_CLIENT_ENV_OBJECT(&client_env);
 	if (rc) {
 		CAM_ERR(CAM_ISP, "Failed getting mink env object, rc: %d", rc);
 		return rc;
 	}
 
-	rc = smci_clientenv_open(client_env, CTRUSTEDCAMERADRIVER_UID, &sc_object);
+	rc = smci_clientenv_open(client_env, CAM_TRUSTED_CAMERA_UID, &sc_object);
 	if (rc) {
 		CAM_ERR(CAM_ISP, "Failed getting mink sc_object, rc: %d", rc);
 		goto release_client;

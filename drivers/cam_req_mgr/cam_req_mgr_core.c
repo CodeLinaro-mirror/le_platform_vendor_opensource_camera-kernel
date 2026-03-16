@@ -21,6 +21,9 @@
 #include "cam_common_util.h"
 #include "cam_rpmsg.h"
 #include "cam_mem_mgr_api.h"
+#include <linux/notifier.h>
+#include <linux/gunyah/gh_common.h>
+#include <linux/gunyah/gh_vm.h>
 
 static struct cam_req_mgr_core_device *g_crm_core_dev;
 static struct cam_req_mgr_core_link g_links[MAXIMUM_LINKS_PER_SESSION];
@@ -4489,6 +4492,11 @@ int cam_req_mgr_fast_crop_sync_cmd(struct cam_req_mgr_fast_crop_sync *fast_crop_
 		cam_session->fast_crop_sync.offset, cam_session->fast_crop_sync.size,
 		cam_session->fast_crop_shared_buf_kmdvaddr);
 
+	mutex_unlock(&cam_session->lock);
+	mutex_unlock(&g_crm_core_dev->crm_lock);
+
+	return rc;
+
 put_cpu_buf:
 	cam_mem_put_cpu_buf(cam_session->fast_crop_sync.mem_hdl);
 end:
@@ -4712,6 +4720,19 @@ end:
 }
 
 /**
+ * cam_req_mgr_cb_get_qtvm_status()
+ *
+ * @brief   : Utility function to check qtvm status
+ *
+ * @return  : qtvm status
+ *
+ */
+static uint32_t cam_req_mgr_cb_get_qtvm_status(void)
+{
+	return g_crm_core_dev->qtvm_status;
+}
+
+/**
  * cam_req_mgr_cb_notify_trigger()
  *
  * @brief   : SOF received from device, sends trigger through workqueue
@@ -4856,7 +4877,63 @@ static struct cam_req_mgr_crm_cb cam_req_mgr_ops = {
 	.no_crm_notify_dev      = cam_req_mgr_no_crm_notify_devices,
 	.fast_crop_sync_utility = cam_req_mgr_cb_fast_crop_sync_utility,
 	.check_dual_trigger     = cam_req_mgr_no_crm_dual_trigger_check,
+	.get_qtvm_status        = cam_req_mgr_cb_get_qtvm_status,
 };
+
+static int __cam_req_mgr_link_setup(struct cam_req_mgr_core_link *link,
+	struct cam_req_mgr_connected_device *dev,
+	struct cam_req_mgr_core_dev_link_setup *link_data)
+{
+	int rc = 0;
+	struct cam_req_mgr_req_tbl *pd_tbl;
+
+	link_data->dev_hdl = dev->dev_hdl;
+
+	/* For unique pipeline delay table create request tracking table */
+	if (link->pd_mask & (1 << dev->dev_info.p_delay)) {
+		pd_tbl = __cam_req_mgr_find_pd_tbl(link->req.l_tbl, dev->dev_info.p_delay);
+		if (!pd_tbl) {
+			CAM_ERR(CAM_CRM, "pd %d tbl not found", dev->dev_info.p_delay);
+			rc = -ENXIO;
+			goto end;
+		}
+	} else {
+		pd_tbl = __cam_req_mgr_create_pd_tbl(dev->dev_info.p_delay);
+		if (pd_tbl == NULL) {
+			CAM_ERR(CAM_CRM, "create new pd tbl failed");
+			rc = -ENXIO;
+			goto end;
+		}
+		pd_tbl->pd = dev->dev_info.p_delay;
+		link->pd_mask |= (1 << pd_tbl->pd);
+		/* Add table to list and also sort list from max pd to lowest */
+		__cam_req_mgr_add_tbl_to_link(&link->req.l_tbl, pd_tbl);
+	}
+	link_data->trigger_id = -1;
+	if ((dev->dev_info.trigger_on) && (link->dual_trigger)) {
+		link_data->trigger_id = link->num_trigger_devices;
+		link->num_trigger_devices++;
+	}
+
+	/* Communicate with dev to establish the link */
+	rc = dev->ops->link_setup(link_data);
+	if (rc) {
+		CAM_ERR(CAM_CRM, "link_setup failed for dev %s, rc=%d", dev->dev_info.name, rc);
+		goto end;
+	}
+
+	dev->dev_bit = pd_tbl->dev_count++;
+	pd_tbl->dev_mask |= (1 << dev->dev_bit);
+	dev->pd_tbl = pd_tbl;
+	CAM_DBG(CAM_CRM, "dev_bit %u name %s pd %u mask %d", dev->dev_bit, dev->dev_info.name,
+		pd_tbl->pd, pd_tbl->dev_mask);
+	if (dev->dev_info.p_delay > link->max_delay)
+		link->max_delay = dev->dev_info.p_delay;
+	if (dev->dev_info.p_delay < link->min_delay)
+		link->min_delay = dev->dev_info.p_delay;
+end:
+	return rc;
+}
 
 /**
  * __cam_req_mgr_setup_link_info()
@@ -4875,7 +4952,7 @@ static int __cam_req_mgr_setup_link_info(struct cam_req_mgr_core_link *link,
 	int                                      rc = 0, i = 0, num_devices = 0;
 	struct cam_req_mgr_core_dev_link_setup   link_data;
 	struct cam_req_mgr_connected_device     *dev = NULL;
-	struct cam_req_mgr_req_tbl              *pd_tbl;
+	struct cam_req_mgr_connected_device     *ife_devs[CAM_CRM_MAX_IFE_DEV] = {0};
 	enum cam_pipeline_delay                  max_delay;
 	int                                     *dev_hdls, session_hdl;
 	struct cam_req_mgr_no_crm_handshake_data handshake;
@@ -4984,62 +5061,50 @@ static int __cam_req_mgr_setup_link_info(struct cam_req_mgr_core_link *link,
 		link_data.dual_trigger = true;
 	} else
 		link_data.dual_trigger = false;
-
 	num_trigger_devices = 0;
+	link->num_trigger_devices = 0;
 	for (i = 0; i < num_devices; i++) {
 		dev = &link->l_dev[i];
 		if (!dev)
 			continue;
-		link_data.dev_hdl = dev->dev_hdl;
+
 		/*
-		 * For unique pipeline delay table create request
-		 * tracking table
+		 * Ensuring link_hdl is updated for sensor before ife by doing ife link setup
+		 * after sensor link setup.
 		 */
-		if (link->pd_mask & (1 << dev->dev_info.p_delay)) {
-			pd_tbl = __cam_req_mgr_find_pd_tbl(link->req.l_tbl,
-				dev->dev_info.p_delay);
-			if (!pd_tbl) {
-				CAM_ERR(CAM_CRM, "pd %d tbl not found",
-					dev->dev_info.p_delay);
-				rc = -ENXIO;
-				goto error;
-			}
-		} else {
-			pd_tbl = __cam_req_mgr_create_pd_tbl(
-				dev->dev_info.p_delay);
-			if (pd_tbl == NULL) {
-				CAM_ERR(CAM_CRM, "create new pd tbl failed");
-				rc = -ENXIO;
-				goto error;
-			}
-			pd_tbl->pd = dev->dev_info.p_delay;
-			link->pd_mask |= (1 << pd_tbl->pd);
-			/*
-			 * Add table to list and also sort list
-			 * from max pd to lowest
-			 */
-			__cam_req_mgr_add_tbl_to_link(&link->req.l_tbl, pd_tbl);
-		}
-		dev->dev_bit = pd_tbl->dev_count++;
-		dev->pd_tbl = pd_tbl;
-		pd_tbl->dev_mask |= (1 << dev->dev_bit);
-		CAM_DBG(CAM_CRM, "dev_bit %u name %s pd %u mask %d",
-			dev->dev_bit, dev->dev_info.name, pd_tbl->pd,
-			pd_tbl->dev_mask);
-		link_data.trigger_id = -1;
-		if ((dev->dev_info.trigger_on) && (link->dual_trigger)) {
-			link_data.trigger_id = num_trigger_devices;
-			num_trigger_devices++;
+		if (dev->dev_info.dev_id == CAM_REQ_MGR_DEVICE_IFE) {
+			if (num_trigger_devices < CAM_CRM_MAX_IFE_DEV)
+				ife_devs[num_trigger_devices++] = dev;
+			else
+				CAM_ERR(CAM_CRM, "More IFE devices than supported on link 0x%x",
+					link->link_hdl);
+			continue;
 		}
 
-		/* Communicate with dev to establish the link */
-		dev->ops->link_setup(&link_data);
-
-		if (dev->dev_info.p_delay > link->max_delay)
-			link->max_delay = dev->dev_info.p_delay;
-		if (dev->dev_info.p_delay < link->min_delay)
-			link->min_delay = dev->dev_info.p_delay;
+		rc = __cam_req_mgr_link_setup(link, dev, &link_data);
+		if (rc) {
+			CAM_ERR(CAM_CRM, "link setup failed for link 0x%x name %s dev_hdl %d",
+				link->link_hdl, dev->dev_info.name, dev->dev_hdl);
+			goto error;
+		}
 	}
+
+	/* link setup for ife */
+	if (!num_trigger_devices) {
+		CAM_ERR(CAM_CRM, "IFE device not found in link: 0x%x", link->link_hdl);
+		rc = -EINVAL;
+		goto error;
+	}
+
+	for (i = 0; i < num_trigger_devices; i++) {
+		rc = __cam_req_mgr_link_setup(link, ife_devs[i], &link_data);
+		if (rc) {
+			CAM_ERR(CAM_CRM, "IFE link setup failed for link 0x%x name %s dev_hdl %d",
+				link->link_hdl, ife_devs[i]->dev_info.name, ife_devs[i]->dev_hdl);
+			goto error;
+		}
+	}
+
 	link->num_devs = num_devices;
 
 	/* Assign id for pd tables */
@@ -5600,6 +5665,7 @@ int cam_req_mgr_link_v3(struct cam_req_mgr_ver_info *link_info)
 	link->is_setting_period_valid = false;
 	link->curr_setting            = 0;
 	link->is_new_setting_available = false;
+	link->qtvm_wait_for_unlink = false;
 
 	mutex_unlock(&link->lock);
 	mutex_unlock(&g_crm_core_dev->crm_lock);
@@ -5649,6 +5715,11 @@ int cam_req_mgr_unlink(struct cam_req_mgr_unlink_info *unlink_info)
 			(!link) ? CAM_REQ_MGR_DEFAULT_HDL_VAL : link->link_hdl);
 		rc = -EINVAL;
 		goto done;
+	}
+	if (link->qtvm_wait_for_unlink) {
+		if (!(--g_crm_core_dev->qtvm_crash_secure_link_count))
+			complete(&g_crm_core_dev->qtvm_crash_complete);
+		link->qtvm_wait_for_unlink = false;
 	}
 	mutex_lock(&cam_session->lock);
 	rc = __cam_req_mgr_unlink(cam_session, link);
@@ -6356,6 +6427,9 @@ int cam_req_mgr_core_device_init(void)
 	}
 	cam_common_register_mini_dump_cb(cam_req_mgr_core_mini_dump_cb,
 		"CAM_CRM");
+	g_crm_core_dev->qtvm_crash_secure_link_count = 0;
+	g_crm_core_dev->qtvm_status = CRM_QTVM_STATUS_POWERUP;
+	init_completion(&g_crm_core_dev->qtvm_crash_complete);
 
 	return 0;
 }
@@ -6375,3 +6449,184 @@ int cam_req_mgr_core_device_deinit(void)
 
 	return 0;
 }
+
+
+/**
+ * crm_notify_qtvm_crash_event_on_link()
+ * @brief: sends v4l2 event to userspace to notify about GH_VM events.
+ *
+ * @return   : 0 on success, negative in case of failure
+ */
+int crm_notify_qtvm_crash_event_on_link(struct cam_req_mgr_core_link *link)
+{
+	int rc = 0;
+	struct cam_req_mgr_message  req_msg;
+	struct cam_req_mgr_core_session *session = NULL;
+
+
+	session = (struct cam_req_mgr_core_session *)link->parent;
+
+	/* send  v4l2 event to notify umd about qtvm crash */
+	req_msg.session_hdl = session->session_hdl;
+	req_msg.u.err_msg.error_type = CAM_REQ_MGR_ERROR_TYPE_QTVM_CRASH;
+	req_msg.u.err_msg.link_hdl = link->link_hdl;
+	req_msg.u.err_msg.request_id = 0;
+	req_msg.u.err_msg.resource_size = 0x0;
+	req_msg.u.err_msg.error_code = 0;
+
+	CAM_DBG(CAM_ISP, "Notifying qtvm crash v4l2 error event [type: %u code: %u] on link: 0x%x",
+		req_msg.u.err_msg.error_type, req_msg.u.err_msg.error_code, link->link_hdl);
+
+	rc = cam_req_mgr_notify_message(&req_msg,
+		V4L_EVENT_CAM_REQ_MGR_ERROR,
+		V4L_EVENT_CAM_REQ_MGR_EVENT);
+	if (rc)
+		CAM_ERR(CAM_ISP,
+			"Failed to notify qtvm crash v4l2 error [type: %u code: %u] on link: 0x%x",
+			req_msg.u.err_msg.error_type, req_msg.u.err_msg.error_code, link->link_hdl);
+	return rc;
+}
+
+
+int crm_check_secure_mode_link(struct cam_req_mgr_core_link *link)
+{
+	int i = 0;
+	int is_secure = -EINVAL;
+	struct cam_req_mgr_connected_device *dev = NULL;
+
+	for (i = 0; i < link->num_devs; i++) {
+		dev = &link->l_dev[i];
+		if (dev->dev_info.dev_id == CAM_REQ_MGR_DEVICE_IFE) {
+			if (!dev->no_crm_ops->is_secure_mode) {
+				CAM_ERR(CAM_ISP,
+					"is_secure_mode cb not available for dev 0x%x link 0x%x",
+					dev->dev_hdl, link->link_hdl);
+				return -EINVAL;
+			}
+			is_secure = dev->no_crm_ops->is_secure_mode(dev->dev_hdl);
+		}
+	}
+	if (is_secure < 0)
+		CAM_ERR(CAM_ISP, "Failed to get secure mode for link 0x%x", link->link_hdl);
+
+	return is_secure;
+}
+
+/**
+ * crm_handle_qtvm_crash_event()
+ * @brief: Handle QTVM crash by notifying QTVM crash to secure link.
+ */
+void crm_handle_qtvm_crash_event(void)
+{
+	int i = 0, rc = 0;
+	struct cam_req_mgr_core_session *session = NULL;
+	struct cam_req_mgr_core_link *link = NULL;
+	int is_secure = -EINVAL;
+
+	g_crm_core_dev->qtvm_crash_secure_link_count = 0;
+	reinit_completion(&g_crm_core_dev->qtvm_crash_complete);
+	mutex_lock(&g_crm_core_dev->crm_lock);
+	if (!list_empty(&g_crm_core_dev->session_head)) {
+		list_for_each_entry(session,
+			&g_crm_core_dev->session_head, entry) {
+			mutex_lock(&session->lock);
+			for (i = 0; i < session->num_links; i++) {
+				if (session->links[i]) {
+					link = session->links[i];
+					is_secure = crm_check_secure_mode_link(link);
+					if (is_secure < 0) {
+						CAM_ERR(CAM_ISP,
+							"Failed to get secure mode for link 0x%x",
+							link->link_hdl);
+						continue;
+					}
+					if (!is_secure)
+						continue;
+					rc = crm_notify_qtvm_crash_event_on_link(link);
+					if (rc)
+						continue;
+					link->qtvm_wait_for_unlink = true;
+					g_crm_core_dev->qtvm_crash_secure_link_count++;
+					g_crm_core_dev->qtvm_link_cleanup_pending = true;
+				}
+			}
+			mutex_unlock(&session->lock);
+		}
+	}
+	mutex_unlock(&g_crm_core_dev->crm_lock);
+}
+
+/**
+ * crm_handle_qtvm_powerup_event()
+ * @brief: Handle QTVM powerup event, waits for secure link cleanup.
+ */
+void crm_handle_qtvm_powerup_event(void)
+{
+	if (g_crm_core_dev->qtvm_link_cleanup_pending)
+		wait_for_completion(&g_crm_core_dev->qtvm_crash_complete);
+
+	g_crm_core_dev->qtvm_link_cleanup_pending = false;
+	CAM_INFO(CAM_CRM, "All secure links closed");
+
+}
+
+#if IS_ENABLED(CONFIG_GH_SECURE_VM_LOADER)
+/**
+ * crm_qtvm_event_cb()
+ * @brief: its callback from qtvm/hypervisor to notify the Gunyah GH_VM events.
+ * @nb: notifier_block used to register callback into hypervisor/qtvm.
+ * @action : event that qtvm/hypervisor is notifying about
+ * @data :  vmid of hypervisor/vm
+ *
+ * @return   : 0 on success, negative in case of failure
+ */
+int crm_qtvm_event_cb(struct notifier_block *nb, unsigned long action, void *data)
+{
+	int rc = 0;
+
+	switch (action) {
+	case  GH_VM_CRASH:
+		CAM_INFO(CAM_ISP, "QTVM crashed");
+		g_crm_core_dev->qtvm_status = CRM_QTVM_STATUS_CRASHED;
+		crm_handle_qtvm_crash_event();
+		break;
+	case GH_VM_BEFORE_POWERUP:
+		CAM_INFO(CAM_ISP, "QTVM power up");
+		g_crm_core_dev->qtvm_status = CRM_QTVM_STATUS_POWERUP;
+		crm_handle_qtvm_powerup_event();
+		break;
+	default:
+		rc = -EINVAL;
+		break;
+	}
+	return rc;
+}
+
+static struct notifier_block crm_qtvm_nb = {
+	.notifier_call = crm_qtvm_event_cb,
+	.priority = 0,
+};
+#endif
+
+int crm_register_qtvm_callback(void)
+{
+	int rc = 0;
+#if IS_ENABLED(CONFIG_GH_SECURE_VM_LOADER)
+	rc = gh_register_vm_notifier(&crm_qtvm_nb);
+	if (rc) {
+		CAM_ERR(CAM_CRM, "Failed to register qtvm callback");
+		return rc;
+	}
+#endif
+	return rc;
+}
+
+int crm_unregister_qtvm_callback(void)
+{
+	int rc = 0;
+#if IS_ENABLED(CONFIG_GH_SECURE_VM_LOADER)
+	gh_unregister_vm_notifier(&crm_qtvm_nb);
+#endif
+	return rc;
+}
+

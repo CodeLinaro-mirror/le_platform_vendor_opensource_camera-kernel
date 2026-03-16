@@ -776,22 +776,77 @@ end:
 	return 0;
 }
 
-static inline enum cam_sys_cache_config_types cam_cpas_find_type_from_string(
+static inline int
+	cam_cpas_find_type_from_string(
 	const char *cache_name)
 {
 	if (strcmp(cache_name, "small-1") == 0)
 		return CAM_LLCC_SMALL_1;
 	else if (strcmp(cache_name, "small-2") == 0)
 		return CAM_LLCC_SMALL_2;
+	else if (strcmp(cache_name, "large-1") == 0)
+		return CAM_LLCC_LARGE_1;
+	else if (strcmp(cache_name, "large-2") == 0)
+		return CAM_LLCC_LARGE_2;
+	else if (strcmp(cache_name, "large-3") == 0)
+		return CAM_LLCC_LARGE_3;
+	else if (strcmp(cache_name, "large-4") == 0)
+		return CAM_LLCC_LARGE_4;
+	else if (strcmp(cache_name, "ofe_ip") == 0)
+		return CAM_LLCC_OFE_IP;
+	else if (strcmp(cache_name, "ipe_rt_ip") == 0)
+		return CAM_LLCC_IPE_RT_IP;
+	else if (strcmp(cache_name, "ipe_srt_ip") == 0)
+		return CAM_LLCC_IPE_SRT_IP;
+	else if (strcmp(cache_name, "ipe_rt_rf") == 0)
+		return CAM_LLCC_IPE_RT_RF;
+	else if (strcmp(cache_name, "ipe_srt_rf") == 0)
+		return CAM_LLCC_IPE_SRT_RF;
+	else if (strcmp(cache_name, "ipe_stripe_overlap_srt") == 0)
+		return CAM_LLCC_IPE_SRT_STRIPE_OVERLAP;
+	else if (strcmp(cache_name, "ipe_stripe_overlap_rt") == 0)
+		return CAM_LLCC_IPE_RT_STRIPE_OVERLAP;
+	else if (strcmp(cache_name, "ofe_stripe_overlap") == 0)
+		return CAM_LLCC_OFE_STRIPE_OVERLAP;
+	else if (strcmp(cache_name, "ipe_to_video") == 0)
+		return CAM_LLCC_IPE_TO_VIDEO;
+	else if (strcmp(cache_name, "ipe_to_csc") == 0)
+		return CAM_LLCC_IPE_TO_CSC;
 	else
-		return CAM_LLCC_MAX;
+		return -1;
+}
+
+static inline bool cam_cpas_is_valid_fw_based_scid(
+	uint32_t type)
+{
+	bool rc;
+
+	switch (type) {
+	case CAM_LLCC_OFE_IP:
+	case CAM_LLCC_IPE_RT_IP:
+	case CAM_LLCC_IPE_SRT_IP:
+	case CAM_LLCC_IPE_RT_RF:
+	case CAM_LLCC_IPE_SRT_RF:
+	case CAM_LLCC_IPE_SRT_STRIPE_OVERLAP:
+	case CAM_LLCC_IPE_RT_STRIPE_OVERLAP:
+	case CAM_LLCC_OFE_STRIPE_OVERLAP:
+	case CAM_LLCC_IPE_TO_VIDEO:
+	case CAM_LLCC_IPE_TO_CSC:
+		rc = true;
+		break;
+	default:
+		rc = false;
+		break;
+	}
+
+	return rc;
 }
 
 static int cam_cpas_parse_sys_cache_uids(
 	struct device_node          *of_node,
 	struct cam_cpas_private_soc *soc_private)
 {
-	enum cam_sys_cache_config_types type = CAM_LLCC_MAX;
+	int type = -1;
 	int num_caches, i, rc;
 	uint32_t scid;
 
@@ -802,13 +857,6 @@ static int cam_cpas_parse_sys_cache_uids(
 	if (num_caches <= 0) {
 		CAM_DBG(CAM_CPAS, "no cache-names found");
 		return 0;
-	}
-
-	if (num_caches > CAM_LLCC_MAX) {
-		CAM_ERR(CAM_CPAS,
-			"invalid number of cache-names found: 0x%x",
-			num_caches);
-		return -EINVAL;
 	}
 
 	soc_private->llcc_info = kcalloc(num_caches,
@@ -826,7 +874,7 @@ static int cam_cpas_parse_sys_cache_uids(
 
 		type = cam_cpas_find_type_from_string(
 			soc_private->llcc_info[i].name);
-		if (type == CAM_LLCC_MAX) {
+		if (type < 0) {
 			CAM_ERR(CAM_CPAS, "Unsupported cache found: %s",
 				soc_private->llcc_info[i].name);
 			rc = -EINVAL;
@@ -843,14 +891,31 @@ static int cam_cpas_parse_sys_cache_uids(
 			goto end;
 		}
 
+		rc = of_property_read_u32_index(of_node,
+				"sys-cache-concur", i,
+				&soc_private->llcc_info[i].concur);
+		if ((rc < 0) && cam_cpas_is_valid_fw_based_scid(type)) {
+			CAM_ERR(CAM_CPAS,
+				"unable to read sys cache concur at index %d cache type = %d",
+				i, type);
+			goto end;
+		} else if (rc < 0) {
+			/* This to make SFE sHDR exposure scid also concurrent type */
+			soc_private->llcc_info[i].concur = 1;
+			CAM_DBG(CAM_CPAS,
+				"read sys cache concur at index %d cache type = %d",
+				i, type);
+		}
+
 		soc_private->llcc_info[i].slic_desc =
 			llcc_slice_getd(soc_private->llcc_info[i].uid);
 
 		if (IS_ERR_OR_NULL(soc_private->llcc_info[i].slic_desc)) {
-			CAM_ERR(CAM_CPAS,
-				"Failed to get slice desc for uid %u",
-				soc_private->llcc_info[i].uid);
-			rc = -EINVAL;
+			CAM_WARN(CAM_CPAS,
+				"Failed to get slice desc for uid %u err %d",
+				soc_private->llcc_info[i].uid,
+				PTR_ERR(soc_private->llcc_info[i].slic_desc));
+			rc = 0;
 			goto end;
 		}
 
@@ -858,6 +923,9 @@ static int cam_cpas_parse_sys_cache_uids(
 		soc_private->llcc_info[i].scid = scid;
 		soc_private->llcc_info[i].size =
 			llcc_get_slice_size(soc_private->llcc_info[i].slic_desc);
+		soc_private->llcc_info[i].staling_distance = 0;
+		soc_private->llcc_info[i].mode = CAM_LLCC_STALING_MODE_CAPACITY;
+		soc_private->llcc_info[i].op_type = CAM_LLCC_NOTIFY_STALING_EVICT;
 		soc_private->num_caches++;
 
 		CAM_DBG(CAM_CPAS,

@@ -68,6 +68,8 @@
 
 #define CAM_ICP_CTX_MAX_CMD_BUFFERS 0x2
 
+#define CAM_ICP_SYS_CACHE_TYPE_MAX  4
+
 /* Current appliacble vote paths, based on number of UAPI definitions */
 #define CAM_ICP_MAX_PER_PATH_VOTES 6
 
@@ -95,6 +97,7 @@ struct hfi_mini_dump_info;
  * @ipc_hwmutex: Memory info for ipc hwmutex region mapped as device memory
  * @global_cntr: Memory info for global cntr region mapped as device memory
  * @soc_hw_version: Memory info for soc hw version region mapped as device memory
+ * @llcc_reg: Memory info for llcc cache
  * @shmem: Memory info for shared region
  * @io_mem: Memory info for io region
  * @fw_uncached: Memory info for fw uncached nested region
@@ -116,6 +119,7 @@ struct icp_hfi_mem_info {
 	struct cam_mem_mgr_memory_desc ipc_hwmutex;
 	struct cam_mem_mgr_memory_desc global_cntr;
 	struct cam_mem_mgr_memory_desc soc_hw_version;
+	struct cam_mem_mgr_memory_desc llcc_reg;
 	struct cam_smmu_region_info shmem;
 	struct cam_smmu_region_info io_mem;
 	struct cam_smmu_region_info fw_uncached;
@@ -188,6 +192,36 @@ struct cam_icp_clk_bw_req_internal_v2 {
 	uint32_t reserved;
 	uint32_t num_paths;
 	struct cam_axi_per_path_bw_vote axi_path[CAM_ICP_MAX_PER_PATH_VOTES];
+};
+
+/**
+ * struct cam_icp_scid_cfg -
+ *        sys cache config information
+ *
+ * @scid_id                cache scid id
+ * @staling_distance       staling distance used for notification
+ * @llcc_staling_mode      staling mode evict/forget
+ * @llcc_staling_op_type   operation type capacity/notify
+ * @activated              maintain the state of scid
+ */
+struct cam_icp_scid_cfg {
+	uint32_t                  scid_id;
+	uint32_t                  staling_distance;
+	uint32_t                  llcc_staling_mode;
+	uint32_t                  llcc_staling_op_type;
+	bool                      activated;
+};
+
+/**
+ * struct cam_icp_sys_cache_cfg -
+ *        sys cache config request information
+ *
+ * @num            num of cache need to configure
+ * @scid_cfg       cache config information
+ */
+struct cam_icp_sys_cache_cfg {
+	uint32_t      num;
+	struct cam_icp_scid_cfg scid_cfg[CAM_ICP_SYS_CACHE_TYPE_MAX];
 };
 
 /**
@@ -273,6 +307,7 @@ struct cam_ctx_clk_info {
  * @last_flush_req: last flush req for this ctx
  * @prev_fc: Previous applied frame cycle
  * @prev_budget_ns: Previous budget in nanoseconds
+ * @sys_cache_cfg: sys cache config information
  */
 struct cam_icp_hw_ctx_data {
 	void *context_priv;
@@ -298,6 +333,7 @@ struct cam_icp_hw_ctx_data {
 	char ctx_id_string[128];
 	uint32_t prev_fc;
 	uint64_t prev_budget_ns;
+	struct cam_icp_sys_cache_cfg sys_cache_cfg;
 };
 
 /**
@@ -402,6 +438,7 @@ struct cam_icp_clk_info {
  * @enable_ipe_qos: flag to indicate whether ipe qos is enabled
  * @icp_clock_cfg_cnt: count for icp clock config
  * @hfi_init_done: hfi initialisation is done
+ * @fw_based_sys_caching: to check llcc cache feature is enabled or not
  */
 struct cam_icp_hw_mgr {
 	struct mutex hw_mgr_mutex;
@@ -459,6 +496,7 @@ struct cam_icp_hw_mgr {
 	bool enable_ipe_qos;
 	uint32_t icp_clock_cfg_cnt;
 	bool hfi_init_done;
+	bool fw_based_sys_caching;
 };
 
 /**

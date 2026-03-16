@@ -1052,6 +1052,8 @@ static int cam_req_mgr_component_master_bind(struct device *dev)
 		goto sysfs_fail;
 	}
 
+	crm_register_qtvm_callback();
+
 #ifdef CONFIG_CAM_KTHREAD_WORKER
 	rc = cam_req_mgr_worker_create("camkt-setprop", 2, &g_kt_worker,
 		CRM_WORKER_USAGE_IRQ, CAM_WORKER_FLAG_HIGH_PRIORITY);
@@ -1094,6 +1096,7 @@ static void cam_req_mgr_component_master_unbind(struct device *dev)
 	cam_video_device_cleanup();
 	cam_v4l2_device_cleanup();
 	cam_req_mgr_destroy_timer_slab();
+	crm_unregister_qtvm_callback();
 	mutex_destroy(&g_dev.dev_lock);
 	g_dev.state = false;
 }

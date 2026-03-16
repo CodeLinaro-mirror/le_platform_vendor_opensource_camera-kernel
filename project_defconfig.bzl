@@ -20,6 +20,7 @@ project_configs = select({
     ],
     ":seraph": [],
     ":neo61": [],
+    ":pikachu": [],
 })
 
 def get_project_defconfig(target, variant):

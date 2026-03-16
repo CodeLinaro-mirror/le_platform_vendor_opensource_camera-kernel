@@ -2054,9 +2054,16 @@ inline int cam_soc_util_uninitialize_power_domain(struct device *dev)
 inline int cam_soc_util_turn_on_power_domain(struct cam_hw_soc_info *soc_info)
 {
 	int ret = 0;
+	struct generic_pm_domain *power_domain;
 
 	if (!soc_info || !soc_info->dev) {
 		CAM_ERR(CAM_UTIL, "%s is NULL", soc_info? "soc_info->dev": "soc_info");
+		return -EINVAL;
+	}
+
+	power_domain = pd_to_genpd(soc_info->dev->pm_domain);
+	if (!power_domain) {
+		CAM_ERR(CAM_UTIL, "%s: Failed to get power domain", soc_info->dev_name);
 		return -EINVAL;
 	}
 
@@ -2067,17 +2074,28 @@ inline int cam_soc_util_turn_on_power_domain(struct cam_hw_soc_info *soc_info)
 		return ret;
 	}
 
+	power_domain->flags |= GENPD_FLAG_ALWAYS_ON;
+
 	return 0;
 }
 
 inline int cam_soc_util_turn_off_power_domain(struct cam_hw_soc_info *soc_info)
 {
 	int ret = 0;
+	struct generic_pm_domain *power_domain;
 
 	if (!soc_info || !soc_info->dev) {
 		CAM_ERR(CAM_UTIL, "%s is NULL", soc_info? "soc_info->dev": "soc_info");
 		return -EINVAL;
 	}
+
+	power_domain = pd_to_genpd(soc_info->dev->pm_domain);
+	if (!power_domain) {
+		CAM_ERR(CAM_UTIL, "%s: Failed to get power domain", soc_info->dev_name);
+		return -EINVAL;
+	}
+
+	power_domain->flags &= ~GENPD_FLAG_ALWAYS_ON;
 
 	ret = pm_runtime_put_sync(soc_info->dev);
 	if (ret < 0) {

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2019, 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 
@@ -120,7 +120,7 @@ struct cam_actuator_ctrl_t {
 	uint32_t last_flush_req;
 	uint32_t anchor_pd;
 	uint32_t cci_contextId;
-	bool     is_trigger_mode;
+	bool     is_precise_actuator_control;
 	struct cam_sensor_frame_event_info frame_event;
 	struct cam_actuator_trigger_data actuator_trigger_data;
 };

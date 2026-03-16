@@ -1005,7 +1005,7 @@ static int cam_ife_csid_ver2_rx_top_half(
 	struct cam_hw_soc_info                     *soc_info;
 	struct cam_ife_csid_ver2_reg_info          *csid_reg;
 	uint32_t                                    irq_status;
-	uint32_t                                    bit_pos = 0;
+	uint32_t                                    bit_pos = 0, bit_set = 0;
 	uint32_t                                    vc_dt_rst_val = 0;
 
 	csid_hw = th_payload->handler_priv;
@@ -1020,9 +1020,8 @@ static int cam_ife_csid_ver2_rx_top_half(
 	irq_status = th_payload->evt_status_arr[CAM_IFE_CSID_IRQ_REG_RX];
 
 	while (irq_status) {
-
-		if ((BIT(bit_pos)) &
-				csid_hw->debug_info.rx_mask)
+		bit_set = irq_status & 1;
+		if ((bit_set) && ((BIT(bit_pos)) & csid_hw->debug_info.rx_mask))
 			cam_ife_csid_ver2_handle_rx_debug_event(csid_hw,
 				bit_pos, &vc_dt_rst_val);
 		bit_pos++;

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #include <linux/delay.h>
@@ -40,6 +40,7 @@
 #include "cpastop_v780_100.h"
 #include "cpastop_v640_200.h"
 #include "cpastop_v634_100.h"
+#include "cpastop_v634_110.h"
 #include "cam_req_mgr_worker_wrapper.h"
 #include "cam_common_util.h"
 
@@ -210,7 +211,7 @@ static const uint32_t cam_cpas_hw_version_map
 	{
 		CAM_CPAS_TITAN_634_V100,
 		0,
-		0,
+		CAM_CPAS_TITAN_634_V110,
 		0,
 		0,
 		0,
@@ -1159,6 +1160,10 @@ static int cam_cpastop_init_hw_version(struct cam_hw_info *cpas_hw,
 	case CAM_CPAS_TITAN_634_V100:
 		camnoc_info = &cam634_cpas100_camnoc_info;
 		qchannel_info = &cam634_cpas100_qchannel_info;
+		break;
+	case CAM_CPAS_TITAN_634_V110:
+		camnoc_info = &cam634_cpas110_camnoc_info;
+		qchannel_info = &cam634_cpas110_qchannel_info;
 		break;
 	default:
 		CAM_ERR(CAM_CPAS, "Camera Version not supported %d.%d.%d",

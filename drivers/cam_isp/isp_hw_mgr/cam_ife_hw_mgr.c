@@ -1774,7 +1774,7 @@ static void cam_ife_hw_mgr_deinit_hw(
 		cam_ife_hw_mgr_deinit_hw_res(&ctx->res_list_ife_out[i]);
 
 	/* Check if any cache needs to be de-activated */
-	for (i = CAM_LLCC_SMALL_1; i < CAM_LLCC_MAX; i++) {
+	for (i = CAM_LLCC_SMALL_1; i <= CAM_LLCC_SMALL_2; i++) {
 		if (ctx->flags.sys_cache_usage[i])
 			cam_cpas_deactivate_llcc(i);
 		ctx->flags.sys_cache_usage[i] = false;
@@ -1878,7 +1878,7 @@ static int cam_ife_hw_mgr_init_hw(
 	}
 
 	/* Check if any cache needs to be activated */
-	for (i = CAM_LLCC_SMALL_1; i < CAM_LLCC_MAX; i++) {
+	for (i = CAM_LLCC_SMALL_1; i <= CAM_LLCC_SMALL_2; i++) {
 		if (ctx->flags.sys_cache_usage[i]) {
 			rc = cam_cpas_activate_llcc(i);
 			if (rc) {
@@ -7312,6 +7312,21 @@ err:
 	return rc;
 }
 
+static bool cam_ife_hw_mgr_is_secure_context(
+	struct cam_ife_hw_mgr_ctx           *ife_ctx)
+{
+	bool is_secure = FALSE;
+	int i;
+
+	for (i = 0; i < max_ife_out_res; i++) {
+		if (ife_ctx->res_list_ife_out[i].res_id && ife_ctx->res_list_ife_out[i].is_secure) {
+			is_secure = TRUE;
+			break;
+		}
+	}
+	return is_secure;
+}
+
 #ifdef CONFIG_TZ_DCP_API_VER_2
 static int cam_ife_mgr_get_mapped_port_idx(uint32_t hw_type, uint32_t res_id)
 {
@@ -7400,32 +7415,6 @@ static int cam_ife_mgr_get_phy_id(uint32_t res_id)
 	return phy_id;
 }
 
-inline int cam_ife_mgr_is_tpg(uint32_t res_id)
-{
-	int is_tpg = FALSE;
-	if (res_id == CAM_ISP_IFE_IN_RES_TPG ||
-		res_id == CAM_ISP_IFE_IN_RES_CPHY_TPG_0 ||
-		res_id == CAM_ISP_IFE_IN_RES_CPHY_TPG_1 ||
-		res_id == CAM_ISP_IFE_IN_RES_CPHY_TPG_2) {
-		is_tpg = TRUE;
-	}
-	return is_tpg;
-}
-
-static bool cam_ife_hw_mgr_is_secure_context(
-	struct cam_ife_hw_mgr_ctx           *ife_ctx)
-{
-	bool is_secure = FALSE;
-	int i;
-	for (i = 0; i < max_ife_out_res; i++) {
-		if (ife_ctx->res_list_ife_out[i].res_id && ife_ctx->res_list_ife_out[i].is_secure) {
-			is_secure = TRUE;
-			break;
-		}
-	}
-	return is_secure;
-}
-
 static int cam_ife_hw_mgr_secure_phy_contexts(
 	struct cam_ife_hw_mgr_ctx           *ife_ctx)
 {
@@ -7451,6 +7440,19 @@ static int cam_ife_hw_mgr_secure_phy_contexts(
 	return rc;
 }
 #endif
+
+inline bool cam_ife_mgr_is_tpg(uint32_t res_id)
+{
+	bool is_tpg = FALSE;
+
+	if (res_id == CAM_ISP_IFE_IN_RES_TPG ||
+		res_id == CAM_ISP_IFE_IN_RES_CPHY_TPG_0 ||
+		res_id == CAM_ISP_IFE_IN_RES_CPHY_TPG_1 ||
+		res_id == CAM_ISP_IFE_IN_RES_CPHY_TPG_2) {
+		is_tpg = TRUE;
+	}
+	return is_tpg;
+}
 
 #ifdef CONFIG_SECURE_CAMERA_V3
 static int cam_ife_hw_mgr_set_secure_port_info(
@@ -10587,6 +10589,12 @@ static int cam_ife_mgr_stop_hw_in_overflow(void *stop_hw_args)
 		return -EINVAL;
 	}
 
+	/* Flush worker */
+	if (!stop_isp->is_recovery) {
+		worker_info = (struct cam_req_mgr_core_worker *)ctx->common.worker_info;
+		cam_req_mgr_worker_flush(worker_info);
+	}
+
 	if (ctx->flags.per_port_en && !ctx->flags.is_dual) {
 		rc = cam_ife_hw_mgr_res_stream_on_off_grp_cfg(ctx,
 				stop_isp, CAM_CSID_HALT_IMMEDIATELY, false,
@@ -10599,7 +10607,7 @@ static int cam_ife_mgr_stop_hw_in_overflow(void *stop_hw_args)
 	}
 
 	if (per_port_feature_enable)
-		goto flush_worker;
+		goto end;
 
 	/* get master base index first */
 	for (i = 0; i < ctx->num_base; i++) {
@@ -10645,13 +10653,7 @@ static int cam_ife_mgr_stop_hw_in_overflow(void *stop_hw_args)
 	for (i = 0; i < max_ife_out_res; i++)
 		cam_ife_hw_mgr_stop_hw_res(&ctx->res_list_ife_out[i], true);
 
-flush_worker:
-	/* Flush worker */
-	if (!stop_isp->is_recovery) {
-		worker_info = (struct cam_req_mgr_core_worker *)ctx->common.worker_info;
-		cam_req_mgr_worker_flush(worker_info);
-	}
-
+end:
 	CAM_DBG(CAM_ISP, "Exit...ctx id:%d rc :%d",
 		ctx->ctx_index, rc);
 
@@ -10913,6 +10915,7 @@ end:
 	ctx->flags.skip_reg_dump_buf_put = false;
 	ctx->flags.dump_on_error = false;
 	ctx->flags.dump_on_flush = false;
+	ctx->flags.fast_crop_en = false;
 	return rc;
 }
 
@@ -14380,6 +14383,99 @@ end :
 	return rc;
 }
 
+static int cam_isp_blob_vfe_out_update_v2(
+	uint32_t                                      blob_type,
+	struct cam_isp_generic_blob_info              *blob_info,
+	struct cam_isp_vfe_out_config_v2              *vfe_out_config,
+	struct cam_hw_prepare_update_args             *prepare)
+{
+	struct cam_ife_hw_mgr_ctx                 *ctx = NULL;
+	struct cam_isp_hw_mgr_res                 *isp_out_res;
+	struct cam_isp_vfe_wm_config_v2           *wm_config;
+	struct cam_kmd_buf_info                   *kmd_buf_info;
+	uint32_t                                   total_used_bytes = 0;
+	uint32_t                                   kmd_buf_remain_size;
+	uint32_t                                  *cmd_buf_addr;
+	uint32_t                                   bytes_used = 0;
+	uint32_t i, res_id_out, out_port_res_type;
+	int rc = -EINVAL;
+
+	ctx = prepare->ctxt_to_hw_map;
+
+	if (prepare->num_hw_update_entries + 1 >=
+			prepare->max_hw_update_entries) {
+		CAM_ERR(CAM_ISP, "Insufficient HW entries :%d",
+			prepare->num_hw_update_entries);
+		return -EINVAL;
+	}
+
+	kmd_buf_info = blob_info->kmd_buf_info;
+
+	for (i = 0; i < vfe_out_config->num_ports; i++) {
+		wm_config = &vfe_out_config->wm_config_flex[i];
+		if (ctx->flags.per_port_en) {
+			out_port_res_type = cam_ife_hw_mgr_get_virtual_mapping_out_port(ctx,
+				wm_config->port_type, true);
+			res_id_out = out_port_res_type & 0xFF;
+		} else {
+			res_id_out = wm_config->port_type & 0xFF;
+		}
+
+		if (res_id_out >= max_ife_out_res) {
+			CAM_ERR(CAM_ISP, "Invalid port type:%x, ctx_idx: %u",
+					wm_config->port_type, ctx->ctx_index);
+			rc = -EINVAL;
+			goto end;
+		}
+
+		isp_out_res = &ctx->res_list_ife_out[res_id_out];
+		if (!isp_out_res) {
+			CAM_ERR(CAM_ISP, "Invalid hw_mgr_res");
+			rc = -EINVAL;
+			goto end;
+		}
+
+		if ((kmd_buf_info->used_bytes
+			+ total_used_bytes) < kmd_buf_info->size) {
+			kmd_buf_remain_size = kmd_buf_info->size -
+			(kmd_buf_info->used_bytes +
+			total_used_bytes);
+		} else {
+			CAM_ERR(CAM_ISP,
+			"No free kmd memory for base idx: %d",
+			blob_info->base_info->idx);
+			rc = -ENOMEM;
+			return rc;
+		}
+
+		cmd_buf_addr = kmd_buf_info->cpu_addr +
+			(kmd_buf_info->used_bytes / 4) +
+			(total_used_bytes / 4);
+
+		rc = cam_isp_add_cmd_buf_update(
+			isp_out_res, blob_type,
+			CAM_ISP_HW_CMD_WM_CONFIG_UPDATE_V2,
+			blob_info->base_info->idx,
+			(void *)cmd_buf_addr,
+			kmd_buf_remain_size,
+			(void *)wm_config,
+			&bytes_used);
+
+		if (rc < 0) {
+			CAM_ERR(CAM_ISP,
+				"WM config V2 failed res_id: %u, rc: %d, ctx_idx: %u",
+				isp_out_res->res_id, rc, ctx->ctx_index);
+			goto end;
+		} else
+			CAM_DBG(CAM_ISP,
+				"WM config V2  update for res_id: %u, ctx_idx: %u, req_id: %u",
+				isp_out_res->res_id, ctx->ctx_index,
+				prepare->packet->header.request_id);
+	}
+end:
+	return rc;
+}
+
 static inline int cam_isp_validate_bw_limiter_blob(
 	uint32_t blob_size,
 	struct cam_isp_out_rsrc_bw_limiter_config *bw_limit_config)
@@ -15874,6 +15970,57 @@ free_mem:
 			ife_mgr_ctx->fast_crop_shared_buf_info.offset,
 			ife_mgr_ctx->fast_crop_shared_buf_info.size,
 			ife_mgr_ctx->ctx_index);
+	}
+		break;
+	case CAM_ISP_GENERIC_BLOB_TYPE_VFE_OUT_CONFIG_V2: {
+		struct cam_isp_vfe_out_config_v2 *vfe_out_config_v2;
+
+		if (blob_size < sizeof(struct cam_isp_vfe_out_config_v2)) {
+			CAM_ERR(CAM_ISP, "Invalid blob size %u, ctx_idx: %u",
+				blob_size,
+				sizeof(struct cam_isp_vfe_out_config), ife_mgr_ctx->ctx_index);
+			return -EINVAL;
+		}
+
+		vfe_out_config_v2 = (struct cam_isp_vfe_out_config_v2 *)blob_data;
+
+		if (vfe_out_config_v2->num_ports >  max_ife_out_res ||
+			vfe_out_config_v2->num_ports == 0) {
+			CAM_ERR(CAM_ISP,
+				"Invalid num_ports:%u in vfe out config, ctx_idx: %u",
+				vfe_out_config_v2->num_ports, ife_mgr_ctx->ctx_index);
+			return -EINVAL;
+		}
+
+		/* Check for integer overflow */
+		if (vfe_out_config_v2->num_ports != 1) {
+			if (sizeof(struct cam_isp_vfe_wm_config_v2) > ((UINT_MAX -
+				sizeof(struct cam_isp_vfe_out_config_v2)) /
+				(vfe_out_config_v2->num_ports - 1))) {
+				CAM_ERR(CAM_ISP,
+					"Max size exceeded in vfe out config num_ports:%u size per port:%lu, ctx_idx: %u",
+					vfe_out_config_v2->num_ports,
+					sizeof(struct cam_isp_vfe_wm_config),
+					ife_mgr_ctx->ctx_index);
+				return -EINVAL;
+			}
+		}
+
+		if (blob_size < (sizeof(struct cam_isp_vfe_out_config_v2) +
+			(vfe_out_config_v2->num_ports - 1) *
+			sizeof(struct cam_isp_vfe_wm_config_v2))) {
+			CAM_ERR(CAM_ISP, "Invalid blob size %u expected %lu ctx_idx: %u",
+				blob_size, sizeof(struct cam_isp_vfe_out_config_v2)
+				+ (vfe_out_config_v2->num_ports - 1) *
+				sizeof(struct cam_isp_vfe_wm_config_v2), ife_mgr_ctx->ctx_index);
+			return -EINVAL;
+		}
+
+		rc = cam_isp_blob_vfe_out_update_v2(blob_type, blob_info,
+			vfe_out_config_v2, prepare);
+		if (rc)
+			CAM_ERR(CAM_ISP, "VFE out update failed rc: %d, ctx_idx: %u",
+				rc, ife_mgr_ctx->ctx_index);
 	}
 		break;
 	default:
@@ -19130,6 +19277,15 @@ static int cam_ife_mgr_cmd(void *hw_mgr_priv, void *cmd_args)
 		case CAM_ISP_HW_MGR_SET_HWFENCE_MODE:
 			rc = cam_ife_mgr_set_hwfence_mode(ctx, isp_hw_cmd_args);
 			break;
+		case CAM_ISP_HW_MGR_GET_SECURE_MODE:
+			isp_hw_cmd_args->u.is_secure = cam_ife_hw_mgr_is_secure_context(ctx);
+			rc = 0;
+			break;
+		case CAM_ISP_HW_MGR_IS_TPG_ENABLED:
+			isp_hw_cmd_args->u.is_tpg_en =
+				cam_ife_mgr_is_tpg(ctx->res_list_ife_in.res_id);
+			rc = 0;
+			break;
 		default:
 			CAM_ERR(CAM_ISP, "Invalid HW mgr command:0x%x",
 				hw_cmd_args->cmd_type);
@@ -21726,7 +21882,7 @@ int cam_ife_hw_mgr_init(struct cam_hw_mgr_intf *hw_mgr_intf, int *iommu_hdl)
 
 	/* Populate sys cache info */
 	g_ife_hw_mgr.num_caches_found = 0;
-	for (i = CAM_LLCC_SMALL_1; i < CAM_LLCC_MAX; i++) {
+	for (i = CAM_LLCC_SMALL_1; i <= CAM_LLCC_SMALL_2; i++) {
 		g_ife_hw_mgr.sys_cache_info[i].scid =
 			cam_cpas_get_scid(i);
 		g_ife_hw_mgr.sys_cache_info[i].type = i;
@@ -21773,7 +21929,7 @@ int cam_ife_hw_mgr_init(struct cam_hw_mgr_intf *hw_mgr_intf, int *iommu_hdl)
 
 	for (i = 0; i < CAM_IFE_HW_NUM_MAX; i++) {
 		if (!g_ife_hw_mgr.ife_devices[i])
-			break;
+			continue;
 		rc = 0;
 		iova_queue = 0;
 

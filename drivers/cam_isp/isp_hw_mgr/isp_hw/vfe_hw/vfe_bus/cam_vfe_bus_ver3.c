@@ -1414,6 +1414,7 @@ static int cam_vfe_bus_ver3_release_wm(void   *bus_priv,
 	rsrc_data->ubwc_updated = false;
 	rsrc_data->en_cfg = 0;
 	rsrc_data->is_dual = 0;
+	rsrc_data->image_offset = 0;
 
 	rsrc_data->ubwc_lossy_threshold_0 = 0;
 	rsrc_data->ubwc_lossy_threshold_1 = 0;
@@ -4031,7 +4032,7 @@ static int cam_vfe_bus_ver3_update_wm(void *priv, void *cmd_args,
 		else if (wm_data->en_cfg & (0x3 << 16))
 			image_buf_offset = wm_data->offset;
 		else
-			image_buf_offset = 0;
+			image_buf_offset = wm_data->image_offset;
 
 		/* WM Image address */
 		iova = update_buf->wm_update->image_buf[i] +
@@ -4047,16 +4048,18 @@ static int cam_vfe_bus_ver3_update_wm(void *priv, void *cmd_args,
 			CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
 				wm_data->hw_regs->addr_cfg, iova_offset);
 
-			CAM_DBG(CAM_ISP, "WM:%d image address 0x%X 0x%X",
-				wm_data->index, reg_val_pair[j-2], reg_val_pair[j-1]);
+			CAM_DBG(CAM_ISP, "WM:%d image address 0x%X 0x%X img_off:0x%x",
+				wm_data->index, reg_val_pair[j-2], reg_val_pair[j-1],
+				image_buf_offset);
 		} else {
 			iova_addr = iova;
 
 			CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
 				wm_data->hw_regs->image_addr, iova_addr);
 
-			CAM_DBG(CAM_ISP, "WM:%d image address 0x%X",
-				wm_data->index, reg_val_pair[j-1]);
+			CAM_DBG(CAM_ISP, "WM:%d image address 0x%X img_off:0x%x",
+				wm_data->index, reg_val_pair[j-1],
+				image_buf_offset);
 		}
 
 		update_buf->wm_update->image_buf_offset[i] = image_buf_offset;
@@ -4388,7 +4391,7 @@ static int cam_vfe_bus_ver3_get_hwfence_device_info(void *priv, void *cmd_args,
 	hw_fence_device_info = (struct cam_hw_fence_device_info *) cmd_args;
 	bus_priv = (struct cam_vfe_bus_ver3_priv  *) priv;
 
-	hw_idx = hw_fence_device_info->num_valid_hws;
+	hw_idx = bus_priv->common_data.hw_intf->hw_idx;
 	resource_idx = 0;
 
 	for (i = 0; i < bus_priv->num_out; i++) {
@@ -4796,6 +4799,41 @@ static int cam_vfe_bus_ver3_update_wm_config(
 
 	return 0;
 }
+
+static int cam_vfe_bus_ver3_update_wm_config_v2(
+	void                                        *cmd_args)
+{
+	int                                          i;
+	struct cam_isp_hw_get_cmd_update            *wm_config_update;
+	struct cam_vfe_bus_ver3_vfe_out_data        *vfe_out_data = NULL;
+	struct cam_vfe_bus_ver3_wm_resource_data    *wm_data = NULL;
+	struct cam_isp_vfe_wm_config_v2             *wm_config = NULL;
+
+	if (!cmd_args) {
+		CAM_ERR(CAM_ISP, "Invalid args");
+		return -EINVAL;
+	}
+
+	wm_config_update = cmd_args;
+	vfe_out_data = wm_config_update->res->res_priv;
+	wm_config = (struct cam_isp_vfe_wm_config_v2 *)
+		wm_config_update->data;
+
+	if (!vfe_out_data || !vfe_out_data->cdm_util_ops || !wm_config) {
+		CAM_ERR(CAM_ISP, "Invalid data");
+		return -EINVAL;
+	}
+
+	for (i = 0; i < vfe_out_data->num_wm; i++) {
+		wm_data = vfe_out_data->wm_res[i].res_priv;
+		wm_data->image_offset = wm_config->offset_in_bytes;
+		CAM_DBG(CAM_ISP, "WM:%d  offset:%d", wm_data->index, wm_data->offset);
+
+	}
+
+	return 0;
+}
+
 
 static int cam_vfe_bus_ver3_update_tunnel_id(
 	void                         *cmd_args)
@@ -5674,6 +5712,9 @@ static int cam_vfe_bus_ver3_process_cmd(
 		break;
 	case CAM_ISP_HW_CMD_WM_CONFIG_UPDATE:
 		rc = cam_vfe_bus_ver3_update_wm_config(cmd_args);
+		break;
+	case CAM_ISP_HW_CMD_WM_CONFIG_UPDATE_V2:
+		rc = cam_vfe_bus_ver3_update_wm_config_v2(cmd_args);
 		break;
 	case CAM_ISP_HW_CMD_TUNNEL_ID_UPDATE:
 		bus_priv = (struct cam_vfe_bus_ver3_priv  *) priv;

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #ifndef _CAM_VFE_TOP_VER4_H_
@@ -19,6 +19,12 @@ struct cam_vfe_top_ver4_common_data {
 	struct cam_hw_intf                         *hw_intf;
 	struct cam_vfe_top_ver4_reg_offset_common  *common_reg;
 	struct cam_vfe_top_ver4_hw_info            *hw_info;
+};
+
+struct cam_vfe_ver4_reg_offset_diag_regs {
+	uint32_t cfg0;
+	uint32_t cfg1;
+	uint32_t cfg2;
 };
 
 struct cam_vfe_top_ver4_reg_offset_common {
@@ -75,6 +81,9 @@ struct cam_vfe_top_ver4_reg_offset_common {
 	void *perf_regs_0;
 	void *perf_regs_1;
 	void *perf_regs_2;
+	void *diag_regs_ipp;
+	void *diag_regs_rdi;
+	void *diag_regs_pdaf;
 };
 
 struct cam_vfe_top_common_cfg {

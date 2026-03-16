@@ -235,6 +235,7 @@ struct cam_iommu_cb_set {
 	bool force_cache_allocs;
 	bool need_shared_buffer_padding;
 	bool is_expanded_memory;
+	bool use_iommu_addresses;
 	struct cam_csf_version csf_version;
 };
 
@@ -4574,48 +4575,10 @@ static int cam_smmu_get_subregions_memory_info(
 			subregions->subregion_info.iova_start = subregion_start;
 			break;
 		case CAM_SMMU_SUBREGION_SYNX_HWMUTEX:
-			if (subregion_mask & BIT(subregion_id))
-				goto repeated_subregion;
-
-			subregions->subregion_id = subregion_id;
-			subregions->subregion_info.iova_len = subregion_len;
-			subregions->subregion_info.iova_start = subregion_start;
-			rc = of_property_read_u32(sub_node,
-				"phy-addr", (uint32_t *)&subregions->subregion_info.phy_addr);
-			if (rc < 0) {
-				CAM_ERR(CAM_SMMU, "Failed to read phy addr");
-				goto err;
-			}
-			break;
 		case CAM_SMMU_SUBREGION_IPC_HWMUTEX:
-			if (subregion_mask & BIT(subregion_id))
-				goto repeated_subregion;
-
-			subregions->subregion_id = subregion_id;
-			subregions->subregion_info.iova_len = subregion_len;
-			subregions->subregion_info.iova_start = subregion_start;
-			rc = of_property_read_u32(sub_node,
-				"phy-addr", (uint32_t *)&subregions->subregion_info.phy_addr);
-			if (rc < 0) {
-				CAM_ERR(CAM_SMMU, "Failed to read phy addr");
-				goto err;
-			}
-			break;
 		case CAM_SMMU_SUBREGION_GLOBAL_SYNC_MEM:
-			if (subregion_mask & BIT(subregion_id))
-				goto repeated_subregion;
-
-			subregions->subregion_id = subregion_id;
-			subregions->subregion_info.iova_len = subregion_len;
-			subregions->subregion_info.iova_start = subregion_start;
-			rc = of_property_read_u32(sub_node,
-				"phy-addr", (uint32_t *)&subregions->subregion_info.phy_addr);
-			if (rc < 0) {
-				CAM_ERR(CAM_SMMU, "Failed to read phy addr");
-				goto err;
-			}
-			break;
 		case CAM_SMMU_SUBREGION_GLOBAL_CNTR:
+		case CAM_SMMU_SUBREGION_LLCC_REGISTER:
 			if (subregion_mask & BIT(subregion_id))
 				goto repeated_subregion;
 
@@ -4994,6 +4957,11 @@ static int cam_smmu_get_memory_regions_info(struct device_node *of_node,
 		}
 
 		for (i = 0; i < cb->io_info.num_regions; i++) {
+			if (iommu_cb_set.use_iommu_addresses) {
+				CAM_DBG(CAM_SMMU,
+					"Skip discard region validate for iommu_addresses");
+				goto end;
+			}
 			rc = cam_smmu_validate_discard_iova_region(cb,
 				&cb->io_info.nested_regions[i].region_info);
 			if (rc)
@@ -5416,11 +5384,27 @@ static int cam_smmu_component_bind(struct device *dev,
 	struct device *master_dev, void *data)
 {
 	int rc;
+	struct device_node *child;
+	struct device_node *sub;
+	bool has_iommu_addrs = false;
 
 	INIT_WORK(&iommu_cb_set.smmu_work, cam_smmu_page_fault_work);
 	mutex_init(&iommu_cb_set.payload_list_lock);
 	INIT_LIST_HEAD(&iommu_cb_set.payload_list);
 	cam_smmu_create_debug_fs();
+
+	for_each_child_of_node(dev->of_node, child) {
+		for_each_child_of_node(child, sub) {
+			if (of_find_property(sub, "iommu-addresses", NULL)) {
+				has_iommu_addrs = true;
+				break;
+			}
+		}
+		if (has_iommu_addrs)
+			break;
+	}
+
+	iommu_cb_set.use_iommu_addresses = has_iommu_addrs;
 
 	iommu_cb_set.force_cache_allocs =
 		of_property_read_bool(dev->of_node, "force_cache_allocs");
@@ -5457,6 +5441,7 @@ static void cam_smmu_component_unbind(struct device *dev,
 	cam_smmu_release_cb(pdev);
 	debugfs_remove_recursive(iommu_cb_set.dentry);
 	iommu_cb_set.dentry = NULL;
+	iommu_cb_set.use_iommu_addresses = false;
 }
 
 const static struct component_ops cam_smmu_component_ops = {
