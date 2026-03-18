@@ -1033,7 +1033,7 @@ static int cam_jpeg_mgr_flush_req(void *hw_mgr_priv,
 			continue;
 
 		list_del_init(&cfg_req->list);
-		cam_jpeg_mgr_move_req_to_free_list(p_cfg_req);
+		cam_jpeg_mgr_move_req_to_free_list(cfg_req);
 		b_req_found = true;
 		break;
 	}
