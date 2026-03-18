@@ -322,6 +322,7 @@ enum msm_sensor_camera_id_t {
 	CAMERA_28,
 	CAMERA_29,
 	CAMERA_30,
+	CAMERA_31,
 	MAX_CAMERAS,
 };
 
