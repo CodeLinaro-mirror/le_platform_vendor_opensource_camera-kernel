@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 
@@ -515,6 +516,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe650x_bus_hw_info = {
 			.name          = {
 				"LITE_0",
 			},
+			.secure_mask = BIT(0),
 		},
 		{
 			.vfe_out_type  = CAM_VFE_BUS_VER3_VFE_OUT_RDI1,
@@ -530,6 +532,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe650x_bus_hw_info = {
 			.name          = {
 				"LITE_1",
 			},
+			.secure_mask = BIT(1),
 		},
 		{
 			.vfe_out_type  = CAM_VFE_BUS_VER3_VFE_OUT_RDI2,
@@ -545,6 +548,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe650x_bus_hw_info = {
 			.name          = {
 				"LITE_2",
 			},
+			.secure_mask = BIT(2),
 		},
 		{
 			.vfe_out_type  = CAM_VFE_BUS_VER3_VFE_OUT_RDI3,
@@ -560,6 +564,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe650x_bus_hw_info = {
 			.name          = {
 				"LITE_3",
 			},
+			.secure_mask = BIT(3),
 		},
 		{
 			.vfe_out_type  =
@@ -576,6 +581,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe650x_bus_hw_info = {
 			.name          = {
 				"PREPROCESS_RAW",
 			},
+			.secure_mask = BIT(4),
 		},
 		{
 			.vfe_out_type  = CAM_VFE_BUS_VER3_VFE_OUT_STATS_BG,

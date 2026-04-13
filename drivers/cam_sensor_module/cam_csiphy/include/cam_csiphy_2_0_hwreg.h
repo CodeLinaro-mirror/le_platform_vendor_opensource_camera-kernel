@@ -24,6 +24,7 @@ struct csiphy_reg_parms_t csiphy_v2_0 = {
 	.csiphy_2ph_clock_lane = 0x1,
 	.csiphy_2ph_combo_ck_ln = 0x10,
 	.aon_sel_params = NULL,
+	.lane_reg_offsets = NULL,
 };
 
 struct csiphy_reg_t csiphy_common_reg_2_0[] = {

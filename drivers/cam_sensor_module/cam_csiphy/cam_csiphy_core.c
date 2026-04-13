@@ -1741,6 +1741,87 @@ static int32_t cam_csiphy_external_cmd(struct csiphy_device *csiphy_dev,
 	return rc;
 }
 
+static int cam_csiphy_update_settle_count(
+	struct csiphy_device *csiphy_dev, int index)
+{
+	int rc = 0;
+	uint32_t lane_enable  = 0;
+	uint32_t is_3phase    = 0;
+	uint32_t settle_offset_lower = 0;
+	uint32_t settle_offset_higher = 0;
+	uint64_t intermediate_var = 0;
+	uint16_t settle_cnt = 0;
+	void __iomem *csiphybase = NULL;
+	struct cam_cphy_lane_reg_offsets_t *lane_reg_offsets = NULL;
+
+	if (!csiphy_dev) {
+		CAM_ERR(CAM_CSIPHY, "Invalid csiphy device, Bypassing lane settle count update");
+		return -EINVAL;
+	}
+
+	if (index >= csiphy_dev->session_max_device_support || index < 0) {
+		CAM_ERR(CAM_CSIPHY, "Invalid index for csiphy_dev : %d", index);
+		return -EINVAL;
+	}
+
+	csiphybase = csiphy_dev->soc_info.reg_map[0].mem_base;
+	if (!csiphybase) {
+		CAM_ERR(CAM_CSIPHY, "Invalid base address");
+		return -EINVAL;
+	}
+
+	lane_reg_offsets = csiphy_dev->ctrl_reg->csiphy_reg.lane_reg_offsets;
+	if (!lane_reg_offsets) {
+		CAM_ERR(CAM_CSIPHY, "Invalid laneReg offsets for csiphy settle count update");
+		return -EINVAL;
+	}
+
+	lane_enable = csiphy_dev->csiphy_info[index].lane_enable;
+	is_3phase = csiphy_dev->csiphy_info[index].csiphy_3phase;
+
+	intermediate_var = csiphy_dev->csiphy_info[index].settle_time;
+	do_div(intermediate_var, 200000000);
+	settle_cnt = intermediate_var;
+
+	CAM_DBG(CAM_CSIPHY,
+		"PHY:%d index:%d %s settle_cnt:0x%x lane_enable:0x%x",
+		csiphy_dev->soc_info.index, index,
+		is_3phase ? "CPHY" : "DPHY",
+		settle_cnt & 0xFF, lane_enable);
+
+	if (is_3phase) {
+		settle_offset_lower = lane_reg_offsets->csiphy_settle_time_lower_offset_3ph;
+		settle_offset_higher = lane_reg_offsets->csiphy_settle_time_higher_offset;
+	} else {
+		settle_offset_lower = lane_reg_offsets->csiphy_settle_time_lower_offset_2ph;
+	}
+
+	while(lane_enable) {
+		uint32_t lane_pos = ffs(lane_enable) - 1;
+		/* Get the lane offset for the specific lane position (DPHY: 0-3, CPHY: 0-2) */
+		uint32_t lane_offset = lane_reg_offsets->lane_offsets[lane_pos];
+
+		if (settle_offset_lower) {
+			cam_io_w_mb(settle_cnt & 0xFF, csiphybase + lane_offset + settle_offset_lower);
+			CAM_DBG(CAM_CSIPHY,
+				"PHY:%d index:%d lane:%d lower_offset:0x%x settle_cnt:0x%x",
+				csiphy_dev->soc_info.index, index, lane_pos,
+				lane_offset + settle_offset_lower, settle_cnt & 0xFF);
+		}
+
+		if (is_3phase && settle_offset_higher) {
+			cam_io_w_mb((settle_cnt >> 8) & 0xFF, csiphybase + lane_offset + settle_offset_higher);
+			CAM_DBG(CAM_CSIPHY,
+				"PHY:%d index:%d lane:%d higher_offset:0x%x settle_cnt:0x%x",
+				csiphy_dev->soc_info.index, index, lane_pos,
+				lane_offset + settle_offset_higher, (settle_cnt >> 8) & 0xFF);
+		}
+		lane_enable &= (lane_enable - 1);
+	}
+
+	return rc;
+}
+
 static int cam_csiphy_update_lane(
 	struct csiphy_device *csiphy, int index, bool enable)
 {
@@ -2384,7 +2465,7 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 				"cphy_dphy_combo_mode stream detected");
 			csiphy_dev->cphy_dphy_combo_mode = 1;
 			csiphy_dev->session_max_device_support =
-				CSIPHY_MAX_INSTANCES_PER_PHY - 1;
+				CSIPHY_MAX_INSTANCES_PER_PHY;
 		}
 
 		if (!csiphy_acq_params.combo_mode &&
@@ -2637,6 +2718,7 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 				}
 			}
 			csiphy_dev->combo_mode = 0;
+			csiphy_dev->cphy_dphy_combo_mode = 0;
 			csiphy_dev->csiphy_state = CAM_CSIPHY_INIT;
 		}
 
@@ -2753,6 +2835,15 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 				CAM_ERR(CAM_CSIPHY,
 					"Update enable lane failed, rc: %d", rc);
 				goto release_mutex;
+			}
+
+			if (csiphy_dev->cphy_dphy_combo_mode &&
+				!csiphy_dev->csiphy_info[offset].csiphy_3phase) {
+				rc = cam_csiphy_update_settle_count(csiphy_dev, offset);
+				if (rc) {
+					CAM_DBG(CAM_CSIPHY,
+						"Update settle count failed, Bypassing for dphy rc: %d", rc);
+				}
 			}
 
 			if (csiphy_dev->csiphy_info[offset].csiphy_3phase) {

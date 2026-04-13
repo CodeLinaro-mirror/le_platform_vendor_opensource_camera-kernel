@@ -33,6 +33,7 @@ struct csiphy_reg_parms_t csiphy_v2_1_1 = {
 	.csiphy_interrupt_status_size = 11,
 	.csiphy_num_common_status_regs = 20,
 	.aon_sel_params = NULL,
+	.lane_reg_offsets = NULL,
 };
 
 struct csiphy_reg_t csiphy_common_reg_2_1_1[] = {

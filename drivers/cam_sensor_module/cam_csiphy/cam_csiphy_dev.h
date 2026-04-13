@@ -88,6 +88,16 @@
 #define CSIPHY_2LDPHY_1LCPHY 0x1
 #define CSIPHY_2LCPHY_1LDPHY 0x2
 
+#define DPHY_DATA_LANE_POS_0  0
+#define DPHY_DATA_LANE_POS_1  2
+#define DPHY_DATA_LANE_POS_2  4
+#define DPHY_DATA_LANE_POS_3  6
+#define DPHY_CLOCK_LANE_POS   7
+
+#define CPHY_LANE_POS_0 1
+#define CPHY_LANE_POS_1 3
+#define CPHY_LANE_POS_2 5
+
 enum cam_csiphy_state {
 	CAM_CSIPHY_INIT,
 	CAM_CSIPHY_ACQUIRE,
@@ -127,6 +137,14 @@ struct cam_cphy_dphy_status_reg_params_t {
 	uint32_t cphy_lane_status[CAM_CSIPHY_MAX_CPHY_LANES];
 	uint16_t csiphy_3ph_status_size;
 	uint16_t csiphy_2ph_status_size;
+};
+
+struct cam_cphy_lane_reg_offsets_t {
+	uint32_t lane_offsets[
+		CAM_CSIPHY_MAX_DPHY_LANES + CAM_CSIPHY_MAX_CPHY_LANES + 1];
+	uint32_t csiphy_settle_time_lower_offset_2ph;
+	uint32_t csiphy_settle_time_lower_offset_3ph;
+	uint32_t csiphy_settle_time_higher_offset;
 };
 
 /**
@@ -184,6 +202,7 @@ struct csiphy_reg_parms_t {
 	uint32_t csiphy_2ph_clock_lane;
 	uint32_t csiphy_2ph_combo_ck_ln;
 	struct cam_csiphy_aon_sel_params_t *aon_sel_params;
+	struct cam_cphy_lane_reg_offsets_t *lane_reg_offsets;
 };
 
 /**

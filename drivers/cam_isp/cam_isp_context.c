@@ -71,6 +71,9 @@ static int cam_isp_ctx_ul_fastpath_retrieve_results(
 	struct cam_context *ctx, uint32_t *num_results, struct response_buffer *response_buffers,
 	struct cam_hwfence_info *fence_info, uint32_t *is_fenceupdated);
 
+static void cam_isp_update_fastpath_result_queue(void *data,
+	uint32_t value);
+
 static const char *__cam_isp_evt_val_to_type(
 	uint32_t evt_id)
 {
@@ -4486,6 +4489,12 @@ static int __cam_isp_ctx_handle_error(struct cam_isp_context *ctx_isp,
 
 	CAM_DBG(CAM_ISP, "Enter error_type = %d", error_type);
 
+	if (!ctx_isp->error_recovery_en || ((error_type != CAM_ISP_HW_ERROR_CSID_FRAME_SIZE) &&
+		(error_type != CAM_ISP_HW_ERROR_CSID_RX) &&
+		(error_type != CAM_ISP_HW_ERROR_CSID_CCIF_VIOLATION) &&
+		(error_type != CAM_ISP_HW_ERROR_RECOVERY_OVERFLOW)  &&
+		(error_type != CAM_ISP_HW_ERROR_VIOLATION)))
+		error = CRM_KMD_ERR_FATAL;
 
 	if (!ctx_isp->offline_context && !ctx_isp->independent_crm_en)
 		__cam_isp_ctx_pause_crm_timer(ctx);
@@ -4550,8 +4559,12 @@ static int __cam_isp_ctx_handle_error(struct cam_isp_context *ctx_isp,
 				primary_port_idx = req_isp->hw_update_data.primary_port_entry_index;
 				ctx_isp->ul_fp_results[wr_idx].last_consumed_addr =
 					req_isp->fence_map_out[primary_port_idx].image_buf_addr[0];
-				ctx_isp->ul_fp_results[wr_idx].status =
-					BATCH_PACKET_RESULT_DEVICE_ERROR;
+				if (error == CRM_KMD_ERR_FATAL)
+					ctx_isp->ul_fp_results[wr_idx].status =
+						BATCH_PACKET_RESULT_DEVICE_ERROR;
+				else
+					ctx_isp->ul_fp_results[wr_idx].status =
+						BATCH_PACKET_RESULT_BUFFER_ERROR;
 				atomic_set(&ctx_isp->ul_fp_params.write_idx,
 					INC_VAL(wr_idx, 1, MAX_IO_PACKETS));
 				complete(&ctx_isp->ul_fp_params.fast_path_buf_done);
@@ -4709,12 +4722,6 @@ end:
 	if (ctx_isp->offline_context)
 		goto exit;
 
-	if (!ctx_isp->error_recovery_en || ((error_type != CAM_ISP_HW_ERROR_CSID_FRAME_SIZE) &&
-		(error_type != CAM_ISP_HW_ERROR_CSID_RX) &&
-		(error_type != CAM_ISP_HW_ERROR_CSID_CCIF_VIOLATION) &&
-		(error_type != CAM_ISP_HW_ERROR_RECOVERY_OVERFLOW)  &&
-		(error_type != CAM_ISP_HW_ERROR_VIOLATION)))
-		error = CRM_KMD_ERR_FATAL;
 	if (req_isp_to_report && req_isp_to_report->bubble_report)
 		if (error_event_data->recovery_enabled)
 			error = CRM_KMD_ERR_BUBBLE;
@@ -8888,6 +8895,27 @@ static int __cam_isp_ctx_config_dev_in_top_state(
 		goto free_req;
 	}
 
+	/* Set fastpath notifier if applicable */
+	if (ctx_isp->ul_path_en && (packet_opcode == CAM_ISP_PACKET_INIT_DEV)) {
+		struct cam_hw_cmd_args hw_cmd_args;
+		struct cam_isp_hw_cmd_args isp_hw_cmd_args;
+
+		hw_cmd_args.ctxt_to_hw_map = ctx_isp->hw_ctx;
+		hw_cmd_args.cmd_type = CAM_HW_MGR_CMD_INTERNAL;
+		isp_hw_cmd_args.cmd_type = CAM_ISP_HW_MGR_FAST_RESULT_NOTIFIER_CFG;
+		isp_hw_cmd_args.cmd_data = ctx_isp;
+		isp_hw_cmd_args.u.fastpath_result_handler = cam_isp_update_fastpath_result_queue;
+		hw_cmd_args.u.internal_args = (void *)&isp_hw_cmd_args;
+		rc = ctx->hw_mgr_intf->hw_cmd(ctx->hw_mgr_intf->hw_mgr_priv,
+			&hw_cmd_args);
+		if (rc) {
+			CAM_ERR(CAM_ISP,
+				"Configuring fastpath result notifier failed rc: %d ctx: %u",
+				rc, ctx->ctx_id);
+			goto free_req;
+		}
+	}
+
 	req_isp->num_cfg = cfg.num_hw_update_entries;
 	req_isp->num_fence_map_out = cfg.num_out_map_entries;
 	req_isp->num_fence_map_in = cfg.num_in_map_entries;
@@ -10195,7 +10223,7 @@ static int __cam_isp_ctx_acquire_hw_v2(struct cam_context *ctx,
 
 	rc = ctx->hw_mgr_intf->hw_cmd(ctx->hw_mgr_intf->hw_mgr_priv, &hw_cmd_args);
 
-	if (isp_hw_cmd_args.u.is_secure &&
+	if (isp_hw_cmd_args.u.is_secure && ctx->ctx_crm_intf &&
 		ctx->ctx_crm_intf->get_qtvm_status() == CRM_QTVM_STATUS_CRASHED) {
 		CAM_ERR(CAM_ISP, "QTVM is in crashed mode, acquire failed ctx_id %d",
 			ctx->ctx_id);

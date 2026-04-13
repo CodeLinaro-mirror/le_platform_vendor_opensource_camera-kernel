@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #ifndef _CAM_VFE650_H_
@@ -1733,6 +1734,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe650_bus_hw_info = {
 			.name          = {
 				"RDI_0",
 			},
+			.secure_mask = BIT(7)
 		},
 		{
 			.vfe_out_type  = CAM_VFE_BUS_VER3_VFE_OUT_RDI1,
@@ -1748,6 +1750,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe650_bus_hw_info = {
 			.name          = {
 				"RDI_1",
 			},
+			.secure_mask = BIT(25)
 		},
 		{
 			.vfe_out_type  = CAM_VFE_BUS_VER3_VFE_OUT_RDI2,
@@ -1763,6 +1766,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe650_bus_hw_info = {
 			.name          = {
 				"RDI_2",
 			},
+			.secure_mask = BIT(26)
 		},
 		{
 			.vfe_out_type  = CAM_VFE_BUS_VER3_VFE_OUT_FULL,
@@ -1782,6 +1786,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe650_bus_hw_info = {
 				"FULL_Y",
 				"FULL_C",
 			},
+			.secure_mask = BIT(1)
 		},
 		{
 			.vfe_out_type  = CAM_VFE_BUS_VER3_VFE_OUT_DS4,
@@ -1796,6 +1801,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe650_bus_hw_info = {
 			.name          = {
 				"DS_4",
 			},
+			.secure_mask = BIT(1)
 		},
 		{
 			.vfe_out_type  = CAM_VFE_BUS_VER3_VFE_OUT_DS16,
@@ -1810,6 +1816,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe650_bus_hw_info = {
 			.name          = {
 				"DS_16",
 			},
+			.secure_mask = BIT(1)
 		},
 		{
 			.vfe_out_type  = CAM_VFE_BUS_VER3_VFE_OUT_RAW_DUMP,
@@ -1825,6 +1832,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe650_bus_hw_info = {
 			.name          = {
 				"PIXEL_RAW",
 			},
+			.secure_mask = BIT(5)
 		},
 		{
 			.vfe_out_type  = CAM_VFE_BUS_VER3_VFE_OUT_FD,
@@ -1843,6 +1851,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe650_bus_hw_info = {
 				"FD_Y",
 				"FD_C",
 			},
+			.secure_mask = BIT(4)
 		},
 		{
 			.vfe_out_type  = CAM_VFE_BUS_VER3_VFE_OUT_SPARSE_PD,
@@ -1961,6 +1970,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe650_bus_hw_info = {
 				"FULL_DISP_Y",
 				"FULL_DISP_C",
 			},
+			.secure_mask = BIT(18)
 		},
 		{
 			.vfe_out_type  = CAM_VFE_BUS_VER3_VFE_OUT_DS4_DISP,
@@ -1975,6 +1985,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe650_bus_hw_info = {
 			.name          = {
 				"DISP_DS_4",
 			},
+			.secure_mask = BIT(18)
 		},
 		{
 			.vfe_out_type  = CAM_VFE_BUS_VER3_VFE_OUT_DS16_DISP,
@@ -1989,6 +2000,7 @@ static struct cam_vfe_bus_ver3_hw_info vfe650_bus_hw_info = {
 			.name          = {
 				"DISP_DS_16",
 			},
+			.secure_mask = BIT(18)
 		},
 		{
 			.vfe_out_type  = CAM_VFE_BUS_VER3_VFE_OUT_PREPROCESS_2PD,

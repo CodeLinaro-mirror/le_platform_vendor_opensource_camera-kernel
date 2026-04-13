@@ -1345,7 +1345,8 @@ int32_t __cam_sensor_lite_handle_probe(
 		}
 
 		remain_len = len - cmd_desc[i].offset;
-		if (cmd_desc[i].length > remain_len) {
+		if ((cmd_desc[i].length > remain_len) ||
+			(remain_len < sizeof(struct probe_payload_v2))) {
 			CAM_ERR(CAM_SENSOR_LITE,
 				"Not enough buffer provided for cmd");
 			rc = -EINVAL;
@@ -1362,6 +1363,15 @@ int32_t __cam_sensor_lite_handle_probe(
 			cam_mem_put_cpu_buf(handle);
 			return -EINVAL;
 		}
+
+		if (probe->header.size > remain_len) {
+			CAM_ERR(CAM_SENSOR_LITE,
+				"Not enough buffer provided for size");
+			cam_mem_put_cpu_buf(cmd_desc[i].mem_handle);
+			cam_mem_put_cpu_buf(handle);
+			return -EINVAL;
+		}
+
 		pwr_on_cmd_size = sizeof(struct sensor_lite_acquire_cmd) +
 					(sizeof(struct sensor_power_setting) *
 					probe->power_up_settings_size);

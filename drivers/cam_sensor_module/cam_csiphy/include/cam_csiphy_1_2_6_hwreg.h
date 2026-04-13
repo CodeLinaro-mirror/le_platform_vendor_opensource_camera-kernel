@@ -2099,6 +2099,7 @@ struct csiphy_reg_parms_t csiphy_v1_2_6 = {
 	.csiphy_2ph_clock_lane = 0x1,
 	.csiphy_2ph_combo_ck_ln = 0x10,
 	.aon_sel_params = NULL,
+	.lane_reg_offsets = NULL,
 };
 
 #endif /* _CAM_CSIPHY_1_2_6_HWREG_H_ */

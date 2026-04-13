@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2025, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #include "cam_csiphy_soc.h"
@@ -19,6 +19,7 @@
 #include "include/cam_csiphy_2_1_1_hwreg.h"
 #include "include/cam_csiphy_2_1_3_hwreg.h"
 #include "include/cam_csiphy_2_2_0_hwreg.h"
+#include "include/cam_csiphy_2_2_1_hwreg.h"
 
 /* Clock divide factor for CPHY spec v1.0 */
 #define CSIPHY_DIVISOR_16                    16
@@ -582,6 +583,26 @@ int32_t cam_csiphy_parse_dt_info(struct platform_device *pdev,
 		csiphy_dev->clk_lane = 0;
 		csiphy_dev->ctrl_reg->data_rates_settings_table = &data_rate_delta_table_2_2_0;
 		csiphy_dev->ctrl_reg->csiphy_bist_reg = &bist_setting_2_2_0;
+	} else if (of_device_is_compatible(soc_info->dev->of_node,
+		"qcom,csiphy-v2.2.1")) {
+		csiphy_dev->ctrl_reg->csiphy_2ph_reg = csiphy_2ph_v2_2_1_reg;
+		csiphy_dev->ctrl_reg->csiphy_2ph_combo_mode_reg = csiphy_2ph_v2_2_1_combo_mode_reg;
+		csiphy_dev->ctrl_reg->csiphy_3ph_reg = csiphy_3ph_v2_2_1_reg;
+		csiphy_dev->ctrl_reg->csiphy_2l2ph_1l3ph_mode_reg =
+			csiphy_v2_2_1_2l2ph_1l3ph_combo_mode_reg;
+		csiphy_dev->ctrl_reg->csiphy_1l2ph_2l3ph_mode_reg =
+			csiphy_v2_2_1_1l2ph_2l3ph_combo_mode_reg;
+		csiphy_dev->ctrl_reg->csiphy_irq_reg = csiphy_irq_reg_2_2_1;
+		csiphy_dev->ctrl_reg->csiphy_common_reg = csiphy_common_reg_2_2_1;
+		csiphy_dev->ctrl_reg->csiphy_reset_enter_regs = csiphy_reset_enter_reg_2_2_1;
+		csiphy_dev->ctrl_reg->csiphy_reset_exit_regs = csiphy_reset_exit_reg_2_2_1;
+		csiphy_dev->ctrl_reg->csiphy_reg = csiphy_v2_2_1;
+		csiphy_dev->ctrl_reg->getclockvoting = get_clk_voting_dynamic;
+		csiphy_dev->hw_version = CSIPHY_VERSION_V221;
+		csiphy_dev->is_divisor_32_comp = true;
+		csiphy_dev->clk_lane = 0;
+		csiphy_dev->ctrl_reg->data_rates_settings_table = &data_rate_delta_table_2_2_1;
+		csiphy_dev->ctrl_reg->csiphy_bist_reg = &bist_setting_2_2_1;
 	} else {
 		CAM_ERR(CAM_CSIPHY, "invalid hw version : 0x%x",
 			csiphy_dev->hw_version);
