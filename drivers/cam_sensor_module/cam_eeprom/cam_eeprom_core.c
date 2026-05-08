@@ -336,7 +336,7 @@ data_mem_free:
 static int32_t cam_eeprom_get_dev_handle(struct cam_eeprom_ctrl_t *e_ctrl,
 	void *arg)
 {
-	struct cam_sensor_acquire_dev    eeprom_acq_dev;
+	struct cam_sensor_acquire_dev    eeprom_acq_dev = {0};
 	struct cam_create_dev_hdl        bridge_params;
 	struct cam_control              *cmd = (struct cam_control *)arg;
 

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, 2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #include <linux/slab.h>
@@ -1001,8 +1001,14 @@ int cam_vfe_camif_ver2_init(
 int cam_vfe_camif_ver2_deinit(
 	struct cam_isp_resource_node  *camif_node)
 {
-	struct cam_vfe_mux_camif_data *camif_priv = camif_node->res_priv;
+	struct cam_vfe_mux_camif_data *camif_priv = NULL;
 	int                            i = 0;
+
+	if (!camif_node || !camif_node->res_priv) {
+		CAM_ERR(CAM_ISP, "Error! camif_node or camif_priv is NULL");
+		return -ENODEV;
+	}
+	camif_priv = camif_node->res_priv;
 
 	INIT_LIST_HEAD(&camif_priv->free_payload_list);
 	for (i = 0; i < CAM_VFE_CAMIF_EVT_MAX; i++)
@@ -1015,11 +1021,6 @@ int cam_vfe_camif_ver2_deinit(
 	camif_node->bottom_half_handler = NULL;
 
 	camif_node->res_priv = NULL;
-
-	if (!camif_priv) {
-		CAM_ERR(CAM_ISP, "Error! camif_priv is NULL");
-		return -ENODEV;
-	}
 
 	kfree(camif_priv);
 

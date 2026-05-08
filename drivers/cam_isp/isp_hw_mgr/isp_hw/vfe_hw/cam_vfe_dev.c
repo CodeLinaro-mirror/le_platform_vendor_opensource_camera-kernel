@@ -30,6 +30,7 @@ static int cam_vfe_component_bind(struct device *dev,
 	struct platform_device *pdev = to_platform_device(dev);
 	struct cam_vfe_soc_private   *vfe_soc_priv;
 	uint32_t  i;
+	uint32_t hw_idx;
 
 	vfe_hw_intf = kzalloc(sizeof(struct cam_hw_intf), GFP_KERNEL);
 	if (!vfe_hw_intf) {
@@ -37,8 +38,20 @@ static int cam_vfe_component_bind(struct device *dev,
 		goto end;
 	}
 
-	of_property_read_u32(pdev->dev.of_node,
-		"cell-index", &vfe_hw_intf->hw_idx);
+	rc = of_property_read_u32(pdev->dev.of_node, "cell-index", &hw_idx);
+	if (rc) {
+		CAM_ERR(CAM_ISP, "Failed to read cell-index");
+		goto free_vfe_hw_intf;
+	}
+
+	if (hw_idx >= CAM_VFE_HW_NUM_MAX) {
+		CAM_ERR(CAM_ISP, "Invalid cell-index %u, max supported: %d",
+			hw_idx, CAM_VFE_HW_NUM_MAX);
+		rc = -EINVAL;
+		goto free_vfe_hw_intf;
+	}
+
+	vfe_hw_intf->hw_idx = hw_idx;
 
 	if (!cam_cpas_is_feature_supported(CAM_CPAS_ISP_FUSE,
 		(1 << vfe_hw_intf->hw_idx), 0) ||

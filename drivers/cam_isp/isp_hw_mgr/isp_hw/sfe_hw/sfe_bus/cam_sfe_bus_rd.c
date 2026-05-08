@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, 2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #include <linux/ratelimit.h>
@@ -1488,6 +1488,12 @@ static int cam_sfe_bus_rd_update_rm_core_cfg(
 			return -ENOMEM;
 		}
 
+		if (i >= PLANE_MAX) {
+			CAM_ERR(CAM_ISP,
+				"Invalid plane index %d exceeds PLANE_MAX %d",
+				i, PLANE_MAX);
+			return -EINVAL;
+		}
 		rm_data = sfe_bus_rd_data->rm_res[i]->res_priv;
 		/* To avoid AHB write @ stream on */
 		rm_data->enable_disable_cfg_done = true;

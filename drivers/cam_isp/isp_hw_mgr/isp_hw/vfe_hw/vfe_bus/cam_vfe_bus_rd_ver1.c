@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, 2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #include <linux/ratelimit.h>
@@ -914,6 +914,12 @@ static int cam_vfe_bus_rd_update_rm(void *priv, void *cmd_args,
 			return -ENOMEM;
 		}
 
+		if (i >= PLANE_MAX) {
+			CAM_ERR(CAM_ISP,
+				"Invalid plane index %d exceeds PLANE_MAX %d",
+				i, PLANE_MAX);
+			return -EINVAL;
+		}
 		rm_data = vfe_bus_rd_data->rm_res[i]->res_priv;
 
 		/* update size register */
@@ -1009,7 +1015,11 @@ static int cam_vfe_bus_rd_update_fs_cfg(void *priv, void *cmd_args,
 	fe_cfg = &fe_upd_args->fe_config;
 
 	for (i = 0; i < vfe_bus_rd_data->num_rm; i++) {
-
+		if (i >= PLANE_MAX) {
+			CAM_ERR(CAM_ISP,
+				"Invalid plane index %d exceeds PLANE_MAX %d", i, PLANE_MAX);
+			return -EINVAL;
+		}
 		rm_data = vfe_bus_rd_data->rm_res[i]->res_priv;
 		common_data = rm_data->common_data;
 
@@ -1081,6 +1091,11 @@ static int cam_vfe_bus_rd_add_go_cmd(void *priv, void *cmd_args,
 			return -EINVAL;
 		}
 
+		if (i >= PLANE_MAX) {
+			CAM_ERR(CAM_ISP, "Invalid plane index %d exceeds PLANE_MAX %d",
+				i, PLANE_MAX);
+			return -EINVAL;
+		}
 		rsrc_data = rd_data->rm_res[i]->res_priv;
 		offset = rsrc_data->common_data->common_reg->input_if_cmd;
 		val = cam_io_r_mb(rsrc_data->common_data->mem_base + offset);

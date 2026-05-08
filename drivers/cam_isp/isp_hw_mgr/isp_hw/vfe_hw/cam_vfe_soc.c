@@ -144,10 +144,11 @@ static int cam_vfe_request_platform_resource(
 
 	rc = cam_soc_util_request_platform_resource(soc_info, vfe_irq_handler,
 		irq_data);
-	if (rc)
+	if (rc) {
 		CAM_ERR(CAM_ISP,
 			"Error! Request platform resource failed rc=%d", rc);
-
+		return rc;
+	}
 	rc = cam_cpas_get_global_timer_info(&g_timer);
 	if (rc != 0)
 		CAM_ERR(CAM_ISP, "Failed to get global timer info");
@@ -260,11 +261,17 @@ int cam_vfe_deinit_soc_resources(struct cam_hw_soc_info *soc_info)
 			"Error! Release platform resources failed rc=%d", rc);
 
 	if (soc_private->dsp_clk_index != -1) {
-		rc = cam_soc_util_put_optional_clk(soc_info,
-			soc_private->dsp_clk_index);
-		if (rc)
-			CAM_ERR(CAM_ISP,
-				"Error Put dsp clk failed rc=%d", rc);
+		if (soc_private->dsp_clk_index < 0 ||
+		    soc_private->dsp_clk_index >= soc_info->num_clk) {
+			CAM_ERR(CAM_ISP, "Invalid dsp_clk_index %d for num_clk %d",
+				soc_private->dsp_clk_index, soc_info->num_clk);
+		} else {
+			rc = cam_soc_util_put_optional_clk(soc_info,
+				soc_private->dsp_clk_index);
+			if (rc)
+				CAM_ERR(CAM_ISP,
+					"Error Put dsp clk failed rc=%d", rc);
+		}
 	}
 	kfree(soc_private);
 

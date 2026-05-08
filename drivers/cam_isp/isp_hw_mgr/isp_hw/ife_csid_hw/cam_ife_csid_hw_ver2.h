@@ -472,6 +472,7 @@ struct cam_ife_csid_ver2_common_reg_info {
 	bool     timestamp_enabled_in_cfg0;
 	bool     camif_irq_support;
 	bool     is_core_clk_gate_enable;
+	uint32_t num_full_ife;
 
 	/* Masks */
 	uint32_t pxl_cnt_mask;

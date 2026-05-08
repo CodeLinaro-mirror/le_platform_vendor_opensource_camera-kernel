@@ -60,6 +60,7 @@ enum cam_sensor_state_t {
 	CAM_SENSOR_ACQUIRE,
 	CAM_SENSOR_CONFIG,
 	CAM_SENSOR_START,
+	CAM_SENSOR_STANDBY,
 };
 
 enum cam_sensor_frame_state {

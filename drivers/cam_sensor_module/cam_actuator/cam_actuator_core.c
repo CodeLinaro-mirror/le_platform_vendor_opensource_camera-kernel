@@ -1704,7 +1704,7 @@ int32_t cam_actuator_driver_cmd(struct cam_actuator_ctrl_t *a_ctrl,
 	mutex_lock(&(a_ctrl->actuator_mutex));
 	switch (cmd->op_code) {
 	case CAM_ACQUIRE_DEV: {
-		struct cam_sensor_acquire_dev actuator_acq_dev;
+		struct cam_sensor_acquire_dev actuator_acq_dev = {0};
 		struct cam_create_dev_hdl bridge_params;
 
 		if (a_ctrl->bridge_intf.device_hdl != -1) {

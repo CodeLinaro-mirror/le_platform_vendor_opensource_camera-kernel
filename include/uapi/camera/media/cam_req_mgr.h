@@ -410,6 +410,7 @@ struct cam_req_mgr_thread_prop_control {
 #define CAM_REQ_MGR_BATCH_REQ                   (CAM_COMMON_OPCODE_MAX + 20)
 #define CAM_REQ_MGR_FAST_CROP_SYNC              (CAM_COMMON_OPCODE_MAX + 21)
 #define CAM_REQ_MGR_BATCH_REQ_V2                (CAM_COMMON_OPCODE_MAX + 22)
+#define CAM_REQ_MGR_PREEMPT_UL_DEV              (CAM_COMMON_OPCODE_MAX + 23)
 
 /* end of cam_req_mgr opcodes */
 

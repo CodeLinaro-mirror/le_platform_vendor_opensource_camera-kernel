@@ -86,6 +86,7 @@ static struct cam_ife_csid_ver2_common_reg_info
 	.format_measure_width_shift_val               = 0x0,
 	.camif_irq_support                            = true,
 	.is_core_clk_gate_enable                      = true,
+	.num_full_ife                                 = 2,
 };
 
 static struct cam_ife_csid_ver2_reg_info cam_ife_csid_lite_634_reg_info = {

@@ -895,7 +895,7 @@ int cam_lx7_process_cmd(void *priv, uint32_t cmd_type,
 irqreturn_t cam_lx7_handle_irq(int irq_num, void *data)
 {
 	struct cam_hw_info *lx7_info = data;
-	struct cam_lx7_core_info *core_info = lx7_info->core_info;
+	struct cam_lx7_core_info *core_info = NULL;
 	bool recover = false;
 	uint32_t status = 0;
 	int32_t wd0_base_idx;
@@ -906,6 +906,7 @@ irqreturn_t cam_lx7_handle_irq(int irq_num, void *data)
 		return IRQ_NONE;
 	}
 
+	core_info = lx7_info->core_info;
 	irq_base = lx7_info->soc_info.reg_map[core_info->irq_regbase_idx].mem_base;
 
 	status = cam_io_r_mb(irq_base + core_info->hw_info->ob_irq_status);

@@ -187,7 +187,7 @@ inline int cam_req_mgr_kthread_create(struct cam_req_mgr_core_worker *crm_worker
 
 inline void cam_req_mgr_kthread_destroy(struct cam_req_mgr_core_worker *worker)
 {
-	struct kthread_worker   *kthread_worker;
+	struct kthread_worker   *kthread_worker = NULL;
 	unsigned long flags = 0;
 	struct cam_kthread_data *kthread_data, *temp_kthread, *free_kthread = NULL;
 

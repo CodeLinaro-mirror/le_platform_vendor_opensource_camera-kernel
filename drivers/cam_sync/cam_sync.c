@@ -539,7 +539,7 @@ static int cam_sync_dma_fence_cb(
 {
 	struct sync_ext_fence_info *ext_fence_info, *tmp;
 	struct sync_table_row *row = NULL;
-	struct cam_sync_signal_param param;
+	struct cam_sync_signal_param param = {0};
 	struct list_head parents_list;
 	int32_t rc = 0;
 	int32_t status = CAM_SYNC_STATE_SIGNALED_SUCCESS;
@@ -3792,6 +3792,13 @@ static int cam_sync_close(struct file *filep)
 		CAM_ERR(CAM_SYNC, "Sync device NULL");
 		rc = -ENODEV;
 		return rc;
+	}
+
+	if (sync_manager_idx < 0 || sync_manager_idx >= CAM_SYNC_MAX_SYNC_MANAGER) {
+		CAM_ERR(CAM_SYNC,
+			"Invalid sync_manager_idx %d, valid range: 0-%d",
+			sync_manager_idx, CAM_SYNC_MAX_OBJS - 1);
+		return -EINVAL;
 	}
 	for (i = 1; i < CAM_SYNC_MAX_OBJS; i++) {
 		struct sync_table_row *row =

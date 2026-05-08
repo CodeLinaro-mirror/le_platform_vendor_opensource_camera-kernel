@@ -540,7 +540,8 @@ static long cam_private_ioctl(struct file *file, void *fh,
 			return -EFAULT;
 		}
 
-		if (tmp_sync_info.version != 2 || tmp_sync_info.num_links <= 0) {
+		if (tmp_sync_info.version != 2 || tmp_sync_info.num_links <= 0 ||
+			tmp_sync_info.num_links > MAX_LINKS_PER_SESSION_V2) {
 			CAM_ERR(CAM_CRM, "Invalid version (%x) or num_links (%d)",
 					tmp_sync_info.version, tmp_sync_info.num_links);
 			return -EINVAL;
@@ -781,6 +782,23 @@ static long cam_private_ioctl(struct file *file, void *fh,
 		rc = cam_req_mgr_batch_request_v2(&cmd);
 		if (rc)
 			CAM_ERR(CAM_CORE, "Batch request failed");
+		}
+		break;
+	case CAM_REQ_MGR_PREEMPT_UL_DEV: {
+		struct cam_preempt_ul_cmd cmd;
+
+		if (k_ioctl->size != sizeof(cmd))
+			return -EINVAL;
+
+		if (copy_from_user(&cmd,
+			u64_to_user_ptr(k_ioctl->handle),
+			sizeof(struct cam_preempt_ul_cmd))) {
+			rc = -EFAULT;
+			break;
+		}
+		rc = cam_req_mgr_preempt_ul(&cmd);
+		if (rc)
+			CAM_ERR(CAM_CORE, "Preempt UL failed");
 		}
 		break;
 	default:

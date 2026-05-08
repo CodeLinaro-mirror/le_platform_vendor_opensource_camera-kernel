@@ -87,6 +87,7 @@
 #define BATCH_PACKET_RESULT_BUFFER_ERROR  1
 #define BATCH_PACKET_RESULT_DEVICE_ERROR  2
 #define BATCH_PACKET_RESULT_NO_BUFFER     3
+#define BATCH_PACKET_RESULT_PREEMPT_UL    4
 
 /* camera blob handle op codes */
 #define CAM_COMMON_QUERY_BLOB_BASE 0x0
@@ -809,6 +810,17 @@ struct cam_batch_config_dev_cmd {
 	__s32                session_handle;
 	__u64                offset;
 	__u64                ul_packet_handle;
+};
+
+/**
+ * struct cam_preempt_ul_cmd - Used for Preempting main thread in UL Trigger Type Stream
+ *
+ * @session_handle:             Session handle for the command
+ * @link_hdl:                   Link handle
+ */
+struct cam_preempt_ul_cmd {
+	__s32                session_handle;
+	__s32                link_hdl;
 };
 
 /**

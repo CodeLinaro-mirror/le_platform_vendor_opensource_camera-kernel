@@ -88,6 +88,8 @@ typedef uint32_t (*cam_req_mgr_get_qtvm_status)(void);
  * @cam_req_mgr_no_crm_update_last_apply_reqid : no_crm update last apply reqid
  *                                               in ctx_isp
  * @cam_req_mgr_no_crm_is_secure_mode    : to fetch the secure mode of device
+ * @cam_req_mgr_no_crm_preempt           : no_crm preemption for devices in UL
+ *                                         stream type trigger
  */
 typedef int (*cam_req_mgr_get_dev_info) (struct cam_req_mgr_device_info *);
 typedef int (*cam_req_mgr_link_setup)(struct cam_req_mgr_core_dev_link_setup *);
@@ -116,6 +118,7 @@ typedef int (*cam_req_mgr_no_crm_is_secure_mode)(int32_t dev_hdl);
 typedef int (*cam_req_mgr_no_crm_retrieve)(int32_t dev_hdl, struct ul_cam_packet *ul_packet);
 typedef int (*cam_req_mgr_no_crm_retrieve_v2)(int32_t dev_hdl, struct ul_cam_packet_v2 *ul_packet);
 typedef int (*cam_req_mgr_no_crm_update_last_apply_reqid)(int32_t dev_hdl, uint64_t last_apply_req, uint64_t ife_reqid);
+typedef int (*cam_req_mgr_no_crm_preempt)(int32_t dev_hdl);
 
 /**
  * @brief          : cam_req_mgr_crm_cb - func table
@@ -179,6 +182,7 @@ struct cam_req_mgr_kmd_ops {
  * @notify_dev   : notify to device for specific command
  * @update_last_apply_reqid : update the last applied req id
  * @is_secure_mode: Fetch secure mode
+ * @preempt: Preempt device for UL Trigger
  */
 struct cam_req_mgr_no_crm_kmd_ops {
 	cam_req_mgr_no_crm_handshake_device handshake;
@@ -192,6 +196,7 @@ struct cam_req_mgr_no_crm_kmd_ops {
 	cam_req_mgr_no_crm_retrieve_v2      retrieve_v2;
 	cam_req_mgr_no_crm_update_last_apply_reqid  update_last_apply_reqid;
 	cam_req_mgr_no_crm_is_secure_mode   is_secure_mode;
+	cam_req_mgr_no_crm_preempt          preempt_ul;
 };
 
 /**

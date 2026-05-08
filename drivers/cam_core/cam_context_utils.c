@@ -704,7 +704,7 @@ int32_t cam_context_acquire_dev_to_hw(struct cam_context *ctx,
 {
 	int rc;
 	struct cam_hw_acquire_args param;
-	struct cam_create_dev_hdl req_hdl_param;
+	struct cam_create_dev_hdl req_hdl_param = {0};
 	struct cam_hw_release_args release;
 
 	if (!ctx || !cmd) {

@@ -850,6 +850,12 @@ static int cam_cpas_util_translate_client_paths(
 	if (!axi_vote)
 		return -EINVAL;
 
+	if (axi_vote->num_paths >= CAM_CPAS_MAX_PATHS_PER_CLIENT) {
+		CAM_ERR(CAM_CPAS, "Invalid num_paths: %d, max allowed: %d",
+			axi_vote->num_paths, CAM_CPAS_MAX_PATHS_PER_CLIENT);
+		return -EINVAL;
+	}
+
 	for (i = 0; i < axi_vote->num_paths; i++) {
 		path_data_type = &axi_vote->axi_path[i].path_data_type;
 		/* Update path_data_type from UAPI value to internal value */
@@ -2132,9 +2138,14 @@ static int cam_cpas_hw_register_client(struct cam_hw_info *cpas_hw,
 
 	rc = cam_common_util_get_string_index(soc_private->client_name,
 		soc_private->num_clients, client_name, &client_indx);
+	if (rc) {
+		CAM_ERR(CAM_CPAS, "Client %s is not found in CPAS client list rc=%d",
+			client_name, rc);
+		mutex_unlock(&cpas_hw->hw_mutex);
+		return -ENODEV;
+	}
 
 	mutex_lock(&cpas_core->client_mutex[client_indx]);
-
 	if (rc || !CAM_CPAS_CLIENT_VALID(client_indx) ||
 		CAM_CPAS_CLIENT_REGISTERED(cpas_core, client_indx)) {
 		CAM_ERR(CAM_CPAS,

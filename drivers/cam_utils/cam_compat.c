@@ -743,8 +743,9 @@ int cam_req_mgr_ordered_list_cmp(void *priv,
 int cam_compat_util_get_dmabuf_va(struct dma_buf *dmabuf, uintptr_t *vaddr)
 {
 	struct dma_buf_map mapping;
-	int error_code = dma_buf_vmap(dmabuf, &mapping);
+	int error_code = 0;
 
+	error_code = dma_buf_vmap(dmabuf, &mapping);
 	if (error_code)
 		*vaddr = 0;
 	else

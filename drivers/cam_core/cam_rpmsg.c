@@ -1163,7 +1163,7 @@ int cam_rpmsg_set_recv_cb(unsigned int handle, cam_rpmsg_recv_cb cb)
 static int cam_rpmsg_slave_probe(struct rpmsg_device *rpdev)
 {
 	struct cam_rpmsg_instance_data *idata;
-	struct cam_rpmsg_slave_cbs system_cb;
+	struct cam_rpmsg_slave_cbs system_cb = {0};
 	unsigned int handle = CAM_RPMSG_HANDLE_SLAVE;
 	int rc = 0;
 
@@ -1257,6 +1257,7 @@ static void cam_rpmsg_jpeg_remove(struct rpmsg_device *rpdev)
 	payload->rsp   = NULL;
 
 	cam_rpmsg_handle_jpeg_poweroff(payload);
+	kfree(payload);
 	complete(&jpeg_private.error_data.complete);
 	mutex_lock(&idata->rpmsg_mutex);
 	idata->rpdev = NULL;

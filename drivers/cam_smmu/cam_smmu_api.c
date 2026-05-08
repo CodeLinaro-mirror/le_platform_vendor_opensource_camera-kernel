@@ -2824,6 +2824,11 @@ static int cam_smmu_map_buffer_validate(struct dma_buf *buf,
 				buf->size);
 			goto err_detach;
 		}
+		if (!table->sgl) {
+			CAM_ERR(CAM_SMMU, "Error: table sgl is null");
+			rc = -EINVAL;
+			goto err_unmap_sg;
+		}
 
 		*paddr_ptr = sg_dma_address(table->sgl);
 		*len_ptr = (size_t)buf->size;

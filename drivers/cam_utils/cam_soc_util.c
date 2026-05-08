@@ -1843,7 +1843,7 @@ static int cam_soc_util_get_gpio_info(struct cam_hw_soc_info *soc_info)
 
 	gconf = kzalloc(sizeof(*gconf), GFP_KERNEL);
 	if (!gconf)
-		return -ENOMEM;
+		goto free_gpio_conf;
 
 	rc = cam_soc_util_get_dt_gpio_req_tbl(of_node, gconf, gpio_array,
 		gpio_array_size);

@@ -4766,19 +4766,19 @@ static int cam_icp_mgr_send_memory_region_info(
 
 	if (hw_mgr->fw_based_sys_caching) {
 		/* Update ipc llcc mem */
-		region_info->region_info[region_info->num_valid_regions].region_id =
+		region_info->region_info_flex[region_info->num_valid_regions].region_id =
 			HFI_MEM_REGION_ID_LLCC_REGISTER;
-		region_info->region_info[region_info->num_valid_regions].region_type =
+		region_info->region_info_flex[region_info->num_valid_regions].region_type =
 			HFI_MEM_REGION_TYPE_DEVICE;
-		region_info->region_info[region_info->num_valid_regions].start_addr =
+		region_info->region_info_flex[region_info->num_valid_regions].start_addr =
 			hw_mgr->hfi_mem.llcc_reg.iova;
-		region_info->region_info[region_info->num_valid_regions].size =
+		region_info->region_info_flex[region_info->num_valid_regions].size =
 			hw_mgr->hfi_mem.llcc_reg.len;
 
 		region_info->num_valid_regions++;
 
 		CAM_DBG(CAM_ICP,
-			"LLCC mem regions iova[0x%x:0x%x] len[0x%x:0x%x]",
+			"LLCC mem region [0x%x:0x%x]",
 			hw_mgr->hfi_mem.llcc_reg.iova, hw_mgr->hfi_mem.llcc_reg.len);
 	}
 
@@ -5222,6 +5222,14 @@ static int cam_icp_mgr_config_hw(void *hw_mgr_priv, void *config_hw_args)
 			config_args->request_id);
 		cam_presil_send_buffers_from_packet(frame_info->pkt, hw_mgr->iommu_hdl,
 			hw_mgr->iommu_hdl);
+	}
+
+	if (((ctx_data->icp_dev_acquire_info->dev_type == CAM_ICP_RES_TYPE_BPS) &&
+		(!hw_mgr->bps_clk_state)) ||
+		((ctx_data->icp_dev_acquire_info->dev_type == CAM_ICP_RES_TYPE_IPE) &&
+		(!hw_mgr->ipe_clk_state))) {
+		CAM_ERR(CAM_ICP, "ctx id :%u not yet start", ctx_data->ctx_id);
+		goto config_err;
 	}
 
 	rc = cam_icp_mgr_ipe_bps_clk_update(hw_mgr, ctx_data, idx);
@@ -6210,7 +6218,7 @@ static int cam_icp_mgr_config_stream_settings(
 
 	rc = cam_packet_util_validate_cmd_desc(cmd_desc);
 	if (rc)
-		return rc;
+		goto end;
 
 	if (!cmd_desc[0].length ||
 		cmd_desc[0].meta_data != CAM_ICP_CMD_META_GENERIC_BLOB) {
