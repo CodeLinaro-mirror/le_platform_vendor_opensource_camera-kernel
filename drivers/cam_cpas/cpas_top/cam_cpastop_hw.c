@@ -1160,10 +1160,12 @@ static int cam_cpastop_init_hw_version(struct cam_hw_info *cpas_hw,
 	case CAM_CPAS_TITAN_634_V100:
 		camnoc_info = &cam634_cpas100_camnoc_info;
 		qchannel_info = &cam634_cpas100_qchannel_info;
+		cpas_core->cam_subpart_info = &cam634_cpas100_camera_subpart_info;
 		break;
 	case CAM_CPAS_TITAN_634_V110:
 		camnoc_info = &cam634_cpas110_camnoc_info;
 		qchannel_info = &cam634_cpas110_qchannel_info;
+		cpas_core->cam_subpart_info = &cam634_cpas110_camera_subpart_info;
 		break;
 	default:
 		CAM_ERR(CAM_CPAS, "Camera Version not supported %d.%d.%d",

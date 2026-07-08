@@ -491,6 +491,8 @@ static int cam_ife_csid_ver2_path_top_half(
 	struct cam_ife_csid_ver2_path_cfg            *path_cfg;
 	const struct cam_ife_csid_ver2_path_reg_info *path_reg;
 	void                                         *csid_mem_base;
+	uint64_t                                      timestamp, boot_timestamp, prev_timestamp;
+	uint32_t                                      time_hi, time_lo;
 
 	res  = th_payload->handler_priv;
 
@@ -542,6 +544,34 @@ static int cam_ife_csid_ver2_path_top_half(
 			res->res_id,
 			evt_payload->irq_reg_val[CAM_IFE_CSID_IRQ_REG_TIMESTAMP_0],
 			evt_payload->irq_reg_val[CAM_IFE_CSID_IRQ_REG_TIMESTAMP_1]);
+
+	if (path_cfg->fastpath_timestamp_notifier.handler_cb &&
+		(th_payload->evt_status_arr[path_cfg->irq_reg_idx] & path_reg->epoch0_irq_mask)) {
+
+		/*Fetch SOF Timestamp*/
+		timestamp = ((uint64_t)evt_payload->irq_reg_val[CAM_IFE_CSID_IRQ_REG_TIMESTAMP_1]
+				<< 32) | evt_payload->irq_reg_val[CAM_IFE_CSID_IRQ_REG_TIMESTAMP_0];
+		timestamp = mul_u64_u32_div(timestamp, CAM_IFE_CSID_QTIMER_MUL_FACTOR,
+				CAM_IFE_CSID_QTIMER_DIV_FACTOR);
+
+		/*Fetch Boot Timestamp*/
+		boot_timestamp =  g_ref_time.btime + timestamp - g_ref_time.qtime;
+
+		/*Fetch Prev Timestamp*/
+		time_hi = cam_io_r(csid_mem_base + path_reg->timestamp_perv1_sof_addr);
+		time_lo = cam_io_r(csid_mem_base + path_reg->timestamp_perv0_sof_addr);
+		prev_timestamp = ((uint64_t)time_hi << 32) | time_lo;
+		prev_timestamp = mul_u64_u32_div(prev_timestamp,
+					CAM_IFE_CSID_QTIMER_MUL_FACTOR,
+					CAM_IFE_CSID_QTIMER_DIV_FACTOR);
+
+		path_cfg->fastpath_timestamp_notifier.handler_cb(
+			path_cfg->fastpath_timestamp_notifier.data,
+			prev_timestamp,
+			timestamp,
+			boot_timestamp
+		);
+	}
 
 	th_payload->evt_payload_priv = evt_payload;
 
@@ -1736,8 +1766,9 @@ static int cam_ife_csid_ver2_ipp_bottom_half(
 	}
 
 	irq_status_ipp = payload->irq_reg_val[path_cfg->irq_reg_idx];
-	timestamp = ((uint64_t)payload->irq_reg_val[CAM_IFE_CSID_IRQ_REG_TIMESTAMP_1] << 32) |
-		payload->irq_reg_val[CAM_IFE_CSID_IRQ_REG_TIMESTAMP_0];
+
+	timestamp = ((uint64_t)payload->irq_reg_val[CAM_IFE_CSID_IRQ_REG_TIMESTAMP_1]
+		<< 32) | payload->irq_reg_val[CAM_IFE_CSID_IRQ_REG_TIMESTAMP_0];
 	timestamp = mul_u64_u32_div(timestamp,
 			CAM_IFE_CSID_QTIMER_MUL_FACTOR,
 			CAM_IFE_CSID_QTIMER_DIV_FACTOR);
@@ -1955,11 +1986,13 @@ static int cam_ife_csid_ver2_rdi_bottom_half(
 		csid_hw->core_info->csid_reg;
 
 	irq_status_rdi = payload->irq_reg_val[path_cfg->irq_reg_idx];
-	timestamp = ((uint64_t)payload->irq_reg_val[CAM_IFE_CSID_IRQ_REG_TIMESTAMP_1] << 32) |
-		payload->irq_reg_val[CAM_IFE_CSID_IRQ_REG_TIMESTAMP_0];
+
+	timestamp = ((uint64_t)payload->irq_reg_val[CAM_IFE_CSID_IRQ_REG_TIMESTAMP_1]
+		<< 32) | payload->irq_reg_val[CAM_IFE_CSID_IRQ_REG_TIMESTAMP_0];
 	timestamp = mul_u64_u32_div(timestamp,
 			CAM_IFE_CSID_QTIMER_MUL_FACTOR,
 			CAM_IFE_CSID_QTIMER_DIV_FACTOR);
+
 	rdi_reg = csid_reg->path_reg[res->res_id];
 
 	if (!rdi_reg)
@@ -4999,7 +5032,20 @@ int cam_ife_csid_ver2_start(void *hw_priv, void *args,
 	}
 
 	csid_hw->flags.reset_awaited = false;
+
 end:
+	/* Shifting the timestamp ANCHOR point to CSID start as g_ref_time is required in
+	 * UL Top Half for storing the values of the ref timestamp
+	 */
+	mutex_lock(&g_ref_time.lock);
+	if (g_ref_time.btime == 0) {
+		g_ref_time.qtime = arch_timer_read_counter();
+		g_ref_time.btime = ktime_get_boottime_ns();
+		g_ref_time.qtime = mul_u64_u32_div(g_ref_time.qtime,
+			CAM_IFE_CSID_QTIMER_MUL_FACTOR, CAM_IFE_CSID_QTIMER_DIV_FACTOR);
+	}
+	mutex_unlock(&g_ref_time.lock);
+
 	mutex_unlock(&csid_hw->hw_info->hw_mutex);
 	return rc;
 }
@@ -5014,6 +5060,7 @@ int cam_ife_csid_ver2_stop(void *hw_priv,
 	uint32_t i;
 	struct cam_csid_hw_stop_args         *csid_stop;
 	struct cam_csid_reset_cfg_args       reset = {0};
+	struct cam_ife_csid_ver2_path_cfg    *path_cfg;
 	unsigned long flags;
 
 	if (!hw_priv || !stop_args ||
@@ -5097,6 +5144,15 @@ int cam_ife_csid_ver2_stop(void *hw_priv,
 				&csid_hw->path_free_payload_list);
 		}
 		spin_unlock_irqrestore(&csid_hw->path_payload_lock, flags);
+
+		for (i = 0; i < csid_stop->num_res; i++) {
+			res = csid_stop->node_res[i];
+			if (res->res_priv) {
+				path_cfg = res->res_priv;
+				path_cfg->fastpath_timestamp_notifier.handler_cb = NULL;
+				path_cfg->fastpath_timestamp_notifier.data = NULL;
+			}
+		}
 	}
 	cam_ife_csid_ver2_disable_csi2(csid_hw);
 	mutex_unlock(&csid_hw->hw_info->hw_mutex);
@@ -5463,15 +5519,6 @@ static int cam_ife_csid_ver2_get_time_stamp(
 			path_reg->timestamp_curr0_sof_addr,
 			path_reg->timestamp_curr1_sof_addr);
 	}
-
-	mutex_lock(&g_ref_time.lock);
-	if (g_ref_time.btime == 0) {
-		g_ref_time.qtime = arch_timer_read_counter();
-		g_ref_time.btime = ktime_get_boottime_ns();
-		g_ref_time.qtime = mul_u64_u32_div(g_ref_time.qtime,
-			CAM_IFE_CSID_QTIMER_MUL_FACTOR, CAM_IFE_CSID_QTIMER_DIV_FACTOR);
-	}
-	mutex_unlock(&g_ref_time.lock);
 
 	timestamp_args->boot_timestamp = g_ref_time.btime + timestamp_args->time_stamp_val -
 		g_ref_time.qtime;
@@ -6378,6 +6425,13 @@ static int cam_ife_csid_get_csid_hw_num(uint32_t csid_hw_index)
 			((csid_hw_index <= 7) ? (csid_hw_index - 2) : (csid_hw_index - 4)));
 	}
 
+	if (cpas_version == CAM_CPAS_TITAN_634_V110)
+		/* For Titan 634_110:
+		 * - Index 0 remain unchanged
+		 * - Indices 1-2 are mapped to 2-3 (add 1)
+		 */
+		return ((csid_hw_index == 0) ? csid_hw_index : (csid_hw_index + 1));
+
 	return csid_hw_index;
 }
 
@@ -6557,6 +6611,21 @@ static int cam_ife_csid_ver2_process_cmd(void *hw_priv,
 		break;
 	case CAM_ISP_HW_CMD_SKIP_CSID_DISCARD_FRAME_CFG:
 		rc = cam_ife_csid_skip_discard_frame_cfg(csid_hw);
+		break;
+	case CAM_ISP_HW_CMD_FAST_TIMESTAMP_NOTIFIER: {
+		struct cam_isp_hw_fast_path_timestamp_notifier *notifier_ts;
+
+		notifier_ts = (struct cam_isp_hw_fast_path_timestamp_notifier *)cmd_args;
+		if (notifier_ts->data && notifier_ts->handler_cb && notifier_ts->res) {
+			struct cam_ife_csid_ver2_path_cfg *path_cfg;
+
+			path_cfg = notifier_ts->res->res_priv;
+
+			path_cfg->fastpath_timestamp_notifier.data = notifier_ts->data;
+			path_cfg->fastpath_timestamp_notifier.handler_cb = notifier_ts->handler_cb;
+			rc = 0;
+		}
+	}
 		break;
 	default:
 		CAM_ERR(CAM_ISP, "CSID:%d unsupported cmd:%d",

@@ -120,7 +120,7 @@ int32_t camera_io_dev_event_write(struct camera_io_master *io_master_info,
 	struct cam_sensor_event_list *event_list,
 	uint32_t context_id)
 {
-	if (!io_master_info && context_id == CONTEXT_ID_MAX) {
+	if (!io_master_info || context_id == CONTEXT_ID_MAX) {
 		CAM_ERR(CAM_SENSOR,
 			"Input parameters not valid ws:  ioinfo: %pK",
 			io_master_info);

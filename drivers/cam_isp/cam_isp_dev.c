@@ -364,6 +364,85 @@ static int cam_isp_dev_probe(struct platform_device *pdev)
 	return rc;
 }
 
+#if defined(CONFIG_HIBERNATION)
+static int cam_isp_pm_freeze(struct device *dev)
+{
+	int rc = 0;
+	const char *compat_str = NULL;
+	struct platform_device *pdev;
+
+	if (!dev || !dev->driver || !of_device_is_compatible(dev->of_node, "qcom,cam-isp")) {
+		CAM_WARN(CAM_ISP, "ISP driver not yet probe");
+		return 0;
+	}
+
+	CAM_DBG(CAM_ISP, "ISP pm freeze enter");
+
+	pdev = to_platform_device(dev);
+	if (!pdev) {
+		CAM_ERR(CAM_ISP, "pdev is NULL");
+		return -EINVAL;
+	}
+
+	rc = of_property_read_string_index(pdev->dev.of_node, "arch-compat", 0,
+		(const char **)&compat_str);
+	if (rc) {
+		CAM_ERR(CAM_ISP, "Failed to read arch-compat rc: %d", rc);
+		return rc;
+	}
+
+	CAM_INFO(CAM_ISP, "ISP pm synx uninitialize call");
+	rc = cam_isp_hw_mgr_deinit_hw_fence_sessions(compat_str);
+	if (rc)
+		CAM_ERR(CAM_ISP, "ISP pm synx uninitialize failed rc: %d", rc);
+
+	CAM_DBG(CAM_ISP, "ISP pm freeze exit");
+	return rc;
+}
+
+static int cam_isp_pm_restore(struct device *dev)
+{
+	int rc = 0;
+	const char *compat_str = NULL;
+	struct platform_device *pdev;
+
+	if (!dev || !dev->driver || !of_device_is_compatible(dev->of_node, "qcom,cam-isp")) {
+		CAM_WARN(CAM_ISP, "ISP driver not yet probe");
+		return 0;
+	}
+
+	CAM_DBG(CAM_ISP, "ISP pm restore enter");
+
+	pdev = to_platform_device(dev);
+	if (!pdev) {
+		CAM_ERR(CAM_ISP, "pdev is NULL");
+		return -EINVAL;
+	}
+
+	rc = of_property_read_string_index(pdev->dev.of_node, "arch-compat", 0,
+		(const char **)&compat_str);
+	if (rc) {
+		CAM_ERR(CAM_ISP, "Failed to read arch-compat rc: %d", rc);
+		return rc;
+	}
+
+	CAM_INFO(CAM_ISP, "ISP pm synx initialize call");
+	rc = cam_isp_hw_mgr_init_hw_fence_sessions(compat_str);
+	if (rc)
+		CAM_ERR(CAM_ISP, "ISP pm synx re-initialize failed rc: %d", rc);
+
+	CAM_DBG(CAM_ISP, "ISP pm restore exit");
+	return rc;
+}
+#endif
+
+static const struct dev_pm_ops cam_isp_pm_ops = {
+#if defined(CONFIG_HIBERNATION)
+	.freeze = cam_isp_pm_freeze,
+	.restore = cam_isp_pm_restore
+#endif
+};
+
 struct platform_driver isp_driver = {
 	.probe = cam_isp_dev_probe,
 	.remove = cam_isp_dev_remove,
@@ -372,6 +451,7 @@ struct platform_driver isp_driver = {
 		.owner = THIS_MODULE,
 		.of_match_table = cam_isp_dt_match,
 		.suppress_bind_attrs = true,
+		.pm = &cam_isp_pm_ops,
 	},
 };
 

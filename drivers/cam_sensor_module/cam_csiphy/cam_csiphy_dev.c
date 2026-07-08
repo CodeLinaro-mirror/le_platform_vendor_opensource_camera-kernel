@@ -258,7 +258,6 @@ static int cam_csiphy_component_bind(struct device *dev,
 	new_csiphy_dev->ctrl_reg = kzalloc(sizeof(struct csiphy_ctrl_t),
 		GFP_KERNEL);
 	if (!new_csiphy_dev->ctrl_reg) {
-		devm_kfree(&pdev->dev, new_csiphy_dev);
 		return -ENOMEM;
 	}
 
@@ -382,7 +381,6 @@ csiphy_unregister_subdev:
 csiphy_no_resource:
 	mutex_destroy(&new_csiphy_dev->mutex);
 	kfree(new_csiphy_dev->ctrl_reg);
-	devm_kfree(&pdev->dev, new_csiphy_dev);
 	return rc;
 }
 

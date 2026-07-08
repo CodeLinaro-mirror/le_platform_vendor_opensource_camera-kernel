@@ -197,4 +197,6 @@ inline struct icc_path *cam_icc_get_path(struct device *dev,
 	const int src_id, const int dst_id, const char *path_name, bool use_path_name);
 #endif
 
+int cam_get_subpart_info(uint32_t *part_info, uint32_t max_num_cam);
+
 #endif /* _CAM_COMPAT_H_ */

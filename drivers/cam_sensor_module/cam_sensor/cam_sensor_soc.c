@@ -248,7 +248,7 @@ static int32_t cam_sensor_driver_get_dt_data(struct cam_sensor_ctrl_t *s_ctrl)
 		sensordata->pos_yaw = 360;
 	}
 
-	if (of_property_read_u8(of_node, "aon-camera-id", &s_ctrl->aon_camera_id)) {
+	if (of_property_read_u32(of_node, "aon-camera-id", &s_ctrl->aon_camera_id)) {
 		CAM_DBG(CAM_SENSOR, "cell_idx: %d is not used for AON usecase", soc_info->index);
 		s_ctrl->aon_camera_id = NOT_AON_CAM;
 	}
@@ -274,13 +274,31 @@ static int32_t cam_sensor_driver_get_dt_data(struct cam_sensor_ctrl_t *s_ctrl)
 		s_ctrl->hw_no_probe_pw_ops = true;
 	}
 
-	rc = cam_sensor_util_aon_registration(
-		s_ctrl->sensordata->subdev_id[SUB_MODULE_CSIPHY],
-		s_ctrl->aon_camera_id);
-	if (rc) {
-		CAM_ERR(CAM_SENSOR, "Aon registration failed, rc: %d", rc);
-		goto FREE_SENSOR_DATA;
+	if (s_ctrl->aon_camera_id != NOT_AON_CAM) {
+		int aon_config_index;
+		uint32_t csiphy_idx = sensordata->subdev_id[SUB_MODULE_CSIPHY];
+
+		aon_config_index = cam_sensor_util_aon_registration(
+			csiphy_idx, s_ctrl->aon_camera_id);
+
+		if (aon_config_index < 0) {
+			CAM_ERR(CAM_SENSOR,
+				"AON registration failed: slot=%d aon_cam_id=%d csiphy=%d cfg_idx=%d",
+				soc_info->index, s_ctrl->aon_camera_id,
+				csiphy_idx, aon_config_index);
+			rc = aon_config_index;
+			goto FREE_SENSOR_DATA;
+		}
+
+		s_ctrl->aon_config_index = aon_config_index;
+		CAM_INFO(CAM_SENSOR,
+			"AON registration success: slot=%d aon_cam_id=%d cfg_idx=%d csiphy=%d",
+			soc_info->index, s_ctrl->aon_camera_id,
+			s_ctrl->aon_config_index, csiphy_idx);
+	} else {
+		s_ctrl->aon_config_index = MAX_AON_CAM;
 	}
+
 	return rc;
 
 FREE_SENSOR_DATA:

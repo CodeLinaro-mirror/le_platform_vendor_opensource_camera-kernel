@@ -549,6 +549,7 @@ enum cam_isp_hw_mgr_command {
 	CAM_ISP_HW_MGR_GET_SECURE_MODE,
 	CAM_ISP_HW_MGR_IS_TPG_ENABLED,
 	CAM_ISP_HW_MGR_SKIP_CSID_DISCARD_FRAME_CFG,
+	CAM_ISP_HW_MGR_FAST_TIMESTAMP_NOTIFIER_CFG,
 	CAM_ISP_HW_MGR_CMD_MAX,
 };
 
@@ -583,6 +584,7 @@ enum cam_isp_ctx_type {
  * @use_primary_port_cfg:  Stream is using primary ports for buf done handling
  * @dropped_ife_req:       dropped ife request id
  * @fastpath_result_handler: Fastpath result handler
+ * @fastpath_timestamp_handler: Fastpath timestamp handler
  * @recovery_already_in_progress: Indiates if current ife is
  *                          process for frame drop recovery
  * @rup_for_applied_req:   Check if rup is received for proper applied req
@@ -628,6 +630,7 @@ struct cam_isp_hw_cmd_args {
 		} primary_port_info;
 		uint64_t                      dropped_ife_req;
 		cam_isp_ctx_update_fastpath_result fastpath_result_handler;
+		cam_isp_ctx_update_fastpath_timestamp fastpath_timestamp_handler;
 		bool                          recovery_already_in_progress;
 		bool                          rup_for_applied_req;
 		struct {
@@ -779,5 +782,25 @@ int cam_isp_hw_mgr_init(const char    *device_name_str,
 	struct cam_hw_mgr_intf *hw_mgr, int *iommu_hdl);
 
 void cam_isp_hw_mgr_deinit(const char *device_name_str);
+
+/**
+ * cam_isp_hw_mgr_init_hw_fence_sessions()
+ *
+ * @brief:              Re-initialize synx HW fence sessions for all IFE
+ *                      clients. Used during PM restore after hibernation.
+ *
+ * @device_name_str:    Device name string (e.g. "ife" or "tfe")
+ */
+int cam_isp_hw_mgr_init_hw_fence_sessions(const char *device_name_str);
+
+/**
+ * cam_isp_hw_mgr_deinit_hw_fence_sessions()
+ *
+ * @brief:              Deinitialize synx HW fence sessions for all IFE
+ *                      clients. Used during PM freeze before hibernation.
+ *
+ * @device_name_str:    Device name string (e.g. "ife" or "tfe")
+ */
+int cam_isp_hw_mgr_deinit_hw_fence_sessions(const char *device_name_str);
 
 #endif /* __CAM_ISP_HW_MGR_INTF_H__ */

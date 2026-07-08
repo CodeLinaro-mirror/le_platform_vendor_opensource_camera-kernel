@@ -150,7 +150,6 @@ static int cam_csiphy_remote_component_bind(struct device *dev,
 	new_csiphy_dev->ctrl_reg = kzalloc(sizeof(struct csiphy_remote_ctrl_t),
 		GFP_KERNEL);
 	if (!new_csiphy_dev->ctrl_reg) {
-		devm_kfree(&pdev->dev, new_csiphy_dev);
 		return -ENOMEM;
 	}
 
@@ -190,7 +189,7 @@ static int cam_csiphy_remote_component_bind(struct device *dev,
 	rc = cam_register_subdev(&(new_csiphy_dev->v4l2_dev_str));
 	if (rc < 0) {
 		CAM_ERR(CAM_CSIPHY, "cam_register_subdev Failed rc: %d", rc);
-		goto csiphy_no_resource;
+		goto csiphy_remote_soc_release;
 	}
 
 	platform_set_drvdata(pdev, &(new_csiphy_dev->v4l2_dev_str.sd));
@@ -212,10 +211,12 @@ static int cam_csiphy_remote_component_bind(struct device *dev,
 
 	return rc;
 
+csiphy_remote_soc_release:
+	cam_csiphy_remote_soc_release(new_csiphy_dev);
+
 csiphy_no_resource:
 	mutex_destroy(&new_csiphy_dev->mutex);
 	kfree(new_csiphy_dev->ctrl_reg);
-	devm_kfree(&pdev->dev, new_csiphy_dev);
 	return rc;
 }
 

@@ -112,6 +112,16 @@ enum cam_csiphy_cpas_state {
 };
 
 /**
+ * struct aon_cam_info
+ * @aon_cam_id              : AON camera id taken from device tree.
+ * @is_configured_for_main  : Camera configured for main or AON.
+ */
+struct aon_cam_info {
+	uint8_t aon_cam_id;
+	bool is_configured_for_main;
+};
+
+/**
  * struct cam_csiphy_aon_sel_params_t
  * @aon_cam_sel_offset : AON Cam Select Register offset in cpas top
  * @cam_sel_mask       : Camera select mask.

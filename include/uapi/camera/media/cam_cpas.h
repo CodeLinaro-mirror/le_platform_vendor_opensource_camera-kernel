@@ -112,6 +112,9 @@
 #define CAM_CPAS_QUERY_BLOB_V4        (CAM_CPAS_QUERY_BLOB_BASE + 1)
 #define CAM_CPAS_QUERY_BLOB_SYSCACHE  (CAM_CPAS_QUERY_BLOB_BASE + 2)
 
+/* sysfs entry of camera subparts info */
+#define CAM_SYSFS_SUBPARTS_INFO_FILENAME "subparts_info"
+
 /**
  * struct cam_cpas_fuse_value - CPAS fuse value
  *

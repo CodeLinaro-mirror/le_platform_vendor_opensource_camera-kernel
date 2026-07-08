@@ -48,9 +48,9 @@ struct g_csiphy_data {
 	enum cam_csiphy_cpas_state cpas_state;
 	uint64_t data_rate_aux_mask;
 	uint32_t computed_cdr_value;
-	bool is_configured_for_main;
-	uint8_t aon_cam_id;
+	struct aon_cam_info aon_cam_info[MAX_AON_CAM];
 	struct cam_csiphy_aon_sel_params_t *aon_sel_param;
+	uint8_t aon_config_updates_ref_cnt;
 };
 
 static struct g_csiphy_data g_phy_data[MAX_CSIPHY] = {{0, 0}};
@@ -1932,27 +1932,39 @@ static void cam_csiphy_update_lane_assign_info(
 
 static int __csiphy_cpas_configure_for_main_or_aon(
 	bool get_access, uint32_t phy_idx,
-	struct cam_csiphy_aon_sel_params_t *aon_sel_params)
+	struct cam_csiphy_aon_sel_params_t *aon_sel_params,
+	uint8_t aon_config_index)
 {
-	int rc = 0;
+	int rc = 0, i = 0;
 	uint32_t aon_config = 0;
 	uint32_t cpas_handle = g_phy_data[phy_idx].cpas_handle;
 	bool cam_cpas_started = false;
+	bool is_configured_as_main;
+	bool should_update_register = false;
+	uint8_t aon_camera_id;
 
-	if (g_phy_data[phy_idx].aon_cam_id == NOT_AON_CAM) {
-		CAM_ERR(CAM_CSIPHY, "Not an AON Camera");
+	aon_camera_id = g_phy_data[phy_idx].aon_cam_info[aon_config_index].aon_cam_id;
+
+	if (aon_camera_id == NOT_AON_CAM || aon_config_index >= MAX_AON_CAM) {
+		CAM_ERR(CAM_CSIPHY, "Invalid params - aon_camera_id: %u, aon_config_index: %u",
+			aon_camera_id, aon_config_index);
 		return -EINVAL;
 	}
 
-	if (!aon_sel_params->aon_cam_sel_offset[g_phy_data[phy_idx].aon_cam_id]) {
+	if (!aon_sel_params->aon_cam_sel_offset[aon_camera_id]) {
 		CAM_ERR(CAM_CSIPHY, "Mux register offset can not be 0. AON_Cam_ID: %u",
-			g_phy_data[phy_idx].aon_cam_id);
+			aon_camera_id);
 		return -EINVAL;
 	}
 
-	if (get_access == g_phy_data[phy_idx].is_configured_for_main) {
-		CAM_DBG(CAM_CSIPHY, "Already Configured/Released for %s",
-			get_access ? "Main" : "AON");
+	is_configured_as_main =
+		g_phy_data[phy_idx].aon_cam_info[aon_config_index].is_configured_for_main;
+
+	if (get_access == is_configured_as_main) {
+		CAM_DBG(CAM_CSIPHY,
+			"PHY: %u, config_index: %u already %s",
+			phy_idx, aon_config_index,
+			get_access ? "configured for Main" : "released to AON");
 		return 0;
 	}
 
@@ -1968,29 +1980,92 @@ static int __csiphy_cpas_configure_for_main_or_aon(
 	}
 
 	cam_cpas_reg_read(cpas_handle, CAM_CPAS_REG_CPASTOP,
-		aon_sel_params->aon_cam_sel_offset[g_phy_data[phy_idx].aon_cam_id],
+		aon_sel_params->aon_cam_sel_offset[aon_camera_id],
 		true, &aon_config);
 
-	if (get_access && !g_phy_data[phy_idx].is_configured_for_main) {
-		aon_config &= ~(aon_sel_params->cam_sel_mask |
-			aon_sel_params->mclk_sel_mask);
-		CAM_INFO(CAM_CSIPHY,
-			"Selecting MainCamera over AON Camera");
-		g_phy_data[phy_idx].is_configured_for_main = true;
-	} else if (!get_access && g_phy_data[phy_idx].is_configured_for_main) {
-		aon_config |= (aon_sel_params->cam_sel_mask |
-			aon_sel_params->mclk_sel_mask);
-		CAM_INFO(CAM_CSIPHY,
-			"Releasing MainCamera to AON Camera");
-		g_phy_data[phy_idx].is_configured_for_main = false;
+	if (get_access && !is_configured_as_main) {
+
+		if (g_phy_data[phy_idx].aon_config_updates_ref_cnt == 0) {
+			should_update_register = true;
+			aon_config &= ~(aon_sel_params->cam_sel_mask |
+				aon_sel_params->mclk_sel_mask);
+			CAM_INFO(CAM_CSIPHY,
+				"PHY: %u Selecting MainCamera over AON Camera, ref_cnt: 0->1",
+				phy_idx);
+		} else {
+			CAM_DBG(CAM_CSIPHY,
+				"PHY: %u Main camera ref_cnt: %u->%u, no register update needed",
+				phy_idx, g_phy_data[phy_idx].aon_config_updates_ref_cnt,
+				g_phy_data[phy_idx].aon_config_updates_ref_cnt + 1);
+		}
+
+		g_phy_data[phy_idx].aon_config_updates_ref_cnt++;
+		g_phy_data[phy_idx].aon_cam_info[aon_config_index].is_configured_for_main = true;
+
+	} else if (!get_access && is_configured_as_main) {
+		if (g_phy_data[phy_idx].aon_config_updates_ref_cnt > 0) {
+			g_phy_data[phy_idx].aon_config_updates_ref_cnt--;
+
+			if (g_phy_data[phy_idx].aon_config_updates_ref_cnt == 0) {
+				should_update_register = true;
+				aon_config |= (aon_sel_params->cam_sel_mask |
+					aon_sel_params->mclk_sel_mask);
+				CAM_INFO(CAM_CSIPHY,
+					"PHY: %u Releasing MainCamera to AON Camera, ref_cnt: 1->0",
+					phy_idx);
+			} else {
+				CAM_DBG(CAM_CSIPHY,
+					"PHY: %u Main camera ref_cnt: %u->%u, no register update needed",
+					phy_idx, g_phy_data[phy_idx].aon_config_updates_ref_cnt + 1,
+					g_phy_data[phy_idx].aon_config_updates_ref_cnt);
+			}
+		} else {
+			CAM_WARN(CAM_CSIPHY,
+				"PHY: %u ref_cnt already 0, cannot decrement", phy_idx);
+		}
+
+		g_phy_data[phy_idx].aon_cam_info[aon_config_index].is_configured_for_main = false;
 	}
 
-	CAM_DBG(CAM_CSIPHY, "value of aon_config = %u", aon_config);
-	rc = cam_cpas_reg_write(cpas_handle, CAM_CPAS_REG_CPASTOP,
-		aon_sel_params->aon_cam_sel_offset[g_phy_data[phy_idx].aon_cam_id],
-		true, aon_config);
-	if (rc)
-		CAM_ERR(CAM_CSIPHY, "CPAS AON sel register write failed");
+	if (should_update_register) {
+		for (i = 0; i < MAX_AON_CAM; i++) {
+			uint8_t cam_id = g_phy_data[phy_idx].aon_cam_info[i].aon_cam_id;
+
+			if (cam_id == NOT_AON_CAM)
+				continue;
+
+			if (!aon_sel_params->aon_cam_sel_offset[cam_id]) {
+				CAM_WARN(CAM_CSIPHY,
+					"PHY: %u, skipping cam_id: %u, no valid offset",
+					phy_idx, cam_id);
+				continue;
+			}
+
+			CAM_DBG(CAM_CSIPHY,
+				"PHY: %u writing aon_config: 0x%x to offset: 0x%x for cam_id: %u",
+				phy_idx, aon_config,
+				aon_sel_params->aon_cam_sel_offset[cam_id],
+				cam_id);
+
+			rc = cam_cpas_reg_write(cpas_handle, CAM_CPAS_REG_CPASTOP,
+				aon_sel_params->aon_cam_sel_offset[cam_id],
+				true, aon_config);
+			if (rc) {
+				CAM_ERR(CAM_CSIPHY,
+					"CPAS AON sel register write failed PHY: %u, cam_id: %u, offset: 0x%x rc: %d",
+					phy_idx, cam_id,
+					aon_sel_params->aon_cam_sel_offset[cam_id],
+					rc);
+				break;
+			}
+		}
+	}
+
+	CAM_DBG(CAM_CSIPHY,
+		"PHY: %u, config_index: %u, aon_cam_id: %u, get_access: %d, ref_cnt: %u, reg_updated: %s",
+		phy_idx, aon_config_index, aon_camera_id, get_access,
+		g_phy_data[phy_idx].aon_config_updates_ref_cnt,
+		CAM_BOOL_TO_YESNO(should_update_register));
 
 	if (cam_cpas_started) {
 		cam_csiphy_cpas_ops(cpas_handle, false);
@@ -2002,7 +2077,8 @@ static int __csiphy_cpas_configure_for_main_or_aon(
 
 int cam_csiphy_util_update_aon_registration(uint32_t phy_idx, uint8_t aon_cam_id)
 {
-	/* aon support enable for the sensor associated with phy idx*/
+	int i;
+
 	if (phy_idx >= MAX_CSIPHY) {
 		CAM_ERR(CAM_CSIPHY,
 			"Invalid PHY index: %u", phy_idx);
@@ -2014,21 +2090,41 @@ int cam_csiphy_util_update_aon_registration(uint32_t phy_idx, uint8_t aon_cam_id
 		return -EINVAL;
 	}
 
-	g_phy_data[phy_idx].aon_cam_id = aon_cam_id;
+	for (i = 0; i < MAX_AON_CAM; i++) {
+		if (g_phy_data[phy_idx].aon_cam_info[i].aon_cam_id == NOT_AON_CAM) {
+			g_phy_data[phy_idx].aon_cam_info[i].aon_cam_id = aon_cam_id;
+			g_phy_data[phy_idx].aon_cam_info[i].is_configured_for_main = false;
+			CAM_DBG(CAM_CSIPHY,
+				"PHY idx: %d, AON cam_id: %d assigned to config_index: %d",
+				phy_idx, aon_cam_id, i);
+			break;
+		}
+	}
 
-	return 0;
+	if (i == MAX_AON_CAM) {
+		CAM_ERR(CAM_CSIPHY,
+			"No available slot for AON camera in PHY idx: %d", phy_idx);
+		return -EINVAL;
+	}
+
+	return i;
 }
 
 int cam_csiphy_util_update_aon_ops(
-	bool get_access, uint32_t phy_idx)
+	bool get_access, uint32_t phy_idx, uint8_t aon_config_index)
 {
 	uint32_t cpas_hdl = 0;
 	struct cam_csiphy_aon_sel_params_t *aon_sel_params;
 	int rc = 0;
 
 	if (phy_idx >= MAX_CSIPHY) {
-		CAM_ERR(CAM_CSIPHY, "Null device");
+		CAM_ERR(CAM_CSIPHY, "Invalid PHY index: %u", phy_idx);
 		return -ENODEV;
+	}
+
+	if (aon_config_index >= MAX_AON_CAM) {
+		CAM_ERR(CAM_CSIPHY, "Invalid AON config index: %u", aon_config_index);
+		return -EINVAL;
 	}
 
 	if (!g_phy_data[phy_idx].base_address) {
@@ -2046,11 +2142,12 @@ int cam_csiphy_util_update_aon_ops(
 
 	mutex_lock(&main_aon_selection);
 
-	CAM_DBG(CAM_CSIPHY, "PHY idx: %d, AON_support %s", phy_idx,
+	CAM_DBG(CAM_CSIPHY, "PHY idx: %d, config_index: %u, AON_support %s",
+		phy_idx, aon_config_index,
 		(get_access) ? "enable" : "disable");
 
 	rc = __csiphy_cpas_configure_for_main_or_aon(
-			get_access, phy_idx, aon_sel_params);
+			get_access, phy_idx, aon_sel_params, aon_config_index);
 	if (rc)
 		CAM_ERR(CAM_CSIPHY, "Configuration for AON ops failed: rc: %d", rc);
 
@@ -2478,6 +2575,12 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 			csiphy_dev->session_max_device_support =
 				CSIPHY_MAX_INSTANCES_PER_AGGREG_RX_PHY;
 
+		if (csiphy_dev->session_max_device_support == 0) {
+			csiphy_dev->session_max_device_support = 1;
+			CAM_DBG(CAM_CSIPHY,
+				"session_max_device_support was zero, now set default to 1");
+		}
+
 		bridge_params.ops = NULL;
 		bridge_params.session_hdl = csiphy_acq_dev.session_handle;
 		bridge_params.v4l2_sub_dev_flag = 0;
@@ -2526,16 +2629,6 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 					"g_csiphy data is updated for index: %d is_3phase: %u",
 					soc_info->index,
 					g_phy_data[soc_info->index].is_3phase);
-		}
-
-		if (g_phy_data[soc_info->index].aon_cam_id != NOT_AON_CAM) {
-			rc = cam_csiphy_util_update_aon_ops(true, soc_info->index);
-			if (rc) {
-				CAM_ERR(CAM_CSIPHY,
-					"Error in setting up AON operation for phy_idx: %d, rc: %d",
-					soc_info->index, rc);
-				goto release_mutex;
-			}
 		}
 
 		csiphy_dev->acquire_count++;
@@ -2708,15 +2801,6 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 
 		if (csiphy_dev->acquire_count == 0) {
 			CAM_DBG(CAM_CSIPHY, "All PHY devices released");
-			if (g_phy_data[soc_info->index].aon_cam_id != NOT_AON_CAM) {
-				rc = cam_csiphy_util_update_aon_ops(false, soc_info->index);
-				if (rc) {
-					CAM_WARN(CAM_CSIPHY,
-						"Error in releasing AON operation for phy_idx: %d, rc: %d",
-						csiphy_dev->soc_info.index, rc);
-					rc = 0;
-				}
-			}
 			csiphy_dev->combo_mode = 0;
 			csiphy_dev->cphy_dphy_combo_mode = 0;
 			csiphy_dev->csiphy_state = CAM_CSIPHY_INIT;
@@ -3068,7 +3152,7 @@ release_mutex:
 
 int cam_csiphy_register_baseaddress(struct csiphy_device *csiphy_dev)
 {
-	int phy_idx;
+	int phy_idx, i;
 
 	if (!csiphy_dev) {
 		CAM_ERR(CAM_CSIPHY, "Data is NULL");
@@ -3089,9 +3173,14 @@ int cam_csiphy_register_baseaddress(struct csiphy_device *csiphy_dev)
 	g_phy_data[phy_idx].cpas_state = CAM_CSIPHY_CPAS_REGISTERED;
 	g_phy_data[phy_idx].aon_sel_param =
 		csiphy_dev->ctrl_reg->csiphy_reg.aon_sel_params;
-	g_phy_data[phy_idx].aon_cam_id = NOT_AON_CAM;
-	g_phy_data[phy_idx].is_configured_for_main = false;
+
+	for (i = 0; i < MAX_AON_CAM; i++) {
+		g_phy_data[phy_idx].aon_cam_info[i].aon_cam_id = NOT_AON_CAM;
+		g_phy_data[phy_idx].aon_cam_info[i].is_configured_for_main = false;
+	}
+
 	g_phy_data[phy_idx].data_rate_aux_mask = 0;
+	g_phy_data[phy_idx].aon_config_updates_ref_cnt = 0;
 
 	return 0;
 }

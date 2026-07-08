@@ -35,3 +35,33 @@ void cam_isp_hw_mgr_deinit(const char *device_name_str)
 	else
 		CAM_ERR(CAM_ISP, "Invalid ISP hw type :%s", device_name_str);
 }
+
+int cam_isp_hw_mgr_init_hw_fence_sessions(const char *device_name_str)
+{
+	if (strnstr(device_name_str, "ife", strlen(device_name_str)))
+		return cam_ife_hw_mgr_init_hw_fence_sessions();
+
+	else if (strnstr(device_name_str, "tfe", strlen(device_name_str))) {
+		CAM_DBG(CAM_ISP, "HW fence sessions not applicable for hw type: %s",
+		device_name_str);
+		return 0;
+	}
+
+	CAM_ERR(CAM_ISP, "Invalid ISP hw type: %s", device_name_str);
+	return -EINVAL;
+}
+
+int cam_isp_hw_mgr_deinit_hw_fence_sessions(const char *device_name_str)
+{
+	if (strnstr(device_name_str, "ife", strlen(device_name_str)))
+		return cam_ife_hw_mgr_deinit_hw_fence_sessions();
+
+	else if (strnstr(device_name_str, "tfe", strlen(device_name_str))) {
+		CAM_DBG(CAM_ISP, "HW fence sessions not applicable for hw type: %s",
+		device_name_str);
+		return 0;
+	}
+
+	CAM_ERR(CAM_ISP, "Invalid ISP hw type: %s", device_name_str);
+	return -EINVAL;
+}

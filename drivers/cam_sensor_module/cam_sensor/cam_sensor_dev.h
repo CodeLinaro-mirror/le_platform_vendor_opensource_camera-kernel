@@ -172,7 +172,8 @@ struct cam_sensor_ctrl_t {
 	uint16_t                       trigger_sensor_pipeline_delay;
 	char                           sensor_name[
 		CAM_SENSOR_NAME_MAX_SIZE];
-	uint8_t                        aon_camera_id;
+	uint32_t                       aon_camera_id;
+	uint8_t                        aon_config_index;
 	bool                           hw_no_io_ops;
 	bool                           hw_no_ops;
 	bool                           hw_no_probe_pw_ops;

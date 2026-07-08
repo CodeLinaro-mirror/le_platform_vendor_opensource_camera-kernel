@@ -504,7 +504,7 @@ err_exit1:
 int32_t cam_sensor_lite_init_module(void)
 {
 
-	struct cam_rpmsg_slave_cbs sensor_lite_rpmsg_cb;
+	struct cam_rpmsg_slave_cbs sensor_lite_rpmsg_cb = {0};
 
 	cam_req_mgr_worker_create("cam_rpmsg_sensor_wq",
 			CAM_SENSOR_LITE_RPMSG_WORKQ_NUM_TASK,

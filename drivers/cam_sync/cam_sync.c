@@ -3234,6 +3234,7 @@ int cam_sync_hw_fence_session_cleanup(void)
 				spin_unlock(hw_fence_info.hw_fence_locks[client_entry_idx]);
 				rc = cam_sync_deinitialize_hw_fence_session(
 					client_entry->cookie);
+				client_entry->active = false;
 				if (rc) {
 					return rc;
 				}

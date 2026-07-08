@@ -338,12 +338,21 @@ static int __cam_lx7_power_collapse(struct cam_hw_info *lx7_info)
 	struct cam_lx7_core_info *core_info = NULL;
 
 	if (!lx7_info) {
-		CAM_ERR(CAM_ICP, "invalid lx7 dev info");
+		CAM_ERR(CAM_ICP, "invalid lx7_info");
 		return -EINVAL;
 	}
 
 	core_info = lx7_info->core_info;
+	if (!core_info || !core_info->hw_info) {
+		CAM_ERR(CAM_ICP, "invalid core_info or hw_info");
+		return -EINVAL;
+	}
+
 	sys_base_idx = core_info->reg_base_idx[LX7_SYS_BASE];
+	if (sys_base_idx < 0) {
+		CAM_ERR(CAM_ICP, "Invalid reg base index %d for lx7_sys", sys_base_idx);
+		return -EINVAL;
+	}
 	base = lx7_info->soc_info.reg_map[sys_base_idx].mem_base;
 
 	/**
@@ -381,6 +390,10 @@ static int __cam_lx7_power_resume(struct cam_hw_info *lx7_info)
 	core_info = lx7_info->core_info;
 	soc_priv = soc_info->soc_private;
 	sys_base_idx = core_info->reg_base_idx[LX7_SYS_BASE];
+	if (sys_base_idx < 0) {
+		CAM_ERR(CAM_ICP, "Invalid reg base index %d for lx7_sys", sys_base_idx);
+		return -EINVAL;
+	}
 	base = lx7_info->soc_info.reg_map[sys_base_idx].mem_base;
 
 	cam_io_w_mb(ICP_LX7_FUNC_RESET,
@@ -686,8 +699,13 @@ static int cam_lx7_shutdown(struct cam_hw_info *lx7_info)
 		void __iomem *base;
 		int32_t sys_base_idx = core_info->reg_base_idx[LX7_SYS_BASE];
 
-		base = lx7_info->soc_info.reg_map[sys_base_idx].mem_base;
-		cam_io_w_mb(0x0, base + ICP_LX7_SYS_CONTROL);
+		if (sys_base_idx < 0) {
+			CAM_ERR(CAM_ICP, "Failed to get reg base for shutdown");
+			rc = -EINVAL;
+		} else {
+			base = lx7_info->soc_info.reg_map[sys_base_idx].mem_base;
+			cam_io_w_mb(0x0, base + ICP_LX7_SYS_CONTROL);
+		}
 	}
 
 	core_info->use_sec_pil = false;
@@ -697,9 +715,20 @@ static int cam_lx7_shutdown(struct cam_hw_info *lx7_info)
 static void __cam_lx7_core_reg_dump(
 	struct cam_hw_info *lx7_info)
 {
-	struct cam_lx7_core_info *core_info = lx7_info->core_info;
+	struct cam_lx7_core_info *core_info = NULL;
 	void __iomem *irq_base;
 
+	core_info = lx7_info->core_info;
+	if (!core_info || !core_info->hw_info) {
+		CAM_ERR(CAM_ICP, "invalid core_info or hw_info");
+		return;
+	}
+
+	if (core_info->irq_regbase_idx < 0) {
+		CAM_ERR(CAM_ICP, "Invalid reg base index %d for lx7_cirq",
+			core_info->irq_regbase_idx);
+		return;
+	}
 	irq_base = lx7_info->soc_info.reg_map[core_info->irq_regbase_idx].mem_base;
 
 	CAM_INFO(CAM_ICP, "ICP PFault Status:0x%x",
@@ -907,6 +936,16 @@ irqreturn_t cam_lx7_handle_irq(int irq_num, void *data)
 	}
 
 	core_info = lx7_info->core_info;
+	if (!core_info) {
+		CAM_ERR(CAM_ICP, "invalid core_info");
+		return IRQ_NONE;
+	}
+
+	if (core_info->irq_regbase_idx < 0) {
+		CAM_ERR(CAM_ICP, "Invalid reg base index %d for lx7_cirq",
+			core_info->irq_regbase_idx);
+		return IRQ_NONE;
+	}
 	irq_base = lx7_info->soc_info.reg_map[core_info->irq_regbase_idx].mem_base;
 
 	status = cam_io_r_mb(irq_base + core_info->hw_info->ob_irq_status);
@@ -947,6 +986,16 @@ void cam_lx7_irq_raise(void *priv)
 	}
 
 	core_info = lx7_info->core_info;
+	if (!core_info) {
+		CAM_ERR(CAM_ICP, "invalid core_info");
+		return;
+	}
+
+	if (core_info->irq_regbase_idx < 0) {
+		CAM_ERR(CAM_ICP, "Invalid reg base index %d for lx7_cirq",
+			core_info->irq_regbase_idx);
+		return;
+	}
 
 	cam_io_w_mb(LX7_HOST2ICPINT,
 		lx7_info->soc_info.reg_map[core_info->irq_regbase_idx].mem_base +
@@ -964,6 +1013,16 @@ void cam_lx7_irq_enable(void *priv)
 	}
 
 	core_info = lx7_info->core_info;
+	if (!core_info) {
+		CAM_ERR(CAM_ICP, "invalid core_info");
+		return;
+	}
+
+	if (core_info->irq_regbase_idx < 0) {
+		CAM_ERR(CAM_ICP, "Invalid reg base index %d for lx7_cirq",
+			core_info->irq_regbase_idx);
+		return;
+	}
 
 	cam_io_w_mb(LX7_WDT_BITE_WS0 | LX7_ICP2HOSTINT,
 		lx7_info->soc_info.reg_map[core_info->irq_regbase_idx].mem_base +

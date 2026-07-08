@@ -1641,10 +1641,17 @@ int cam_sensor_lite_core_cfg(
 			rc = -EFAULT;
 
 		else {
+			/* Validate flush_type before casting to signed int */
+			if (flush.flush_type >= CAM_FLUSH_TYPE_MAX) {
+				CAM_ERR(CAM_SENSOR_LITE,
+					"Invalid flush_type: %u", flush.flush_type);
+				rc = -EINVAL;
+				goto release_mutex;
+			}
 			/* Flush the requests from the queue */
 			rc = cam_sensor_lite_flush_req_unsafe(
 					sensor_lite_dev,
-					flush.flush_type,
+					(int)flush.flush_type,
 					flush.req_id);
 		}
 		break;

@@ -5,7 +5,12 @@
 
 #include "cam_sync_synx.h"
 #if IS_REACHABLE(CONFIG_CAM_ENABLE_SOCCP)
+#include <linux/version.h>
+#if (KERNEL_VERSION(6, 3, 0) <= LINUX_VERSION_CODE)
+#include <msm_hw_fence.h>
+#else
 #include <linux/soc/qcom/msm_hw_fence.h>
+#endif
 #include <synx_extension_api.h>
 #endif
 

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2018, 2020-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, 2025 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #ifndef _CAM_CSIPHY_CORE_H_
@@ -65,7 +65,7 @@ int cam_csiphy_register_baseaddress(struct csiphy_device *csiphy_dev);
  * correct PHY hw.
  *
  */
-int cam_csiphy_util_update_aon_ops(bool get_access, uint32_t phy_idx);
+int cam_csiphy_util_update_aon_ops(bool get_access, uint32_t phy_idx, uint8_t aon_config_index);
 
 
 /**

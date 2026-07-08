@@ -1363,6 +1363,11 @@ int cam_flash_pmic_pkt_parser(struct cam_flash_ctrl *fctrl, void *arg)
 	soc_private = (struct cam_flash_private_soc *)
 		fctrl->soc_info.soc_private;
 
+	if (!soc_private) {
+		CAM_ERR(CAM_FLASH, "soc_private is NULL");
+		return -EINVAL;
+	}
+
 	/* getting CSL Packet */
 	ioctl_ctrl = (struct cam_control *)arg;
 
@@ -1440,6 +1445,15 @@ int cam_flash_pmic_pkt_parser(struct cam_flash_ctrl *fctrl, void *arg)
 		remain_len = len_of_buffer - cmd_desc->offset;
 		cmd_buf = (uint32_t *)((uint8_t *)cmd_buf_ptr +
 			cmd_desc->offset);
+
+		if (!cmd_buf) {
+			CAM_ERR(CAM_FLASH,
+				"cmd_buf is NULL");
+			cam_mem_put_cpu_buf(cmd_desc->mem_handle);
+			rc = -EINVAL;
+			goto end;
+		}
+
 		cam_flash_info = (struct cam_flash_init *)cmd_buf;
 
 		switch (cam_flash_info->cmd_type) {

@@ -82,6 +82,8 @@ static int cam_ois_get_dev_handle(struct cam_ois_ctrl_t *o_ctrl,
 	bridge_params.ops = &o_ctrl->bridge_intf.ops;
 	bridge_params.v4l2_sub_dev_flag = 0;
 	bridge_params.media_entity_flag = 0;
+	bridge_params.no_crm_priv = NULL;
+	bridge_params.no_crm_ops = NULL;
 	bridge_params.priv = o_ctrl;
 	bridge_params.dev_id = CAM_OIS;
 

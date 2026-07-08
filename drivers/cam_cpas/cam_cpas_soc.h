@@ -15,6 +15,16 @@
 #define CAM_CPAS_MAX_TREE_NODES 61
 #define CAM_CPAS_MAX_FUSE_FEATURE 10
 
+
+/**
+ * enum cam_cpas_num_subparts_types - Enum for types of number of camera subparts
+ */
+enum cam_cpas_num_subparts_types {
+	CAM_CPAS_AVAILABLE_NUM_SUBPARTS,
+	CAM_CPAS_FUNCTIONAL_NUM_SUBPARTS,
+	CAM_CPAS_NUM_SUBPARTS_MAX_TYPES,
+};
+
 /**
  * struct cam_cpas_vdd_ahb_mapping : Voltage to ahb level mapping
  *
@@ -167,6 +177,19 @@ struct cam_cpas_smart_qos_info {
 
 
 /**
+ * struct cam_cpas_sysfs_info - cpas sysfs info
+ *
+ * @kobj:          Kobj for camera directory
+ * @num_ifes:      Number of available and functional IFEs
+ * @num_ife_lites: Number of available and functional IFE-LITEs
+ */
+struct cam_cpas_sysfs_info {
+	struct kobject *kobj;
+	uint32_t        num_ifes[CAM_CPAS_NUM_SUBPARTS_MAX_TYPES];
+	uint32_t        num_ife_lites[CAM_CPAS_NUM_SUBPARTS_MAX_TYPES];
+};
+
+/**
  * struct cam_cpas_private_soc : CPAS private DT info
  *
  * @arch_compat: ARCH compatible string
@@ -188,10 +211,12 @@ struct cam_cpas_smart_qos_info {
  *      camnoc axi clock
  * @camnoc_axi_min_ib_bw: Min camnoc BW which varies based on target
  * @fuse_info: fuse information
+ * @sysfs_info: Camera subparts sysfs information
  * @rpmh_info: RPMH BCM info
  * @num_feature_info: number of feature_info entries
  * @feature_info: Structure for storing feature information
  * @num_caches: Number of last level caches
+ * @part_info: Camera Hw subpart info
  * @llcc_info: Cache info
  * @enable_secure_qos_update: whether to program QoS securely on current chipset
  * @enable_smart_qos: Whether to enable Smart QoS mechanism on current chipset
@@ -216,10 +241,12 @@ struct cam_cpas_private_soc {
 	uint32_t camnoc_axi_clk_bw_margin;
 	uint64_t camnoc_axi_min_ib_bw;
 	struct cam_cpas_fuse_info fuse_info;
+	struct cam_cpas_sysfs_info sysfs_info;
 	uint32_t rpmh_info[CAM_RPMH_BCM_INFO_MAX];
 	uint32_t num_feature_info;
 	struct cam_cpas_feature_info  feature_info[CAM_CPAS_MAX_FUSE_FEATURE];
 	uint32_t num_caches;
+	uint32_t part_info;
 	struct cam_sys_cache_info *llcc_info;
 	bool enable_smart_qos;
 	bool enable_secure_qos_update;

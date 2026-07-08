@@ -245,7 +245,28 @@ enum cam_isp_hw_cmd_type {
 	CAM_ISP_HW_CMD_CHECK_AND_CLEAR_BUS_VIOLATION,
 	CAM_ISP_HW_CMD_WM_CONFIG_UPDATE_V2,
 	CAM_ISP_HW_CMD_SKIP_CSID_DISCARD_FRAME_CFG,
+	CAM_ISP_HW_CMD_FAST_TIMESTAMP_NOTIFIER,
 	CAM_ISP_HW_CMD_MAX,
+};
+
+/* Update timestamp info for fastpath */
+typedef void (*cam_isp_ctx_update_fastpath_timestamp)(void *data, uint64_t prev_ts,
+	uint64_t curr_ts, uint64_t boot_ts);
+
+/**
+ * struct cam_isp_hw_fast_path_timestamp_notifier:
+ *
+ * @brief:              Structure to pass fastpath timestamp notifier
+ *
+ * @res:                ISP resource node
+ * @data:               Priv data expected by the notifier
+ * @handler_cb:         Fastpath notifier handler
+ *
+ */
+struct cam_isp_hw_fast_path_timestamp_notifier {
+	struct cam_isp_resource_node *res;
+	void *data;
+	cam_isp_ctx_update_fastpath_timestamp handler_cb;
 };
 
 /*

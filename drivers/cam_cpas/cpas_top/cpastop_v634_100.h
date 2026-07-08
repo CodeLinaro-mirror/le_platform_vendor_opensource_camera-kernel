@@ -773,5 +773,30 @@ static struct cam_cpas_camnoc_qchannel cam634_cpas100_qchannel_info = {
 	.qchannel_ctrl   = 0x5C,
 	.qchannel_status = 0x60,
 };
+
+static struct cam_cpas_subpart_info cam634_cpas100_camera_subpart_info = {
+	.num_bits = 14,
+	/*
+	 * Below fuse indexing is based on software fuse definition which is in SMEM and provided
+	 * by XBL team.
+	 */
+	.hw_bitmap_mask = {
+		{CAM_CPAS_ISP_FUSE,      BIT(0)},  // IFE0
+		{CAM_CPAS_ISP_FUSE,      BIT(1)},  // IFE1
+		{CAM_CPAS_FUSE_FEATURE_MAX,  BIT(0)},
+		{CAM_CPAS_FUSE_FEATURE_MAX,  BIT(0)},
+		{CAM_CPAS_FUSE_FEATURE_MAX,  BIT(0)},
+		{CAM_CPAS_FUSE_FEATURE_MAX,  BIT(0)},
+		{CAM_CPAS_FUSE_FEATURE_MAX,  BIT(0)},
+		{CAM_CPAS_FUSE_FEATURE_MAX,  BIT(0)},
+		{CAM_CPAS_ISP_LITE_FUSE, BIT(2)},  // IFE-Lite0
+		{CAM_CPAS_ISP_LITE_FUSE, BIT(3)},  // IFE-Lite1
+		{CAM_CPAS_ISP_LITE_FUSE, BIT(6)},  // IFE-Lite2
+		{CAM_CPAS_ISP_LITE_FUSE, BIT(7)},  // IFE-Lite3
+		{CAM_CPAS_ISP_LITE_FUSE, BIT(10)},  // IFE-Lite4
+		{CAM_CPAS_ISP_LITE_FUSE, BIT(11)},  // IFE-Lite5
+	}
+};
+
 #endif /* _CPASTOP_V634_100_H_ */
 

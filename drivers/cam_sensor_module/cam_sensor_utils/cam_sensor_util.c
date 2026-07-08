@@ -102,6 +102,7 @@ int32_t delete_request(struct i2c_settings_array *i2c_array)
 	}
 	INIT_LIST_HEAD(&(i2c_array->list_head));
 	i2c_array->is_settings_valid = 0;
+	i2c_array->request_id = 0;
 
 	return rc;
 }

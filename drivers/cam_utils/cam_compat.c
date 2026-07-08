@@ -10,6 +10,8 @@
 #include <linux/fdtable.h>
 #include <linux/mem-buf.h>
 
+#include <soc/qcom/socinfo.h>
+
 #include "cam_compat.h"
 #include "cam_debug_util.h"
 #include "cam_cpas_api.h"
@@ -134,12 +136,14 @@ int cam_ife_notify_safe_lut_scm(bool safe_trigger)
 }
 
 int cam_csiphy_notify_secure_mode(struct csiphy_device *csiphy_dev,
-	bool protect, int32_t offset, bool is_shutdown)
+	bool protect, int32_t offset, bool __maybe_unused is_shutdown)
 {
 	int rc = 0;
 
 #if defined CONFIG_SECURE_CAMERA_V3 || defined CONFIG_TZ_DCP_API_VER_2
+#if !IS_ENABLED(CONFIG_QCOM_SI_CORE)
 	if (!is_shutdown) {
+#endif
 		struct smci_object client_env, sc_object;
 		struct tc_driver_sensor_info params = {0};
 
@@ -188,6 +192,7 @@ int cam_csiphy_notify_secure_mode(struct csiphy_device *csiphy_dev,
 			rc = -EINVAL;
 			return rc;
 		}
+#if !IS_ENABLED(CONFIG_QCOM_SI_CORE)
 	} else {
 		if (offset >= csiphy_dev->session_max_device_support) {
 			CAM_ERR(CAM_CSIPHY, "Invalid CSIPHY offset");
@@ -201,6 +206,7 @@ int cam_csiphy_notify_secure_mode(struct csiphy_device *csiphy_dev,
 		CAM_INFO(CAM_CSIPHY,
 			"Legacy scm call shutdown %d", is_shutdown);
 	}
+#endif
 #else
 	if (offset >= csiphy_dev->session_max_device_support) {
 		CAM_ERR(CAM_CSIPHY, "Invalid CSIPHY offset");
@@ -457,7 +463,7 @@ int cam_ife_notify_safe_lut_scm(bool safe_trigger)
 }
 
 int cam_csiphy_notify_secure_mode(struct csiphy_device *csiphy_dev,
-	bool protect, int32_t offset)
+	bool protect, int32_t offset, bool __always_unused is_shutdown)
 {
 	int rc = 0;
 	struct scm_desc description = {
@@ -1132,5 +1138,36 @@ inline struct icc_path *cam_icc_get_path(struct device *dev,
 	else
 		return icc_get(dev, src_id, dst_id);
 #endif
+}
+#endif
+
+#if KERNEL_VERSION(5, 10, 0) <= LINUX_VERSION_CODE
+int cam_get_subpart_info(uint32_t *part_info, uint32_t max_num_cam)
+{
+	int rc = 0;
+	int num_cam;
+
+	num_cam = socinfo_get_part_count(PART_CAMERA);
+	if (num_cam != max_num_cam) {
+		CAM_ERR(CAM_CPAS, "Unsupported number of parts: %d", num_cam);
+		return -EINVAL;
+	}
+
+	/*
+	 * If bit value in part_info is "0" then HW is available.
+	 * If bit value in part_info is "1" then HW is unavailable.
+	 */
+	rc = socinfo_get_subpart_info(PART_CAMERA, part_info, num_cam);
+	if (rc) {
+		CAM_ERR(CAM_CPAS, "Failed while getting subpart_info, rc = %d.", rc);
+		return rc;
+	}
+
+	return 0;
+}
+#else
+int cam_get_subpart_info(uint32_t *part_info, uint32_t max_num_cam)
+{
+	return 0;
 }
 #endif

@@ -251,7 +251,7 @@ err:
 }
 
 int hfi_read_message(uint32_t *pmsg, uint8_t q_id,
-	uint32_t *words_read)
+	size_t buf_words_size, uint32_t *words_read)
 {
 	struct hfi_qtbl *q_tbl_ptr;
 	struct hfi_q_hdr *q;
@@ -323,6 +323,14 @@ int hfi_read_message(uint32_t *pmsg, uint8_t q_id,
 		CAM_ERR(CAM_HFI, "invalid HFI message packet size - 0x%08x",
 			size_in_words << BYTE_WORD_SHIFT);
 		q->qhdr_read_idx = q->qhdr_write_idx;
+		rc = -EIO;
+		goto err;
+	}
+
+	if (size_in_words > buf_words_size) {
+		CAM_ERR(CAM_HFI,
+			"Size of buffer: %u is smaller than size to read from queue: %u",
+			buf_words_size, size_in_words);
 		rc = -EIO;
 		goto err;
 	}

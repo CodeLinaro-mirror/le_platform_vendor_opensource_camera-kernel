@@ -53,17 +53,13 @@ static int cam_gpio_init(
 	uint32_t gpio_mask = c_ctrl->cfg.trigger_data.gpio_mask;
 	uint32_t cci_mux_en_val, val, cci_gpio_mux_en_val;
 
-	c_ctrl->cci_info->id_map = context_data->idx;
-
 	soc_info = &cci_dev->soc_info;
 	base = soc_info->reg_map[0].mem_base;
+	c_ctrl->cci_info->id_map = context_data->idx;
 
-	if (!soc_info || !base) {
-		CAM_ERR(CAM_CCI,
-			"CCI%d_GPIOQ%d failed: invalid params soc_info:%pK, base:%pK",
-			cci_dev->soc_info.index, context_data->gpioqueue, soc_info, base);
-		rc = -EINVAL;
-		return rc;
+	if (!base) {
+		CAM_ERR(CAM_CCI, "invalid params, base is NULL: %p", base);
+		return -EINVAL;
 	}
 
 	CAM_DBG(CAM_CCI,
@@ -116,69 +112,64 @@ static int cam_gpio_init(
 		return rc;
 	}
 
-	if (active_trigger_sensor == 1) {
-		if (cci_dev->offset && cci_dev->gpio_offset) {
-			rc = cam_cpas_reg_read(cci_dev->cpas_handle, CAM_CPAS_REG_CPASTOP,
-				cci_dev->offset, true,
-				&cci_mux_en_val);
-			CAM_DBG(CAM_CCI, "offset:0x%x csid:%d cid:%d cci_mux_en_val 0x%x",
-				cci_dev->offset, context_data->csid, context_data->cid, cci_mux_en_val);
-			if (context_data->csid <= 3) {
-				val = ((context_data->csid) * CCI_SET_CSID_OFFSET) &
-					((context_data->csid) << (context_data->idx * 8));
-				cci_mux_en_val = (cci_mux_en_val == CCI_CPAS_MUX_EN_RESET) ?
-							((cci_mux_en_val & 0) | val) :
-							(cci_mux_en_val | val);
-				CAM_DBG(CAM_CCI, "CCI_MUX_EN 0x%x val 0x%x", cci_mux_en_val, val);
+	if (cci_dev->offset && cci_dev->gpio_offset) {
+		rc = cam_cpas_reg_read(cci_dev->cpas_handle, CAM_CPAS_REG_CPASTOP,
+			cci_dev->offset, true,
+			&cci_mux_en_val);
+		CAM_DBG(CAM_CCI, "offset:0x%x csid:%d cid:%d cci_mux_en_val 0x%x",
+			cci_dev->offset, context_data->csid, context_data->cid, cci_mux_en_val);
+		if (context_data->csid <= 3) {
+			val = ((context_data->csid) * CCI_SET_CSID_OFFSET) &
+				((context_data->csid) << (context_data->idx * 8));
+			cci_mux_en_val = (cci_mux_en_val == CCI_CPAS_MUX_EN_RESET) ?
+						((cci_mux_en_val & 0) | val) :
+						(cci_mux_en_val | val);
+			CAM_DBG(CAM_CCI, "CCI_MUX_EN 0x%x val 0x%x", cci_mux_en_val, val);
 
-			} else {
-				val = ((context_data->csid + 1) * CCI_SET_CSID_OFFSET) &
-					((context_data->csid + 1) << (context_data->idx * 8));
-				cci_mux_en_val = (cci_mux_en_val == CCI_CPAS_MUX_EN_RESET) ?
-							((cci_mux_en_val & 0) | val) :
-							(cci_mux_en_val | val);
-				CAM_DBG(CAM_CCI, "CCI_MUX_EN 0x%x val 0x%x", cci_mux_en_val, val);
-
-			}
-			rc = cam_cpas_reg_write(cci_dev->cpas_handle, CAM_CPAS_REG_CPASTOP,
-				cci_dev->offset, true, cci_mux_en_val);
-			if (rc) {
-				CAM_ERR(CAM_CCI, "failed to write cpas cci mux_en");
-				rc = -EINVAL;
-				return rc;
-			}
-
-			CAM_DBG(CAM_CCI, "gpio_offset 0x%x", cci_dev->gpio_offset);
-			rc = cam_cpas_reg_read(cci_dev->cpas_handle, CAM_CPAS_REG_CPASTOP,
-				cci_dev->gpio_offset, true,
-				&cci_gpio_mux_en_val);
-			if (cci_dev->soc_info.index % 2 == 1) {
-				val = (1 << gpio_mask);
-				cci_gpio_mux_en_val = val | cci_gpio_mux_en_val;
-				CAM_DBG(CAM_CCI, "CCI_GPIO_MUX_EN 0x%x val 0x%x", cci_gpio_mux_en_val, val);
-			} else {
-				val = ~(1 << gpio_mask);
-				cci_gpio_mux_en_val = val & cci_gpio_mux_en_val;
-				CAM_DBG(CAM_CCI, "CCI_GPIO_MUX_EN 0x%x val 0x%x", cci_gpio_mux_en_val, val);
-			}
-			rc = cam_cpas_reg_write(cci_dev->cpas_handle, CAM_CPAS_REG_CPASTOP,
-					cci_dev->gpio_offset,
-					true, cci_gpio_mux_en_val);
-			if (rc) {
-				CAM_ERR(CAM_CCI, "failed to write cpas cci gpio_mux_en");
-				rc = -EINVAL;
-				return rc;
-			}
 		} else {
-			CAM_ERR(CAM_CCI, "failed to read cci cpas offset");
+			val = ((context_data->csid + 1) * CCI_SET_CSID_OFFSET) &
+				((context_data->csid + 1) << (context_data->idx * 8));
+			cci_mux_en_val = (cci_mux_en_val == CCI_CPAS_MUX_EN_RESET) ?
+						((cci_mux_en_val & 0) | val) :
+						(cci_mux_en_val | val);
+			CAM_DBG(CAM_CCI, "CCI_MUX_EN 0x%x val 0x%x", cci_mux_en_val, val);
+
+		}
+		rc = cam_cpas_reg_write(cci_dev->cpas_handle, CAM_CPAS_REG_CPASTOP,
+			cci_dev->offset, true, cci_mux_en_val);
+		if (rc) {
+			CAM_ERR(CAM_CCI, "failed to write cpas cci mux_en");
+			rc = -EINVAL;
+			return rc;
+		}
+
+		CAM_DBG(CAM_CCI, "gpio_offset 0x%x", cci_dev->gpio_offset);
+		rc = cam_cpas_reg_read(cci_dev->cpas_handle, CAM_CPAS_REG_CPASTOP,
+			cci_dev->gpio_offset, true,
+			&cci_gpio_mux_en_val);
+		if (cci_dev->soc_info.index % 2 == 1) {
+			val = (1 << gpio_mask);
+			cci_gpio_mux_en_val = val | cci_gpio_mux_en_val;
+			CAM_DBG(CAM_CCI, "CCI_GPIO_MUX_EN 0x%x val 0x%x", cci_gpio_mux_en_val, val);
+		} else {
+			val = ~(1 << gpio_mask);
+			cci_gpio_mux_en_val = val & cci_gpio_mux_en_val;
+			CAM_DBG(CAM_CCI, "CCI_GPIO_MUX_EN 0x%x val 0x%x", cci_gpio_mux_en_val, val);
+		}
+		rc = cam_cpas_reg_write(cci_dev->cpas_handle, CAM_CPAS_REG_CPASTOP,
+				cci_dev->gpio_offset,
+				true, cci_gpio_mux_en_val);
+		if (rc) {
+			CAM_ERR(CAM_CCI, "failed to write cpas cci gpio_mux_en");
 			rc = -EINVAL;
 			return rc;
 		}
 	} else {
-		CAM_ERR(CAM_CCI, "multiple trigger camera on same cci not supported for now ");
+		CAM_ERR(CAM_CCI, "failed to read cci cpas offset");
 		rc = -EINVAL;
 		return rc;
 	}
+
 	if (c_ctrl->cfg.trigger_data.is_sensor_ctx || !found_matching_entry) {
 		cam_io_w_mb(context_data->cid,
 			base + CCI_SET_CID_SYNC_TIMER_ADDR +

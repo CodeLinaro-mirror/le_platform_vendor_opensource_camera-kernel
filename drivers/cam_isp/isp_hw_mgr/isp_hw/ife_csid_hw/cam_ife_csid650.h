@@ -1082,7 +1082,7 @@ static struct cam_ife_csid_csi2_rx_reg_info
 		.dt_mask                         = 0x3f0000,
 		.vc_shift                        = 22,
 		.dt_shift                        = 16,
-		.wc_mask                         = 0xffff0000,
+		.wc_mask                         = 0xffff,
 		.calc_crc_mask                   = 0xffff,
 		.expected_crc_mask               = 0xffff,
 		.ecc_correction_shift_en         = 0,

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2025 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #ifndef _CAM_SENSOR_UTIL_H_
@@ -88,16 +88,24 @@ int cam_sensor_bob_pwm_mode_switch(struct cam_hw_soc_info *soc_info,
 
 bool cam_sensor_util_check_gpio_is_shared(struct cam_hw_soc_info *soc_info);
 
-static inline int cam_sensor_util_aon_ops(bool get_access, uint32_t phy_idx)
+static inline int cam_sensor_util_aon_ops(bool get_access, uint32_t phy_idx,
+	uint8_t aon_config_index)
 {
-	CAM_DBG(CAM_SENSOR, "Updating Main/Aon operation");
-	return cam_csiphy_util_update_aon_ops(get_access, phy_idx);
+	CAM_DBG(CAM_SENSOR, "Updating Main/Aon operation for config_index: %u", aon_config_index);
+	return cam_csiphy_util_update_aon_ops(get_access, phy_idx, aon_config_index);
 }
 
 static inline int cam_sensor_util_aon_registration(uint32_t phy_idx, uint8_t aon_camera_id)
 {
-	CAM_DBG(CAM_SENSOR, "Register phy_idx: %u for AON operatoin: %d", phy_idx, aon_camera_id);
-	return cam_csiphy_util_update_aon_registration(phy_idx, aon_camera_id);
+	int aon_config_index;
+
+	CAM_DBG(CAM_SENSOR, "Register phy_idx: %u for AON operation: %d", phy_idx, aon_camera_id);
+
+	aon_config_index = cam_csiphy_util_update_aon_registration(phy_idx, aon_camera_id);
+	if (aon_config_index < 0)
+		CAM_ERR(CAM_SENSOR, "Failed to register AON camera, rc: %d", aon_config_index);
+
+	return aon_config_index;
 }
 
 #endif /* _CAM_SENSOR_UTIL_H_ */

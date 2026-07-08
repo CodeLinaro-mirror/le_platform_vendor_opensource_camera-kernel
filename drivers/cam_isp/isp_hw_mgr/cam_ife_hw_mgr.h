@@ -817,4 +817,30 @@ int cam_ife_hw_mgr_ul_setup_change_base(struct cam_isp_ctx_ul_data *ul_data,
 int cam_ife_hw_mgr_init(struct cam_hw_mgr_intf *hw_mgr_intf, int *iommu_hdl);
 void cam_ife_hw_mgr_deinit(void);
 
+/**
+ * cam_ife_hw_mgr_init_hw_fence_sessions()
+ *
+ * @brief: Initialize synx HW fence sessions for all IFE clients.
+ *         Called on probe and on PM restore after hibernation.
+ */
+int cam_ife_hw_mgr_init_hw_fence_sessions(void);
+
+
+/**
+ * cam_ife_hw_mgr_deinit_hw_fence_sessions()
+ *
+ * @brief: Uninitialize synx HW fence sessions for all IFE clients.
+ *         Called on PM freeze before hibernation.
+ */
+int cam_ife_hw_mgr_deinit_hw_fence_sessions(void);
+
+
+/**
+ * cam_ife_clean_hw_fence_sessions()
+ *
+ * @brief: Clean all HW fence sessions.
+ *
+ */
+int cam_ife_clean_hw_fence_sessions(void);
+
 #endif /* _CAM_IFE_HW_MGR_H_ */

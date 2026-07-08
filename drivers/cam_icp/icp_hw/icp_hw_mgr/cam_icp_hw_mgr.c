@@ -2735,7 +2735,7 @@ static void cam_icp_mgr_process_dbg_buf(unsigned int debug_lvl)
 	char *dbg_buf;
 	int rc = 0;
 
-	rc = hfi_read_message(icp_hw_mgr.dbg_buf, Q_DBG, &read_len);
+	rc = hfi_read_message(icp_hw_mgr.dbg_buf, Q_DBG, ICP_DBG_BUF_SIZE, &read_len);
 	if (rc)
 		return;
 
@@ -2763,34 +2763,46 @@ static void cam_icp_mgr_process_dbg_buf(unsigned int debug_lvl)
 	}
 }
 
-static int cam_icp_mgr_handle_buf_done_err(uint32_t *msg_ptr)
+static int cam_icp_mgr_handle_buf_done_err(
+	struct cam_icp_hw_mgr *hw_mgr,
+	uint32_t *msg_ptr)
 {
-	struct hfi_msg_ipebps_async_ack *ioconfig_ack = NULL;
+	struct hfi_msg_event_notify *event_notify = NULL;
 	struct cam_icp_hw_ctx_data *ctx_data = NULL;
-	struct cam_context *ctx;
+	struct cam_context *ctx = NULL;
 	struct cam_sync_signal_param param;
 	struct cam_ctx_request *req = NULL;
-	int j = 0, rc = 0;
+	uint32_t fw_handle;
+	int i, j = 0, rc = 0;
 
-	ioconfig_ack = (struct hfi_msg_ipebps_async_ack *)msg_ptr;
-
-	if (!ioconfig_ack || !ioconfig_ack->user_data1) {
-		CAM_ERR(CAM_CORE, "Invalid ioconfig_ack or user_data1 is NULL");
+	if (!hw_mgr || !msg_ptr) {
+		CAM_ERR(CAM_CORE, "Invalid hw_mgr/msg_ptr");
 		return -EINVAL;
 	}
 
-	ctx_data = (struct cam_icp_hw_ctx_data *)
-			U64_TO_PTR(ioconfig_ack->user_data1);
+	event_notify = (struct hfi_msg_event_notify *)msg_ptr;
+	fw_handle = event_notify->fw_handle;
 
-	if (ctx_data && ctx_data->context_priv) {
-		ctx = (struct cam_context *)ctx_data->context_priv;
-	} else {
-		CAM_ERR(CAM_CORE, "Invalid ctx_data or context_priv");
+	for (i = 0; i < CAM_ICP_CTX_MAX; i++) {
+		ctx_data = &hw_mgr->ctx_data[i];
+		mutex_lock(&ctx_data->ctx_mutex);
+		if ((ctx_data->state == CAM_ICP_CTX_STATE_ACQUIRED) &&
+			(ctx_data->fw_handle == fw_handle) &&
+			ctx_data->context_priv) {
+			ctx = (struct cam_context *)ctx_data->context_priv;
+			mutex_unlock(&ctx_data->ctx_mutex);
+			break;
+		}
+		mutex_unlock(&ctx_data->ctx_mutex);
+	}
+
+	if (!ctx) {
+		CAM_ERR(CAM_CORE, "No valid ctx for fw_handle=0x%x", fw_handle);
 		return -EINVAL;
 	}
 
 	spin_lock(&ctx->lock);
-	req = list_first_entry(&ctx->active_req_list,
+	req = list_first_entry_or_null(&ctx->active_req_list,
 		struct cam_ctx_request, list);
 	if (!req) {
 		CAM_INFO(CAM_ICP, "[%s][ctx_id %d] no request in active request list",
@@ -2892,7 +2904,7 @@ static int cam_icp_process_msg_pkt_type(
 		rc = cam_icp_mgr_process_fatal_error(hw_mgr, msg_ptr);
 		if (rc)
 			CAM_ERR(CAM_ICP, "failed in processing evt notify");
-		cam_icp_mgr_handle_buf_done_err(msg_ptr);
+		cam_icp_mgr_handle_buf_done_err(hw_mgr, msg_ptr);
 		break;
 
 	case HFI_MSG_DBG_SYNX_TEST:
@@ -2927,7 +2939,7 @@ static int32_t cam_icp_mgr_process_msg(void *priv, void *data)
 	task_data = data;
 	hw_mgr = priv;
 
-	rc = hfi_read_message(icp_hw_mgr.msg_buf, Q_MSG, &read_len);
+	rc = hfi_read_message(icp_hw_mgr.msg_buf, Q_MSG, ICP_MSG_BUF_SIZE, &read_len);
 	if (rc) {
 		CAM_DBG(CAM_ICP, "Unable to read msg q rc %d", rc);
 	} else {
@@ -6916,14 +6928,10 @@ static int cam_icp_mgr_release_hw(void *hw_mgr_priv, void *release_hw_args)
 		rc = cam_icp_mgr_icp_resume(hw_mgr);
 
 	if (!atomic_read(&hw_mgr->recovery) && release_hw->active_req) {
-		mutex_unlock(&hw_mgr->hw_mgr_mutex);
 		cam_icp_mgr_abort_handle(ctx_data);
 		cam_icp_mgr_send_abort_status(ctx_data);
-	} else {
-		mutex_unlock(&hw_mgr->hw_mgr_mutex);
 	}
 
-	mutex_lock(&hw_mgr->hw_mgr_mutex);
 	rc = cam_icp_mgr_release_ctx(hw_mgr, ctx_id);
 	if (!hw_mgr->ctxt_cnt) {
 		CAM_DBG(CAM_ICP, "Last Release");
@@ -7340,6 +7348,15 @@ static int cam_icp_mgr_acquire_hw(void *hw_mgr_priv, void *acquire_hw_args)
 		hw_mgr->icp_clock_cfg_cnt = 0;
 	}
 
+	/* For handling situations where Thread 1 has called for power collapse
+	 * in hw_stop and Thread 2 is in acquire_hw stage. In such scenarios it is
+	 * observed that Thread 2 skips  ICP resume call.
+	 */
+	if (hw_mgr->ctxt_cnt && !hw_mgr->icp_clock_cfg_cnt && !hw_mgr->icp_resumed) {
+		rc = cam_icp_mgr_icp_resume(hw_mgr);
+		if (rc)
+			goto get_io_buf_failed;
+	}
 
 	rc = cam_icp_mgr_ipe_bps_resume(hw_mgr, ctx_data);
 	if (rc)

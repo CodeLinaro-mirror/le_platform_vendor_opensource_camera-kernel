@@ -399,8 +399,7 @@ static int cam_actuator_platform_component_bind(struct device *dev,
 	a_ctrl->io_master_info.cci_client = kzalloc(sizeof(
 		struct cam_sensor_cci_client), GFP_KERNEL);
 	if (!(a_ctrl->io_master_info.cci_client)) {
-		rc = -ENOMEM;
-		goto free_ctrl;
+		return -ENOMEM;
 	}
 
 	soc_private = kzalloc(sizeof(struct cam_actuator_soc_private),
@@ -477,8 +476,6 @@ free_soc:
 	kfree(soc_private);
 free_cci_client:
 	kfree(a_ctrl->io_master_info.cci_client);
-free_ctrl:
-	devm_kfree(&pdev->dev, a_ctrl);
 	return rc;
 }
 

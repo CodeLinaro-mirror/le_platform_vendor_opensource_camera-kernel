@@ -41,7 +41,7 @@
 
 #define ICP_FRAME_PROCESS_SUCCESS 0
 #define ICP_FRAME_PROCESS_FAILURE 1
-#define ICP_MSG_BUF_SIZE        256
+#define ICP_MSG_BUF_SIZE        512
 #define ICP_DBG_BUF_SIZE        102400
 
 #define ICP_CLK_HW_IPE          0x0

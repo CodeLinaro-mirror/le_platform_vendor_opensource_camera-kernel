@@ -11,6 +11,10 @@ ifeq ($(CONFIG_ARCH_NEO), y)
 include $(CAMERA_KERNEL_ROOT)/config/neo.mk
 endif
 
+ifeq ($(CONFIG_ARCH_SERAPH), y)
+include $(CAMERA_KERNEL_ROOT)/config/seraph.mk
+endif
+
 ifeq ($(CONFIG_ARCH_ANORAK), y)
 include $(CAMERA_KERNEL_ROOT)/config/anorak.mk
 endif
@@ -75,6 +79,14 @@ LINUXINCLUDE +=                                 \
 	$(addprefix -I,$(cam_include_dirs))         \
 	-I$(CAMERA_KERNEL_ROOT)/include/uapi/camera \
 	-I$(CAMERA_KERNEL_ROOT)/
+
+ifdef SOC_REPO
+LINUXINCLUDE := \
+       -I$(SOC_REPO)/include \
+       -I$(SOC_REPO)/include/uapi \
+       $(LINUXINCLUDE)
+endif
+
 # Optional include directories
 ccflags-$(CONFIG_MSM_GLOBAL_SYNX) += -I$(KERNEL_ROOT)/drivers/media/platform/msm/synx
 ccflags-$(CONFIG_MSM_GLOBAL_SYNX_V2) += -I$(KERNEL_ROOT)/drivers/media/platform/msm/synx

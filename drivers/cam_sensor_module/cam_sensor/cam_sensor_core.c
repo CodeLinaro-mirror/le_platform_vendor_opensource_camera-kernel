@@ -388,7 +388,7 @@ static int cam_sensor_handle_event_info(
 {
 	int rc = 0, offset, i = 0, j = 0, k = 0;
 	struct cam_sensor_event_list *event_list = NULL;
-	uint32_t event_offset = event_info->event_offset;
+	uint32_t event_offset = 0;
 
 	if (!s_ctrl || !event_info) {
 		CAM_ERR(CAM_SENSOR, "Invalid params: event_info: %s, s_ctrl: %s",
@@ -401,6 +401,8 @@ static int cam_sensor_handle_event_info(
 		CAM_ERR(CAM_SENSOR, "Invalid event_info version %d", event_info->version);
 		return -EINVAL;
 	}
+
+	event_offset = event_info->event_offset;
 	offset = req_id % MAX_PER_FRAME_ARRAY;
 	/* preparing event list, need to send it to cci */
 	event_list = &s_ctrl->i2c_data.per_frame_event_settings[offset].event_list;
@@ -733,7 +735,7 @@ static int32_t cam_sensor_fill_event_data(
 	for (i = 0; i < event_list->event_count; i++) {
 		for (j = 0; j < event_list->event_info[i].event_arg_count; j++) {
 			index = event_list->event_info[i].event_arg_sequence[j].index;
-			if (index >= MAX_CMD_BUFFER && index < 0) {
+			if (index >= MAX_CMD_BUFFER || index < 0) {
 				CAM_ERR(CAM_SENSOR, "Invalid event arg sequence index");
 				return -EINVAL;
 			}
@@ -762,7 +764,7 @@ static int32_t cam_sensor_fill_event_data(
 
 		for (j = 0; j < event_list->event_info[i].cmd_count; j++) {
 			index = event_list->event_info[i].cmd_sequence[j].index;
-			if (index >= MAX_CMD_BUFFER && index < 0) {
+			if (index >= MAX_CMD_BUFFER || index < 0) {
 				CAM_ERR(CAM_SENSOR, "Invalid cmd sequence index");
 				return -EINVAL;
 			}
@@ -1635,11 +1637,23 @@ static int32_t cam_sensor_i2c_pkt_parse(struct cam_sensor_ctrl_t *s_ctrl,
 	if ((csl_packet->header.op_code & 0xFFFFFF) ==
 		CAM_SENSOR_PACKET_OPCODE_SENSOR_UPDATE) {
 		if (s_ctrl->is_trigger_mode) {
-			cci_settings->request_id =
-				csl_packet->header.request_id;
+			if (cci_settings != NULL) {
+				cci_settings->request_id =
+					csl_packet->header.request_id;
+			} else {
+				CAM_ERR(CAM_SENSOR, "NULL cci_settings pointer");
+				rc = -EINVAL;
+				goto end;
+			}
 		} else {
-			i2c_reg_settings->request_id =
-				csl_packet->header.request_id;
+			if (i2c_reg_settings != NULL) {
+				i2c_reg_settings->request_id =
+					csl_packet->header.request_id;
+			} else {
+				CAM_ERR(CAM_SENSOR, "NULL i2c_reg_settings pointer");
+				rc = -EINVAL;
+				goto end;
+			}
 		}
 		rc = cam_sensor_update_req_mgr(s_ctrl, csl_packet);
 		if (rc) {
@@ -3210,16 +3224,22 @@ int cam_sensor_no_crm_resume_apply(
 	int rc = 0;
 	struct cam_sensor_ctrl_t *s_ctrl = NULL;
 	struct cam_req_mgr_no_crm_apply_request apply = {0};
-	s_ctrl = cam_get_device_no_crm_priv(resume->dev_hdl);
-
-	apply.link_hdl  = resume->link_hdl;
-	apply.dev_hdl   = resume->dev_hdl;
 
 	if (!resume) {
 		CAM_ERR(CAM_SENSOR, "Invalid resume received");
 		return -EINVAL;
 	}
-	
+
+	s_ctrl = cam_get_device_no_crm_priv(resume->dev_hdl);
+
+	if (!s_ctrl) {
+        CAM_ERR(CAM_SENSOR, "Device data is NULL");
+        return -EINVAL;
+    }
+
+	apply.link_hdl  = resume->link_hdl;
+	apply.dev_hdl   = resume->dev_hdl;
+
 	if (s_ctrl->bridge_intf.link_hdl == resume->link_hdl) {
 		mutex_lock(&s_ctrl->cam_sensor_mutex);
 		if (!s_ctrl->bridge_intf.enable_crm) {
@@ -3392,10 +3412,12 @@ int cam_sensor_power_up(struct cam_sensor_ctrl_t *s_ctrl)
 
 	if (s_ctrl->aon_camera_id != NOT_AON_CAM) {
 		CAM_INFO(CAM_SENSOR,
-			"Setup for Main Camera with csiphy index: %d",
-			s_ctrl->sensordata->subdev_id[SUB_MODULE_CSIPHY]);
+			"Setup for Main Camera with csiphy index: %d cam_id %d",
+			s_ctrl->sensordata->subdev_id[SUB_MODULE_CSIPHY],
+			s_ctrl->aon_camera_id);
 		rc = cam_sensor_util_aon_ops(true,
-			s_ctrl->sensordata->subdev_id[SUB_MODULE_CSIPHY]);
+			s_ctrl->sensordata->subdev_id[SUB_MODULE_CSIPHY],
+			s_ctrl->aon_config_index);
 		if (rc) {
 			CAM_ERR(CAM_SENSOR,
 				"Main camera access operation is not successful rc: %d",
@@ -3463,10 +3485,12 @@ int cam_sensor_power_down(struct cam_sensor_ctrl_t *s_ctrl)
 
 	if (s_ctrl->aon_camera_id != NOT_AON_CAM) {
 		CAM_INFO(CAM_SENSOR,
-			"Setup for AON FW with csiphy index: %d",
-			s_ctrl->sensordata->subdev_id[SUB_MODULE_CSIPHY]);
+			"Setup for AON FW with csiphy index: %d cam_id %d",
+			s_ctrl->sensordata->subdev_id[SUB_MODULE_CSIPHY],
+			s_ctrl->aon_camera_id);
 		rc = cam_sensor_util_aon_ops(false,
-			s_ctrl->sensordata->subdev_id[SUB_MODULE_CSIPHY]);
+			s_ctrl->sensordata->subdev_id[SUB_MODULE_CSIPHY],
+			s_ctrl->aon_config_index);
 		if (rc) {
 			CAM_ERR(CAM_SENSOR,
 				"AON FW access operation is not successful rc: %d",
