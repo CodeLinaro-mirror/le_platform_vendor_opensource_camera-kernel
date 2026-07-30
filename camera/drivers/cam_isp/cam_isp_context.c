@@ -1824,6 +1824,9 @@ static int __cam_isp_ctx_handle_buf_done_for_req_list(
 	ctx_isp->active_req_cnt--;
 	buf_done_req_id = req->request_id;
 
+	if (atomic_read(&ctx_isp->flush_in_progress) && ctx_isp->per_port_en)
+		wake_up(&ctx_isp->buf_done_wait);
+
 	if (req_isp->bubble_detected && req_isp->bubble_report) {
 		req_isp->num_acked = 0;
 		req_isp->num_deferred_acks = 0;
@@ -6044,9 +6047,10 @@ static inline void __cam_isp_ctx_wait_for_req_completion(
 	struct cam_ctx_request *req;
 	uint32_t num_of_req = 0;
 	uint64_t wait_time_in_ms = 0;
+	long wait_jiffies;
+	long ret;
 
 	ctx_isp = (struct cam_isp_context *) ctx->ctx_priv;
-	atomic_set(&ctx_isp->flush_in_progress, 1);
 
 	if (!list_empty(&ctx->wait_req_list)) {
 		list_for_each_entry(req, &ctx->wait_req_list, list) {
@@ -6062,12 +6066,26 @@ static inline void __cam_isp_ctx_wait_for_req_completion(
 
 	if (num_of_req) {
 		wait_time_in_ms =
-			num_of_req*(DEFAULT_FRAME_DURATION / CAM_COMMON_NS_PER_MS);
+			num_of_req * (DEFAULT_FRAME_DURATION / CAM_COMMON_NS_PER_MS);
 		wait_time_in_ms +=
 			CAM_REQ_MGR_HALF_FRAME_DURATION(DEFAULT_FRAME_DURATION)
 							/ CAM_COMMON_NS_PER_MS;
-		CAM_DBG(CAM_ISP, "Waiting for %dms ", wait_time_in_ms);
-		msleep(wait_time_in_ms);
+		wait_jiffies = msecs_to_jiffies(wait_time_in_ms);
+		CAM_DBG(CAM_ISP,
+			"Waiting for buf_done: num_req %u timeout %llums ctx %u link: 0x%x",
+			num_of_req, wait_time_in_ms, ctx->ctx_id, ctx->link_hdl);
+		ret = wait_event_timeout(ctx_isp->buf_done_wait,
+			(ctx_isp->active_req_cnt == 0 &&
+			list_empty(&ctx->wait_req_list)),
+			wait_jiffies);
+		if (!ret)
+			CAM_WARN(CAM_ISP,
+				"Timed out waiting for buf_done: num_req %u ctx %u link: 0x%x",
+				num_of_req, ctx->ctx_id, ctx->link_hdl);
+		else
+			CAM_DBG(CAM_ISP,
+				"buf_done wait complete: num_req %u ctx %u link: 0x%x",
+				num_of_req, ctx->ctx_id, ctx->link_hdl);
 	}
 }
 
@@ -6093,14 +6111,14 @@ static int __cam_isp_ctx_flush_req_in_top_state(
 			goto end;
 		}
 
+		atomic_set(&ctx_isp->flush_in_progress, 1);
+		if (ctx_isp->per_port_en)
+			__cam_isp_ctx_wait_for_req_completion(ctx);
+
 		spin_lock_bh(&ctx->lock);
 		ctx->state = CAM_CTX_FLUSHED;
 		ctx_isp->substate_activated = CAM_ISP_CTX_ACTIVATED_HALT;
 		spin_unlock_bh(&ctx->lock);
-
-		atomic_set(&ctx_isp->flush_in_progress, 1);
-		if (ctx_isp->per_port_en)
-			__cam_isp_ctx_wait_for_req_completion(ctx);
 
 		CAM_INFO(CAM_ISP, "Last request id to flush is %lld, ctx_id:%u link: 0x%x",
 			flush_req->req_id, ctx->ctx_id, ctx->link_hdl);
@@ -9689,6 +9707,7 @@ int cam_isp_context_init(struct cam_isp_context *ctx,
 	ctx->active_req_cnt = 0;
 	ctx->reported_req_id = 0;
 	ctx->bubble_frame_cnt = 0;
+	init_waitqueue_head(&ctx->buf_done_wait);
 	ctx->congestion_cnt = 0;
 	ctx->req_info.last_bufdone_req_id = 0;
 	ctx->v4l2_event_sub_ids = 0;
