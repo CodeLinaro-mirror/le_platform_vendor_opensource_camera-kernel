@@ -571,25 +571,28 @@ int cam_soc_util_get_clk_level(struct cam_hw_soc_info *soc_info,
 static const char *cam_soc_util_get_string_from_level(
 	enum cam_vote_level level)
 {
+
 	switch (level) {
 	case CAM_SUSPEND_VOTE:
-		return "";
+		return "SUSPEND";
 	case CAM_MINSVS_VOTE:
-		return "MINSVS[1]";
+		return "MINSVS";
+	case CAM_LOWSVS_D1_1_VOTE:
+		return "LOWSVSD1_1";
 	case CAM_LOWSVS_D1_VOTE:
-		return "LOWSVSD1[2]";
+		return "LOWSVSD1";
 	case CAM_LOWSVS_VOTE:
-		return "LOWSVS[3]";
+		return "LOWSVS";
 	case CAM_SVS_VOTE:
-		return "SVS[4]";
+		return  "SVS";
 	case CAM_SVSL1_VOTE:
-		return "SVSL1[5]";
+		return "SVS_L1";
 	case CAM_NOMINAL_VOTE:
-		return "NOM[6]";
+		return "NOM";
 	case CAM_NOMINALL1_VOTE:
-		return "NOML1[7]";
+		return "NOML1";
 	case CAM_TURBO_VOTE:
-		return "TURBO[8]";
+		return "TURBO";
 	default:
 		return "";
 	}
@@ -753,6 +756,8 @@ int cam_soc_util_get_level_from_string(const char *string,
 		*level = CAM_SUSPEND_VOTE;
 	} else if (!strcmp(string, "minsvs")) {
 		*level = CAM_MINSVS_VOTE;
+	} else if (!strcmp(string, "lowsvsd1_1")) {
+		*level = CAM_LOWSVS_D1_1_VOTE;
 	} else if (!strcmp(string, "lowsvsd1")) {
 		*level = CAM_LOWSVS_D1_VOTE;
 	} else if (!strcmp(string, "lowsvs")) {

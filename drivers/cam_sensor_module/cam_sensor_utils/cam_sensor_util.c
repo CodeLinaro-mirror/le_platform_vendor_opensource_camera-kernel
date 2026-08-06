@@ -2379,7 +2379,7 @@ int cam_sensor_core_power_up(struct cam_sensor_power_ctrl_t *ctrl,
 			msleep(power_setting->delay);
 		else if (power_setting->delay)
 			usleep_range(power_setting->delay * 1000,
-				(power_setting->delay * 1000) + 1000);
+				(power_setting->delay * 1000) + 5);
 	}
 
 	return 0;
@@ -2474,7 +2474,7 @@ power_up_failed:
 			msleep(power_setting->delay);
 		} else if (power_setting->delay) {
 			usleep_range(power_setting->delay * 1000,
-				(power_setting->delay * 1000) + 1000);
+				(power_setting->delay * 1000) + 5);
 		}
 	}
 
@@ -2668,7 +2668,7 @@ int32_t cam_sensor_regulator_toggle(struct cam_hw_soc_info *soc_info,
 			msleep(power_setting->delay);
 		else if (power_setting->delay)
 			usleep_range(power_setting->delay * 1000,
-				(power_setting->delay * 1000) + 1000);
+				(power_setting->delay * 1000) + 5);
 	}
 	return rc;
 }
@@ -2826,7 +2826,7 @@ int cam_sensor_util_power_down(struct cam_sensor_power_ctrl_t *ctrl,
 			msleep(pd->delay);
 		else if (pd->delay)
 			usleep_range(pd->delay * 1000,
-				(pd->delay * 1000) + 1000);
+				(pd->delay * 1000) + 5);
 	}
 
 	if (ctrl->cam_pinctrl_status) {

@@ -963,12 +963,12 @@ int cam_hfi_init(struct hfi_mem_info *hfi_mem, const struct hfi_ops *hfi_ops,
 		icp_base + HFI_REG_FWUNCACHED_REGION_IOVA);
 	cam_io_w_mb((uint32_t)hfi_mem->fw_uncached.len,
 		icp_base + HFI_REG_FWUNCACHED_REGION_SIZE);
-	cam_io_w_mb((uint32_t)ICP_INIT_REQUEST_SET,
-		icp_base + HFI_REG_HOST_ICP_INIT_REQUEST);
 	cam_io_w_mb((uint32_t)hfi_mem->device_mem.iova,
 		icp_base + HFI_REG_DEVICE_REGION_IOVA);
 	cam_io_w_mb((uint32_t)hfi_mem->device_mem.len,
 		icp_base + HFI_REG_DEVICE_REGION_IOVA_SIZE);
+	cam_io_w_mb((uint32_t)ICP_INIT_REQUEST_SET,
+		icp_base + HFI_REG_HOST_ICP_INIT_REQUEST);
 
 	CAM_DBG(CAM_HFI, "IO1 : [0x%x 0x%x] IO2 [0x%x 0x%x]",
 		hfi_mem->io_mem.iova, hfi_mem->io_mem.len,

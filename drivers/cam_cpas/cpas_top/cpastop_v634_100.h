@@ -273,7 +273,7 @@ static struct cam_camnoc_specific
 			.value = 0x0,
 		},
 		.maxwr_low = {
-			.enable = false,
+			.enable = true,
 			.access_type = CAM_REG_TYPE_READ,
 			.masked_value = 0,
 			.offset = 0x9420, /* IFE_0_NIU_MAXWR_LOW */
@@ -363,7 +363,7 @@ static struct cam_camnoc_specific
 			.value = 0x0,
 		},
 		.maxwr_low = {
-			.enable = false,
+			.enable = true,
 			.access_type = CAM_REG_TYPE_READ,
 			.masked_value = 0,
 			.offset = 0x9820, /* IFE_LITE_0_NIU_MAXWR_LOW */

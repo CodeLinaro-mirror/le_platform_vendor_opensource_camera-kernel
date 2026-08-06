@@ -7706,19 +7706,17 @@ static int __cam_isp_ctx_rdi_only_reg_upd_in_bubble_state(
 static int __cam_isp_ctx_rdi_only_reg_upd_in_bubble_applied_state(
 	struct cam_isp_context *ctx_isp, void *evt_data)
 {
-	struct cam_ctx_request  *req = NULL;
-	struct cam_ctx_request  *req_temp = NULL;
+	int rc = 0;
+	struct cam_ctx_request  *req;
 	struct cam_context      *ctx = ctx_isp->base;
 	struct cam_isp_ctx_req  *req_isp;
 	struct cam_isp_hw_reg_update_event_data  *rup_event_data =
 		(struct cam_isp_hw_reg_update_event_data *)evt_data;
-	bool      skip_apply = false;
-	bool      skip_state_change = true;
 	bool      rup_for_applied_req = true;
-	int rc;
+	uint64_t  reported_req_id = 0;
 
-	if (ctx_isp->frame_drop)
-		ctx_isp->frame_drop = false;
+	ctx_isp->frame_drop = false;
+
 	rc = __cam_isp_ctx_check_rup_received_for_applied_req(ctx, &rup_for_applied_req);
 	if (rc) {
 		CAM_ERR(CAM_ISP,
@@ -7736,153 +7734,99 @@ static int __cam_isp_ctx_rdi_only_reg_upd_in_bubble_applied_state(
 		return 0;
 	}
 
-	if (!list_empty(&ctx->active_req_list)) {
-		list_for_each_entry_safe(req, req_temp, &ctx->active_req_list, list) {
-			req_isp = (struct cam_isp_ctx_req *) req->req_priv;
-			if (req_isp->intermediate_irq_mask.reg_up_irq_mask !=
-				req_isp->path_irq_mask) {
-				req_isp->intermediate_irq_mask.reg_up_irq_mask |=
-					1 << rup_event_data->res_id;
-				CAM_DBG(CAM_ISP,
-				"reg_up received on res_id:%d ctx:%u activelist req:%d expected mask:0x%x current mask:0x%x",
-					rup_event_data->res_id, ctx->ctx_id, req->request_id,
-					req_isp->path_irq_mask,
-					req_isp->intermediate_irq_mask.reg_up_irq_mask);
-
-				if (req_isp->intermediate_irq_mask.reg_up_irq_mask ==
-						req_isp->path_irq_mask) {
-					CAM_DBG(CAM_ISP,
-						"Rup received for all resources for req %lld ctx:%d",
-						req->request_id, ctx->ctx_id);
-					ctx_isp->substate_activated =
-							CAM_ISP_CTX_ACTIVATED_EPOCH;
-					goto apply;
-				} else
-					return 0;
-			}
-		}
-
-		if (!list_empty(&ctx->wait_req_list))
-			goto update_waitlist_req;
-	} else {
-update_waitlist_req:
-
-		req = list_first_entry(&ctx->wait_req_list,
-			struct cam_ctx_request, list);
-		req_isp = (struct cam_isp_ctx_req *) req->req_priv;
-
-		if (!req_isp->intermediate_irq_mask.reg_up_irq_mask) {
-			req_isp->intermediate_irq_mask.reg_up_irq_mask |=
-				1 << rup_event_data->res_id;
-			skip_state_change = true;
-			skip_apply = true;
-
-			CAM_DBG(CAM_ISP,
-			"reg_up received on res_id:%d ctx:%u waitlist req:%d expected mask:0x%x current mask:0x%x",
-				rup_event_data->res_id, ctx->ctx_id, req->request_id,
-				req_isp->path_irq_mask,
-				req_isp->intermediate_irq_mask.reg_up_irq_mask);
-
-			if (req_isp->intermediate_irq_mask.reg_up_irq_mask ==
-					req_isp->path_irq_mask) {
-				skip_state_change = false;
-				skip_apply = false;
-			} else if (!req_isp->path_irq_mask)
-				skip_state_change = false;
-		}  else {
-			req_isp->intermediate_irq_mask.reg_up_irq_mask |=
-				1 << rup_event_data->res_id;
-			CAM_DBG(CAM_ISP,
-			"reg_up received on res_id:%d ctx:%u waitlist req:%d expected mask:0x%x current mask:0x%x",
-				rup_event_data->res_id, ctx->ctx_id, req->request_id,
-				req_isp->path_irq_mask,
-				req_isp->intermediate_irq_mask.reg_up_irq_mask);
-
-			if (req_isp->intermediate_irq_mask.reg_up_irq_mask ==
-					req_isp->path_irq_mask) {
-				CAM_DBG(CAM_ISP,
-					"Rup received for all resource for req %lld ctx:%u",
-					req->request_id, ctx->ctx_id);
-				ctx_isp->substate_activated = CAM_ISP_CTX_ACTIVATED_EPOCH;
-				goto apply;
-			} else
-				return 0;
-		}
-	}
-
-	if (!skip_state_change)
-		ctx_isp->substate_activated = CAM_ISP_CTX_ACTIVATED_EPOCH;
-
-	/* notify reqmgr with sof signal*/
-	if (list_empty(&ctx->wait_req_list)) {
-		CAM_ERR(CAM_ISP, "Reg upd ack with no waiting request ctx:%d wait req count %d",
+	req = list_first_entry_or_null(&ctx->wait_req_list,
+		struct cam_ctx_request, list);
+	if (!req) {
+		CAM_ERR(CAM_ISP,
+			"Reg upd ack with no waiting request ctx:%d wait req count %d",
 			ctx->ctx_id, ctx_isp->waitlist_req_cnt);
 		ctx_isp->waitlist_req_cnt = 0;
 		goto error;
 	}
 
-	req = list_first_entry(&ctx->wait_req_list,
-			struct cam_ctx_request, list);
-	list_del_init(&req->list);
-
 	req_isp = (struct cam_isp_ctx_req *) req->req_priv;
+	req_isp->intermediate_irq_mask.reg_up_irq_mask |= 1 << rup_event_data->res_id;
+	CAM_DBG(CAM_ISP,
+		"reg_up received on res_id:%d ctx:%u waitlist req:%lld expected mask:0x%x current mask:0x%x",
+		rup_event_data->res_id, ctx->ctx_id, req->request_id,
+		req_isp->path_irq_mask,
+		req_isp->intermediate_irq_mask.reg_up_irq_mask);
+
+	/*
+	 * Defer the move to active_req_list and the EPOCH transition until all
+	 * RUPs have been received for this request. Otherwise, with multiple
+	 * RDI paths, a Retrieve IOCTL between two RUP bottom halves can clear
+	 * the active list before the second RUP is processed, leaving the
+	 * substate stuck in BUBBLE_APPLIED so the next request never applies.
+	 */
+	if (req_isp->intermediate_irq_mask.reg_up_irq_mask != req_isp->path_irq_mask)
+		return 0;
+
+	CAM_DBG(CAM_ISP, "Received all RUPs for req:%lld ctx:%u",
+		req->request_id, ctx->ctx_id);
+
+	list_del_init(&req->list);
 
 	if (req_isp->num_fence_map_out != 0 && !req_isp->ul_fp_result_posted) {
 		list_add_tail(&req->list, &ctx->active_req_list);
-		 /*decrement waitlist req cnt first then increment active req cnt */
+		/* decrement waitlist req cnt first then increment active req cnt */
 		ctx_isp->waitlist_req_cnt--;
 		ctx_isp->active_req_cnt++;
 		CAM_DBG(CAM_ISP,
 			"move request %lld to active list(cnt = %d) ctx:%d waitlist: %d",
 			req->request_id, ctx_isp->active_req_cnt, ctx->ctx_id,
 			ctx_isp->waitlist_req_cnt);
-		/* if packet has buffers, set correct request id */
 	} else {
 		/* no io config, so the request is completed. */
 		__cam_isp_ctx_move_req_to_free_list(ctx, req);
 		ctx_isp->waitlist_req_cnt--;
 		CAM_DBG(CAM_ISP,
-			"move active req %lld to free list(cnt=%d) ctx:%d waitlist_req_cnt :%d",
-			req->request_id, ctx_isp->active_req_cnt,
-			ctx->ctx_id, ctx_isp->waitlist_req_cnt);
+			"move waitlist req %lld to free list ctx:%d waitlist_req_cnt:%d active_cnt:%d",
+			req->request_id, ctx->ctx_id, ctx_isp->waitlist_req_cnt,
+			ctx_isp->active_req_cnt);
 	}
 
-apply:
-	if (!skip_apply) {
-		__cam_isp_ctx_notify_trigger_util(CAM_TRIGGER_POINT_SOF, ctx_isp, req->request_id,
-			rup_event_data->res_id, rup_event_data->timestamp);
+	ctx_isp->substate_activated = CAM_ISP_CTX_ACTIVATED_EPOCH;
 
-		/*
-		 * Get the req again from active_req_list in case
-		 * the active req cnt is 2.
-		 */
-		list_for_each_entry(req, &ctx->active_req_list, list) {
-			req_isp = (struct cam_isp_ctx_req *) req->req_priv;
-			if (req->request_id > ctx_isp->reported_req_id) {
-				CAM_DBG(CAM_ISP,
-					"ctx %d reported_req_id %lld update to %lld",
-					ctx->ctx_id, ctx_isp->reported_req_id, req->request_id);
-				break;
-			}
-		}
-		__cam_isp_ctx_send_sof_timestamp(ctx_isp, req->request_id,
-			CAM_REQ_MGR_SOF_EVENT_SUCCESS);
+	__cam_isp_ctx_notify_trigger_util(CAM_TRIGGER_POINT_SOF, ctx_isp, req->request_id,
+		rup_event_data->res_id, rup_event_data->timestamp);
 
-		if (req->request_id > 0) {
-			req_isp->sof_timestamp_val = ctx_isp->sof_timestamp_val;
-			req_isp->boot_timestamp = ctx_isp->boot_timestamp;
+	/*
+	 * Get the req again from active_req_list in case the active req cnt is 2.
+	 * Track the matching request_id separately. If the list is empty or no
+	 * entry matches, list_for_each_entry leaves req pointing at the list head,
+	 * which container_of's back to garbage and previously led to OOB writes
+	 * via update_event_record below. Mirror the safe pattern used by sibling
+	 * handlers: write timestamps and record events only when a matching req
+	 * was actually found.
+	 */
+	list_for_each_entry(req, &ctx->active_req_list, list) {
+		req_isp = (struct cam_isp_ctx_req *) req->req_priv;
+		if (req->request_id > ctx_isp->reported_req_id) {
+			reported_req_id = req->request_id;
 			CAM_DBG(CAM_ISP,
-				"ctx:%u request id:%lld frame number:%lld SOF time stamp:0x%llx boot time stamp:0x%llx",
-				ctx->ctx_id, req->request_id, ctx_isp->frame_id,
-				ctx_isp->sof_timestamp_val, ctx_isp->boot_timestamp);
+				"ctx %d reported_req_id %lld update to %lld",
+				ctx->ctx_id, ctx_isp->reported_req_id, req->request_id);
+			break;
 		}
+	}
+	__cam_isp_ctx_send_sof_timestamp(ctx_isp, reported_req_id,
+		CAM_REQ_MGR_SOF_EVENT_SUCCESS);
+
+	if (reported_req_id > 0) {
+		req_isp->sof_timestamp_val = ctx_isp->sof_timestamp_val;
+		req_isp->boot_timestamp = ctx_isp->boot_timestamp;
+		CAM_DBG(CAM_ISP,
+			"ctx:%u request id:%lld frame number:%lld SOF time stamp:0x%llx boot time stamp:0x%llx",
+			ctx->ctx_id, reported_req_id, ctx_isp->frame_id,
+			ctx_isp->sof_timestamp_val, ctx_isp->boot_timestamp);
 	}
 
 	CAM_DBG(CAM_ISP, "next Substate[%s]",
 		__cam_isp_ctx_substate_val_to_type(
 		ctx_isp->substate_activated));
 	__cam_isp_ctx_update_event_record(ctx_isp,
-		CAM_ISP_CTX_EVENT_RUP, req);
+		CAM_ISP_CTX_EVENT_RUP, reported_req_id > 0 ? req : NULL);
 	return 0;
 error:
 	/* Send SOF event as idle frame*/
@@ -7895,8 +7839,7 @@ error:
 	 * There is no request in the pending list, move the sub state machine
 	 * to SOF sub state
 	 */
-	if (skip_state_change)
-		ctx_isp->substate_activated = CAM_ISP_CTX_ACTIVATED_SOF;
+	ctx_isp->substate_activated = CAM_ISP_CTX_ACTIVATED_SOF;
 
 	return 0;
 }
