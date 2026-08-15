@@ -211,14 +211,6 @@ struct cam_cci_gpio_fsync_cfg {
 	enum cam_cci_timer_cmd_type fsync_cmd_type;
 };
 
-struct cci_timer_fsync_all {
-	bool is_enabled;
-	int fsync_consumer_refcount;
-	int cci_index;
-	int fsync_queue;
-	int cci_timer_index;
-};
-
 /**
  * struct cam_cci_gpio_cmd_buf - CCI GPIO command buffer
  * @cmd_count:     Number of commands in the buffer
@@ -366,8 +358,6 @@ struct cam_sensor_cci_client {
 	bool is_probing;
 	bool is_master_owned;
 	int acquired_gpio_queue;
-	uint16_t cci_timer_index;
-	struct cci_sync_info sync_cfg;
 	struct cam_cci_gpio_cmd_buf cmd_buf;
 };
 

@@ -49,14 +49,6 @@ struct v4l2_subdev *cam_cci_get_subdev(int cci_dev_index)
 	return sub_device;
 }
 
-static struct cci_timer_fsync_all fsync_obj = {
-	.is_enabled = false,
-	.fsync_consumer_refcount = 0,
-	.cci_index = -1,
-	.fsync_queue = -1,
-	.cci_timer_index = -1,
-};
-static DEFINE_MUTEX(fsync_obj_mutex);
 
 /* Helper: GPIO command type -> human-readable string */
 #define CCI_POLL_TIMEOUT_US  50000
@@ -64,32 +56,19 @@ static DEFINE_MUTEX(fsync_obj_mutex);
 
 static int __cci_find_free_gpio_queue(struct cci_device *cci_dev, int *queue)
 {
-	int i = 0;
+	int i;
 
-	CAM_INFO(CAM_CCI, "ENTER");
 	for (i = 0; i < GPIO_Q_MAX; i++) {
 		if (!cci_dev->gpio_queue[i].is_acquired) {
-			*queue = i;
 			cci_dev->gpio_queue[i].is_acquired = true;
-
-			mutex_lock(&fsync_obj_mutex);
-			fsync_obj.is_enabled = true;
-			fsync_obj.fsync_consumer_refcount++;
-			fsync_obj.cci_index = cci_dev->soc_info.index;
-			fsync_obj.fsync_queue = i;
-			mutex_unlock(&fsync_obj_mutex);
-
-			break;
+			*queue = i;
+			CAM_DBG(CAM_CCI, "GPIO queue %d acquired", i);
+			return 0;
 		}
 	}
 
-	if (i < GPIO_Q_MAX) {
-		CAM_INFO(CAM_CCI, "QUEUE: %d ACQUIRED", i);
-		return 0;
-	}
-
-	CAM_ERR(CAM_CCI, "Queue is not available");
-	return -EINVAL;
+	CAM_ERR(CAM_CCI, "No free GPIO queue available");
+	return -EBUSY;
 }
 
 static int __cci_configure_cpas(struct cci_device *cci_dev,
@@ -114,10 +93,13 @@ static int __cci_configure_cpas(struct cci_device *cci_dev,
 
 	CAM_INFO(CAM_CCI, "BEFORE WRITE CPAS VALUE: 0x%x", val);
 
-	/* Read cci_timer_index with mutex protection */
-	mutex_lock(&fsync_obj_mutex);
-	cci_timer_index = fsync_obj.cci_timer_index;
-	mutex_unlock(&fsync_obj_mutex);
+	/*
+	 * TODO (fsync redesign item 3): compute timer mask dynamically
+	 * by walking all registered cci_clients on cci_dev and OR-ing
+	 * their timer_mask values. For now use -1 (enables all timers)
+	 * which matches the previous behaviour.
+	 */
+	cci_timer_index = -1;
 
 	if (cmd_type == MSM_CCI_TIMER_FSYNC_ALL ||
 	    cmd_type == MSM_CCI_TIMER_FSYNC_INDEPENDENT) {
@@ -251,7 +233,8 @@ static int cam_cci_poll_gpio_queue_empty(void __iomem *base, int queue)
 }
 
 static int cam_cci_load_gpio_queue(struct v4l2_subdev *sd,
-	struct cam_cci_ctrl *c_ctrl)
+	struct cam_cci_ctrl *c_ctrl,
+	const struct cam_cci_gpio_cmd_buf *cmd_buf)
 {
 	int rc = 0;
 	uint32_t reg_addr;
@@ -263,33 +246,31 @@ static int cam_cci_load_gpio_queue(struct v4l2_subdev *sd,
 	int i;
 	struct cci_device *cci_dev;
 
-	CAM_INFO(CAM_CCI, "ENTER");
-
 	cci_dev = v4l2_get_subdevdata(sd);
-	if (!cci_dev || !c_ctrl) {
+	if (!cci_dev || !c_ctrl || !cmd_buf) {
 		CAM_ERR(CAM_CCI,
-			"Failed: invalid params cci_dev:%pK, c_ctrl:%pK",
-			cci_dev, c_ctrl);
+			"Invalid params cci_dev:%pK c_ctrl:%pK cmd_buf:%pK",
+			cci_dev, c_ctrl, cmd_buf);
 		return -EINVAL;
 	}
 
-	if (c_ctrl->cci_info->acquired_gpio_queue < 0) {
-		mutex_lock(&cci_dev->init_mutex);
-		rc = __cci_find_free_gpio_queue(cci_dev, &queue);
-		if (rc) {
-			CAM_ERR(CAM_CCI, "Queue is not free");
-			mutex_unlock(&cci_dev->init_mutex);
-			return rc;
-		}
-		mutex_unlock(&cci_dev->init_mutex);
-
-		CAM_INFO(CAM_CCI, "Queue: %d is getting programmed", queue);
-		c_ctrl->cci_info->acquired_gpio_queue = queue;
+	if (!cmd_buf->cmd_buf_ready || cmd_buf->cmd_count == 0) {
+		CAM_ERR(CAM_CCI, "cmd_buf not ready or empty: ready=%d count=%d",
+			cmd_buf->cmd_buf_ready, cmd_buf->cmd_count);
+		return -EINVAL;
 	}
 
-	queue_size = (c_ctrl->cci_info->acquired_gpio_queue == GPIO_Q0 ?
+	mutex_lock(&cci_dev->init_mutex);
+	rc = __cci_find_free_gpio_queue(cci_dev, &queue);
+	if (rc) {
+		CAM_ERR(CAM_CCI, "No free GPIO queue");
+		mutex_unlock(&cci_dev->init_mutex);
+		return rc;
+	}
+	c_ctrl->cci_info->acquired_gpio_queue = queue;
+
+	queue_size = (queue == GPIO_Q0 ?
 		CCI_GPIO_Q0_MAX_WORD_COUNT : CCI_GPIO_Q1_MAX_WORD_COUNT);
-	CAM_INFO(CAM_CCI, "Queue size is %d words", queue_size);
 
 	rc = __cci_configure_cpas(cci_dev, c_ctrl);
 	if (rc) {
@@ -297,41 +278,36 @@ static int cam_cci_load_gpio_queue(struct v4l2_subdev *sd,
 		goto release_queue;
 	}
 
-	soc_info = &cci_dev->soc_info;
-	base = soc_info->reg_map[0].mem_base;
-
-	reg_addr = CCI_GPIO_QUEUE_LOAD_ADDR(c_ctrl->cci_info->acquired_gpio_queue);
-	CAM_INFO(CAM_CCI, "RegAddr: 0x%x", reg_addr);
-
-	if (queue_size < c_ctrl->cci_info->cmd_buf.cmd_count) {
+	if (queue_size < cmd_buf->cmd_count) {
 		CAM_ERR(CAM_CCI,
-			"GPIO cmd buffer (%d) is larger than queue capacity (%d)!",
-			c_ctrl->cci_info->cmd_buf.cmd_count, queue_size);
+			"cmd_buf (%u cmds) exceeds queue %d capacity (%d words)",
+			cmd_buf->cmd_count, queue, queue_size);
 		rc = -EINVAL;
 		goto release_queue;
 	}
 
-	CAM_INFO(CAM_CCI, "gpio_queue_cmd_num %d",
-		c_ctrl->cci_info->cmd_buf.cmd_count);
+	soc_info = &cci_dev->soc_info;
+	base = soc_info->reg_map[0].mem_base;
+	reg_addr = CCI_GPIO_QUEUE_LOAD_ADDR(queue);
 
-	for (i = 0; i < c_ctrl->cci_info->cmd_buf.cmd_count; i++) {
-		CAM_INFO(CAM_CCI, "GPIO queue [%d]: val 0x%x",
-			i, c_ctrl->cci_info->cmd_buf.buf[i]);
-		cam_io_w_mb(c_ctrl->cci_info->cmd_buf.buf[i], base + reg_addr);
-	}
+	CAM_DBG(CAM_CCI, "Loading %u cmds into GPIO queue %d (reg=0x%x)",
+		cmd_buf->cmd_count, queue, reg_addr);
 
-	wordcount = cam_io_r_mb(base + (CCI_GPIO_WORD_COUNT_ADDR +
-		(0x100 * c_ctrl->cci_info->acquired_gpio_queue)));
-	CAM_INFO(CAM_CCI, "GPIO queue word count: %u", wordcount);
+	for (i = 0; i < cmd_buf->cmd_count; i++)
+		cam_io_w_mb(cmd_buf->buf[i], base + reg_addr);
 
-	cam_io_w_mb(wordcount, base + (CCI_GPIO_EXECUTE_WC_ADDR +
-		(0x100 * c_ctrl->cci_info->acquired_gpio_queue)));
+	wordcount = cam_io_r_mb(base +
+		(CCI_GPIO_WORD_COUNT_ADDR + (0x100 * queue)));
+	cam_io_w_mb(wordcount, base +
+		(CCI_GPIO_EXECUTE_WC_ADDR + (0x100 * queue)));
 
+	mutex_unlock(&cci_dev->init_mutex);
 	return 0;
 
 release_queue:
-	cci_dev->gpio_queue[c_ctrl->cci_info->acquired_gpio_queue].is_acquired = false;
+	cci_dev->gpio_queue[queue].is_acquired = false;
 	c_ctrl->cci_info->acquired_gpio_queue = -1;
+	mutex_unlock(&cci_dev->init_mutex);
 	return rc;
 }
 
@@ -398,21 +374,14 @@ static int __cci_halt_gpio_queue(struct v4l2_subdev *sd,
 		c_ctrl->cci_info->acquired_gpio_queue);
 	cam_io_w_mb(val, base + CCI_HALT_REQ_ADDR);
 
-	mutex_lock(&fsync_obj_mutex);
-	if (fsync_obj.fsync_consumer_refcount > 0)
-		fsync_obj.fsync_consumer_refcount--;
-
-	if (!fsync_obj.fsync_consumer_refcount) {
-		CAM_INFO(CAM_CCI, "RESETTING GPIO QUEUE RELATED SETTINGS");
+	if (c_ctrl->cci_info->acquired_gpio_queue >= 0) {
 		queue = c_ctrl->cci_info->acquired_gpio_queue;
+		mutex_lock(&cci_dev->init_mutex);
 		cci_dev->gpio_queue[queue].is_acquired = false;
 		c_ctrl->cci_info->acquired_gpio_queue = -1;
-		fsync_obj.cci_index = -1;
-		fsync_obj.cci_timer_index = -1;
-		fsync_obj.fsync_queue = -1;
-		fsync_obj.is_enabled = false;
+		mutex_unlock(&cci_dev->init_mutex);
+		CAM_DBG(CAM_CCI, "GPIO queue %d released", queue);
 	}
-	mutex_unlock(&fsync_obj_mutex);
 
 	return rc;
 }
@@ -424,9 +393,21 @@ int cam_cci_fsync_core_cfg(struct v4l2_subdev *sd,
 
 	switch (cci_ctrl->cmd) {
 	case MSM_CCI_TIMER_FSYNC_INDEPENDENT:
-		CAM_DBG(CAM_CCI, "GPIO_FSYNC INDEPENDENT IS DETECTED");
-		rc = cam_cci_load_gpio_queue(sd, cci_ctrl);
-		CAM_DBG(CAM_CCI, "DONE WITH GPIO CONFIGURATION WITH RC: %d", rc);
+		/*
+		 * Load the GPIO queue from the cmd_buf passed via cci_client,
+		 * start it, then release the queue immediately (transient
+		 * ownership — the queue is held only for this trigger cycle).
+		 */
+		rc = cam_cci_load_gpio_queue(sd, cci_ctrl,
+			&cci_ctrl->cci_info->cmd_buf);
+		if (rc) {
+			CAM_ERR(CAM_CCI, "GPIO queue load failed: %d", rc);
+			break;
+		}
+		rc = __cci_gpio_queue_start(sd, cci_ctrl);
+		if (rc)
+			CAM_ERR(CAM_CCI, "GPIO queue start failed: %d", rc);
+		__cci_halt_gpio_queue(sd, cci_ctrl);
 		break;
 	case MSM_CCI_GPIO_QUEUE_HALT:
 		CAM_DBG(CAM_CCI, "MSM_CCI_GPIO_QUEUE_HALT");

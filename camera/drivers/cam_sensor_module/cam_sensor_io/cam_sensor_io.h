@@ -137,8 +137,6 @@ int32_t camera_io_dev_sequential_xfer(struct camera_io_master *io_master_info,
 	struct cam_cmd_i2c_sequential_xfer *seq_xfer);
 
 int32_t camera_io_gpio_cfg(struct camera_io_master *io_master_info);
-int32_t camera_io_gpio_sync_cfg(struct camera_io_master *io_master_info,
-	struct cci_sync_info *sync_cfg);
 int32_t camera_io_gpio_halt(struct camera_io_master *io_master_info);
 int32_t camera_io_gpio_start(struct camera_io_master *io_master_info);
 #include "cam_sensor_i2c.h"

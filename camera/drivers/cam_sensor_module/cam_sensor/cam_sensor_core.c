@@ -412,22 +412,15 @@ static int32_t cam_sensor_pkt_parse(struct cam_sensor_ctrl_t *s_ctrl,
 			&i2c_data->per_frame[csl_packet->header.request_id %
 				MAX_PER_FRAME_ARRAY];
 
-		/* NEW: reset sync config flags at the start of each update
-		 * packet so that a frame without a SYNC_INFO blob does not
-		 * accidentally re-trigger gpio_sync_cfg at the next
-		 * CAM_START_DEV (e.g. after a flush/restart). The blob
-		 * handler will re-arm them if the blob is present. */
-
-		if (s_ctrl->per_frame_sync_info) {
+		/* Reset fsync slot at the start of each update packet so
+		 * that a frame without a SYNC_INFO blob does not carry over
+		 * a stale configuration from a previous request. */
+		if (s_ctrl->per_frame_fsync) {
 			uint32_t idx = csl_packet->header.request_id % MAX_PER_FRAME_ARRAY;
-			s_ctrl->per_frame_sync_info[idx].is_settings_valid = 0;
-			s_ctrl->per_frame_sync_info[idx].request_id = 0;
-		}
 
-		if (s_ctrl->per_frame_cmd_buf) {
-			uint32_t idx = csl_packet->header.request_id % MAX_PER_FRAME_ARRAY;
-			s_ctrl->per_frame_cmd_buf[idx].cmd_buf_ready = false;
-			s_ctrl->per_frame_cmd_buf[idx].cmd_count = 0;
+			s_ctrl->per_frame_fsync[idx].is_valid = false;
+			s_ctrl->per_frame_fsync[idx].request_id = 0;
+			s_ctrl->per_frame_fsync[idx].num_queues = 0;
 		}
 
 		s_ctrl->fsync_blob_ready = false;
@@ -2128,25 +2121,14 @@ int cam_sensor_apply_settings(struct cam_sensor_ctrl_t *s_ctrl,
 			}
 		}
 
-		/* Delete old sync info entries */
-		if (s_ctrl->per_frame_sync_info) {
+		/* Delete old fsync slots for requests older than del_req_id */
+		if (s_ctrl->per_frame_fsync) {
 			for (i = 0; i < MAX_PER_FRAME_ARRAY; i++) {
-				if ((del_req_id > s_ctrl->per_frame_sync_info[i].request_id) &&
-				    (s_ctrl->per_frame_sync_info[i].is_settings_valid == 1)) {
-					s_ctrl->per_frame_sync_info[i].request_id = 0;
-					s_ctrl->per_frame_sync_info[i].is_settings_valid = 0;
-				}
-			}
-		}
-
-		/* Delete old cmd_buf entries */
-		if (s_ctrl->per_frame_cmd_buf) {
-			for (i = 0; i < MAX_PER_FRAME_ARRAY; i++) {
-				if (s_ctrl->per_frame_cmd_buf[i].cmd_buf_ready &&
-				    s_ctrl->per_frame_sync_info &&
-				    del_req_id > s_ctrl->per_frame_sync_info[i].request_id) {
-					s_ctrl->per_frame_cmd_buf[i].cmd_buf_ready = false;
-					s_ctrl->per_frame_cmd_buf[i].cmd_count = 0;
+				if (s_ctrl->per_frame_fsync[i].is_valid &&
+				    del_req_id > s_ctrl->per_frame_fsync[i].request_id) {
+					s_ctrl->per_frame_fsync[i].is_valid = false;
+					s_ctrl->per_frame_fsync[i].request_id = 0;
+					s_ctrl->per_frame_fsync[i].num_queues = 0;
 				}
 			}
 		}
