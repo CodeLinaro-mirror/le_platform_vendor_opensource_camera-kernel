@@ -121,8 +121,6 @@ struct cam_sensor_dev_res_info {
  * @pwr_ref_cnt : Ref counter for pwr up and pwr down.
  * @fsync_blob_ready: Valid SYNC_INFO blob decoded for current trigger group;
  *                    consumed once to set external_trigger then cleared
- * @is_fsync_active:  Sensor has been configured for GPIO fsync this session;
- *                    used to decide GPIO halt on release
  * @per_frame_fsync:  Per-request GPIO fsync slots; one cmd_buf per queue
  *                    needed, indexed by req_id % MAX_PER_FRAME_ARRAY
  */
@@ -164,7 +162,6 @@ struct cam_sensor_ctrl_t {
 	bool                           is_res_info_updated;
 	bool                           hw_no_ops;
 	bool                           fsync_blob_ready;
-	bool                           is_fsync_active;
 	struct cam_sensor_fsync_slot   *per_frame_fsync;
 #ifdef CONFIG_SPECTRA_SENSOR_SYSFS_UTIL
 	uint8_t                        pwr_ref_cnt;

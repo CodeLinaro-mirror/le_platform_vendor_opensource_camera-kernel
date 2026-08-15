@@ -195,7 +195,6 @@ int cam_sensor_fsync_handle_blob(uint8_t *blob_data, uint32_t blob_size,
 	}
 
 	s_ctrl->fsync_blob_ready = true;
-	s_ctrl->is_fsync_active = true;
 
 	CAM_INFO(CAM_SENSOR,
 		 "SYNC_INFO: decode OK - mode=%d req_id=%lld cached into per_frame_fsync[%u]",
