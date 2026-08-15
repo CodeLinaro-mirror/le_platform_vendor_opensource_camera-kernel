@@ -184,8 +184,12 @@ int cam_sensor_fsync_handle_blob(uint8_t *blob_data, uint32_t blob_size,
 		 * populated here. Multi-queue support will be added as part
 		 * of the fsync object redesign.
 		 */
-		rc = cam_cci_timing_schema_to_cmd_buf(&fsync_cfg->timer_info,
-			&slot->cmd_buf[0]);
+		if (fsync_cfg->freq_info.freq_mode == CCI_TIMER_INFINITE_FRAME)
+			rc = cam_cci_build_infinite_mode_cmd_buf(
+				&fsync_cfg->timer_info, &slot->cmd_buf[0]);
+		else
+			rc = cam_cci_timing_schema_to_cmd_buf(&fsync_cfg->timer_info,
+				&slot->cmd_buf[0]);
 		if (rc < 0) {
 			CAM_ERR(CAM_SENSOR,
 				"Failed to convert timing schema: %d", rc);
