@@ -26,6 +26,7 @@
 #include <cam_sensor_io.h>
 #include "cam_debug_util.h"
 #include "cam_context.h"
+#include "cam_sensor_fsync.h"
 
 #define NUM_MASTERS 2
 #define NUM_QUEUES 2
@@ -118,6 +119,14 @@ struct cam_sensor_dev_res_info {
  * @is_res_info_updated: Indicate if resolution info is updated
  * @hw_no_ops: To determine whether HW operations need to be disabled
  * @pwr_ref_cnt : Ref counter for pwr up and pwr down.
+ * @fsync_blob_ready: Valid SYNC_INFO blob decoded for current trigger group;
+ *                    consumed once to set external_trigger then cleared
+ * @is_fsync_active:  Sensor has been configured for GPIO fsync this session;
+ *                    used to decide GPIO halt on release
+ * @sync_cfg:         Cache of the last decoded SYNC_INFO blob; copied into
+ *                    cci_client->sync_cfg for CPAS configuration at apply time
+ * @per_frame_sync_info: Pointer to per frame sync info
+ * @per_frame_cmd_buf: Pointer to CCI GPIO command buffer
  */
 struct cam_sensor_ctrl_t {
 	char                           device_name[CAM_CTX_DEV_NAME_MAX_LENGTH];
@@ -156,6 +165,11 @@ struct cam_sensor_ctrl_t {
 	bool                           stream_off_after_eof;
 	bool                           is_res_info_updated;
 	bool                           hw_no_ops;
+	bool                           fsync_blob_ready;
+	bool                           is_fsync_active;
+	struct cci_sync_info           sync_cfg;
+	struct sync_info_data          *per_frame_sync_info;
+	struct cam_cci_gpio_cmd_buf    *per_frame_cmd_buf;
 #ifdef CONFIG_SPECTRA_SENSOR_SYSFS_UTIL
 	uint8_t                        pwr_ref_cnt;
 	struct kobject                 sysfs_kobj;

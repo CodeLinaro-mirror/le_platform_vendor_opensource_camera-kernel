@@ -1,13 +1,77 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2019, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #include "cam_sensor_io.h"
 #include "cam_sensor_i2c.h"
 #include "cam_sensor_i3c.h"
 #include <linux/pm_runtime.h>
+
+/**
+ * camera_io_gpio_sync_cfg - Program CCI GPIO queue using structured
+ *                           cci_sync_info from the app vendor tag blob.
+ *
+ * @io_master_info: I2C/CCI master information
+ * @sync_cfg:       Pointer to cci_sync_info received from the app
+ *
+ * Passes MSM_CCI_TIMER_FSYNC_INDEPENDENT to cam_sensor_cci_i2c_util so
+ * that __cci_configure_gpio_queue uses the per-timer parameters from
+ * sync_cfg instead of the all-timers default-FPS path.
+ *
+ * Returns 0 on success, negative errno on failure.
+ */
+int32_t camera_io_gpio_sync_cfg(struct camera_io_master *io_master_info,
+	struct cci_sync_info *sync_cfg)
+{
+	int32_t rc = 0;
+
+	if (!io_master_info || !sync_cfg) {
+		CAM_ERR(CAM_SENSOR,
+			"Invalid args io_master_info=%pK sync_cfg=%pK",
+			io_master_info, sync_cfg);
+		return -EINVAL;
+	}
+
+	CAM_DBG(CAM_SENSOR,
+		"ENTER: master_type=%d operationalMode=%d",
+		io_master_info->master_type,
+		sync_cfg->operational_mode);
+
+	switch (io_master_info->master_type) {
+	case CCI_MASTER:
+		/* Copy sync_cfg into the cci_client so that
+		 * __cci_configure_gpio_queue can read it when
+		 * MSM_CCI_TIMER_FSYNC_INDEPENDENT is dispatched. */
+		if (!io_master_info->cci_client) {
+			CAM_ERR(CAM_SENSOR, "cci_client is NULL");
+			return -EINVAL;
+		}
+
+		memcpy(&io_master_info->cci_client->sync_cfg,
+		       sync_cfg,
+		       sizeof(struct cci_sync_info));
+
+		rc = cam_sensor_cci_i2c_util(
+			io_master_info,
+			MSM_CCI_TIMER_FSYNC_INDEPENDENT);
+		break;
+
+	case I2C_MASTER:
+	case I3C_MASTER:
+	case SPI_MASTER:
+	default:
+		CAM_ERR(CAM_SENSOR,
+			"camera_io_gpio_sync_cfg not supported on "
+			"master_type=%d",
+			io_master_info->master_type);
+		rc = -EINVAL;
+		break;
+	}
+
+	return rc;
+}
 
 int32_t camera_io_dev_poll(struct camera_io_master *io_master_info,
 	uint32_t addr, uint16_t data, uint32_t data_mask,
@@ -300,6 +364,71 @@ int32_t camera_io_release(struct camera_io_master *io_master_info)
 		return 0;
 	case SPI_MASTER:
 		return 0;
+	default:
+		CAM_ERR(CAM_SENSOR, "Invalid Master Type:%d", io_master_info->master_type);
+	}
+
+	return -EINVAL;
+}
+
+int32_t camera_io_gpio_cfg(struct camera_io_master *io_master_info)
+{
+	int rc = 0;
+
+	CAM_DBG(CAM_SENSOR, "ENTER");
+	if (!io_master_info) {
+		CAM_ERR(CAM_SENSOR, "Invalid Args");
+		return -EINVAL;
+	}
+
+	switch (io_master_info->master_type) {
+	case CCI_MASTER:
+		rc = cam_sensor_cci_i2c_util(io_master_info, MSM_CCI_TIMER_FSYNC_ALL);
+		break;
+	case I2C_MASTER:
+	case I3C_MASTER:
+	case SPI_MASTER:
+	default:
+		CAM_ERR(CAM_SENSOR, "Invalid Master Type:%d", io_master_info->master_type);
+	}
+
+	CAM_DBG(CAM_SENSOR, "EXIT : rc:%d", rc);
+	return rc;
+}
+
+int32_t camera_io_gpio_halt(struct camera_io_master *io_master_info)
+{
+	if (!io_master_info) {
+		CAM_ERR(CAM_SENSOR, "Invalid Args");
+		return -EINVAL;
+	}
+
+	switch (io_master_info->master_type) {
+	case CCI_MASTER:
+		return cam_sensor_cci_i2c_util(io_master_info, MSM_CCI_GPIO_QUEUE_HALT);
+	case I2C_MASTER:
+	case I3C_MASTER:
+	case SPI_MASTER:
+	default:
+		CAM_ERR(CAM_SENSOR, "Invalid Master Type:%d", io_master_info->master_type);
+	}
+
+	return -EINVAL;
+}
+
+int32_t camera_io_gpio_start(struct camera_io_master *io_master_info)
+{
+	if (!io_master_info) {
+		CAM_ERR(CAM_SENSOR, "Invalid Args");
+		return -EINVAL;
+	}
+
+	switch (io_master_info->master_type) {
+	case CCI_MASTER:
+		return cam_sensor_cci_i2c_util(io_master_info, MSM_CCI_GPIO_QUEUE_START);
+	case I2C_MASTER:
+	case I3C_MASTER:
+	case SPI_MASTER:
 	default:
 		CAM_ERR(CAM_SENSOR, "Invalid Master Type:%d", io_master_info->master_type);
 	}
