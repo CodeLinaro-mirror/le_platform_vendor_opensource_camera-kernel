@@ -1478,7 +1478,7 @@ int cam_cci_timing_schema_to_cmd_buf(struct cci_gpio_timing_schema *schema,
 		}
 
 		/* Get GPIO index */
-		gpio_idx = cam_sensor_util_get_gpio_index(schema->events[i].gpio_number);
+		gpio_idx = cam_sensor_util_remap_timer_to_gpioq_mask(schema->events[i].gpio_number);
 		if (gpio_idx < 0) {
 			CAM_ERR(CAM_CCI, "Invalid GPIO number %lld",
 				schema->events[i].gpio_number);
