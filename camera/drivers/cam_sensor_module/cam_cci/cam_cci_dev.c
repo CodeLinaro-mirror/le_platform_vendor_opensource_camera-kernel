@@ -102,7 +102,7 @@ static int __cci_configure_cpas(struct cci_device *cci_dev,
 	 */
 	cci_timer_index = -1;
 
-	if (cmd_type == MSM_CCI_TIMER_FSYNC_ALL ||
+	if (cmd_type == MSM_CCI_TIMER_FSYNC_INFINITE ||
 	    cmd_type == MSM_CCI_TIMER_FSYNC_INDEPENDENT) {
 		switch (cci_index) {
 		case 0:
@@ -489,7 +489,26 @@ int cam_cci_fsync_core_cfg(struct v4l2_subdev *sd,
 		rc = __cci_gpio_queue_start(sd, cci_ctrl);
 		if (rc)
 			CAM_ERR(CAM_CCI, "GPIO queue start failed: %d", rc);
+
 		__cci_halt_gpio_queue(sd, cci_ctrl);
+		break;
+	case MSM_CCI_TIMER_FSYNC_INFINITE:
+		/*
+		 * Load the GPIO queue from the cmd_buf passed via cci_client,
+		 * start it, then release the queue immediately (transient
+		 * ownership — the queue is held only for this trigger cycle).
+		 */
+		rc = cam_cci_load_gpio_queue(sd, cci_ctrl,
+			&cci_ctrl->cci_info->cmd_buf);
+		if (rc) {
+			CAM_ERR(CAM_CCI, "GPIO queue load failed: %d", rc);
+			break;
+		}
+		rc = __cci_gpio_queue_start(sd, cci_ctrl);
+		if (rc) {
+			CAM_ERR(CAM_CCI, "GPIO queue start failed: %d", rc);
+			__cci_halt_gpio_queue(sd, cci_ctrl);
+		}
 		break;
 	case MSM_CCI_GPIO_QUEUE_HALT:
 		CAM_DBG(CAM_CCI, "MSM_CCI_GPIO_QUEUE_HALT");
@@ -1378,9 +1397,9 @@ static const char *cam_cci_gpio_cmd_type_str(enum cam_cci_gpio_cmd_type cmd)
 }
 
 static int cam_cci_prepare_delay_chain(struct cam_cci_gpio_cmd_buf *gpio_cmds,
-	uint32_t delay, uint32_t max, enum cam_cci_gpio_cmd_type op)
+	uint64_t delay, uint32_t max, enum cam_cci_gpio_cmd_type op)
 {
-	int loop = delay / max;
+	uint64_t loop = delay / max;
 
 	while (loop > 0) {
 		if (gpio_cmds->cmd_count >= CCI_MAX_GPIO_QUEUE_SIZE) {
@@ -1408,7 +1427,7 @@ static int cam_cci_prepare_delay_chain(struct cam_cci_gpio_cmd_buf *gpio_cmds,
 int cam_cci_fill_gpio_cmd_buffer(struct cam_cci_gpio_cmd_buf *gpio_cmds,
 	int op, uint32_t val)
 {
-	uint32_t delay = 0;
+	uint64_t delay = 0;
 	int rc = 0;
 
 	if (gpio_cmds->cmd_count >= CCI_MAX_GPIO_QUEUE_SIZE)
@@ -1425,8 +1444,8 @@ int cam_cci_fill_gpio_cmd_buffer(struct cam_cci_gpio_cmd_buf *gpio_cmds,
 		break;
 	case CCI_GPIO_WAIT_CMD: {
 		/* val is wait count [31:4] */
-		delay = NSEC_TO_CCI_CLK_CYCLES(val);
-		CAM_DBG(CAM_CCI, "val %u delay %u", val, delay);
+		delay = NSEC_TO_CCI_CLK_CYCLES((uint64_t)val * 1000);
+		CAM_DBG(CAM_CCI, "val %llu delay %llu", val, delay);
 		if (delay > CCI_GPIO_MAX_DELAY_28BIT_TIMER) {
 			rc = cam_cci_prepare_delay_chain(gpio_cmds, delay,
 				CCI_GPIO_MAX_DELAY_28BIT_TIMER, op);
@@ -1441,7 +1460,7 @@ int cam_cci_fill_gpio_cmd_buffer(struct cam_cci_gpio_cmd_buf *gpio_cmds,
 	case CCI_GPIO_WAIT_SYNC_CMD: {
 		/* val is wait count [31:18] Line number to be in sync with[17:4] */
 		delay = NSEC_TO_CCI_CLK_CYCLES(val);
-		CAM_DBG(CAM_CCI, "val %u delay %u", val, delay);
+		CAM_DBG(CAM_CCI, "val %llu delay %llu", val, delay);
 		if (delay > CCI_GPIO_MAX_DELAY_14BIT_TIMER) {
 			rc = cam_cci_prepare_delay_chain(gpio_cmds, delay,
 				CCI_GPIO_MAX_DELAY_14BIT_TIMER, op);
