@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #ifndef _CAM_IRQ_CONTROLLER_H_
@@ -279,6 +279,25 @@ irqreturn_t cam_irq_controller_handle_irq(int irq_num, void *priv, int evt_grp);
 int cam_irq_controller_disable_irq(void *irq_controller, uint32_t handle);
 
 /*
+ * cam_irq_controller_disable_irq_nolock()
+ *
+ * @brief:              Without taking controller locks
+ *                      Disable the interrupts on given controller.
+ *                      Unsubscribe will disable the IRQ by default, so this is
+ *                      only needed if between subscribe/unsubscribe there is
+ *                      need to disable IRQ again
+ *
+ * @irq_controller:     Pointer to IRQ Controller that controls the registered
+ *                      events to it.
+ * @handle:             Handle returned on successful subscribe, used to
+ *                      identify the handler object
+ *
+ * @return:             0: events found and disabled
+ *                      Negative: events not registered on this controller
+ */
+int cam_irq_controller_disable_irq_nolock(void *irq_controller, uint32_t handle);
+
+/*
  * cam_irq_controller_enable_irq()
  *
  * @brief:              Enable the interrupts on given controller.
@@ -322,11 +341,14 @@ void cam_irq_controller_disable_all(void *priv);
  *
  * @irq_mask:           IRQ mask to be enabled or disabled.
  *
+ * @bottom_half:        Pointer to bottom_half implementation on which to
+ *                      enqueue the event for further handling
+ *
  * @return:             0: events found and enabled
  *                      Negative: events not registered on this controller
  */
 int cam_irq_controller_update_irq(void *irq_controller, uint32_t handle,
-	bool enable, uint32_t *irq_mask);
+	bool enable, uint32_t *irq_mask, void *bottom_half);
 
 /**
  * cam_irq_controller_register_dependent

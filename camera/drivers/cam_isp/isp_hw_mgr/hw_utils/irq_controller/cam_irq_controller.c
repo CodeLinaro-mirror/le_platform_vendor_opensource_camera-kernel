@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #include <linux/slab.h>
@@ -705,6 +705,29 @@ end:
 	return rc;
 }
 
+int cam_irq_controller_disable_irq_nolock(void *irq_controller, uint32_t handle)
+{
+	struct cam_irq_controller   *controller  = irq_controller;
+	struct cam_irq_evt_handler  *evt_handler = NULL;
+	int                         rc = 0;
+
+	if (!controller)
+		return rc;
+
+	rc = cam_irq_controller_find_event_handle(controller, handle,
+		&evt_handler);
+	if (rc)
+		goto end;
+
+	CAM_DBG(CAM_IRQ_CTRL, "disable event %d", handle);
+	__cam_irq_controller_disable_irq(controller, evt_handler);
+	cam_irq_controller_clear_irq(controller, evt_handler);
+
+end:
+	return rc;
+}
+
+
 int cam_irq_controller_unsubscribe_irq(void *irq_controller,
 	uint32_t handle)
 {
@@ -1084,7 +1107,8 @@ irqreturn_t cam_irq_controller_handle_irq(int irq_num, void *priv, int evt_grp)
 }
 
 int cam_irq_controller_update_irq(void *irq_controller, uint32_t handle,
-	bool enable, uint32_t *irq_mask)
+	bool enable, uint32_t *irq_mask,
+	void *bottom_half)
 {
 	struct cam_irq_controller   *controller  = irq_controller;
 	struct cam_irq_evt_handler  *evt_handler = NULL;
@@ -1101,6 +1125,9 @@ int cam_irq_controller_update_irq(void *irq_controller, uint32_t handle,
 		&evt_handler);
 	if (rc)
 		goto end;
+
+	if (bottom_half != NULL)
+		evt_handler->bottom_half = bottom_half;
 
 	__cam_irq_controller_disable_irq(controller, evt_handler);
 	for (i = 0; i < controller->num_registers; i++) {
