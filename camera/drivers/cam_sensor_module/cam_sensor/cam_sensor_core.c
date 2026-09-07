@@ -190,9 +190,6 @@ static int cam_sensor_fsync_trigger_check_and_apply(
 				"[%s] GPIO fsync triggered at trigger_point=%u refcount=%u",
 				g_fsync_trigger.master_sensor->sensor_name, trigger_point,
 				g_fsync_trigger.refcount_to_trigger);
-
-		/* Arm for the next sync cycle regardless of the outcome */
-		g_fsync_trigger.refcount = 0;
 	}
 
 end:
