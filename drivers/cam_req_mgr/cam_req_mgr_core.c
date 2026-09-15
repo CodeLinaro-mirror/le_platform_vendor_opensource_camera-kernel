@@ -5027,7 +5027,7 @@ static int __cam_req_mgr_setup_link_info(struct cam_req_mgr_core_link *link,
 	struct cam_req_mgr_ver_info *link_info)
 {
 	int                                      rc = 0, i = 0, num_devices = 0;
-	struct cam_req_mgr_core_dev_link_setup   link_data;
+	struct cam_req_mgr_core_dev_link_setup   link_data = {0};
 	struct cam_req_mgr_connected_device     *dev = NULL;
 	struct cam_req_mgr_connected_device     *ife_devs[CAM_CRM_MAX_IFE_DEV] = {0};
 	enum cam_pipeline_delay                  max_delay;
@@ -5125,9 +5125,12 @@ static int __cam_req_mgr_setup_link_info(struct cam_req_mgr_core_link *link,
 		goto error;
 	}
 
-	if (link_info->version == VERSION_3)
+	if (link_info->version == VERSION_3) {
 		link_data.stream_type = link->feature_flag &
 			(CAM_REQ_MGR_LINK_STREAMING_TYPE | CAM_REQ_MGR_LINK_TRIGGER_TYPE);
+		link_data.sensor_apply_check_en = link->feature_flag &
+			CAM_REQ_MGR_LINK_SENSOR_APPLY_CHECK_TYPE;
+	}
 
 	link_data.link_enable = 1;
 	link_data.link_hdl = link->link_hdl;

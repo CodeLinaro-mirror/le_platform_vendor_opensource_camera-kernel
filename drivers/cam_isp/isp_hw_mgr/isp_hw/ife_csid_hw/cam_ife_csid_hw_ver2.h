@@ -78,6 +78,31 @@
 
 #define IFE_CSID_VER2_TOP_IRQ_STATUS_BUF_DONE                    BIT(13)
 
+/**
+ * struct cam_ife_csid_rx_error_stats - Per-CSID instance RX error counters
+ *
+ * Incremented in hard-IRQ top-half context; read from debugfs process context.
+ *
+ * @crc_error_cnt:         CRC error occurrences
+ * @sot_reception_cnt:     Start-of-transmission reception count
+ * @eot_reception_cnt:     End-of-transmission reception count
+ * @unbounded_frame_cnt:   Unbounded frame occurrences
+ * @unmapped_vc_dt_cnt:    Unmapped VC/DT occurrences
+ * @error_ecc_cnt:         ECC error occurrences
+ * @warning_ecc_cnt:       ECC warning occurrences
+ * @error_cphy_ph_crc_cnt: CPHY packet header CRC error occurrences
+ */
+struct cam_ife_csid_rx_error_stats {
+	uint32_t crc_error_cnt;
+	uint32_t sot_reception_cnt;
+	uint32_t eot_reception_cnt;
+	uint32_t unbounded_frame_cnt;
+	uint32_t unmapped_vc_dt_cnt;
+	uint32_t error_ecc_cnt;
+	uint32_t warning_ecc_cnt;
+	uint32_t error_cphy_ph_crc_cnt;
+};
+
 enum cam_ife_csid_ver2_input_core_sel {
 	CAM_IFE_CSID_INPUT_CORE_SEL_NONE,
 	CAM_IFE_CSID_INPUT_CORE_SEL_INTERNAL,
@@ -652,6 +677,7 @@ struct cam_ife_csid_ver2_hw {
 	uint32_t                               rx_capture_vc_dt_rst;
 	spinlock_t                            *irq_sync_spin_lock;
 	bool                                   path_err_recovery;
+	struct cam_ife_csid_rx_error_stats     rx_error_stats;
 };
 
 /*

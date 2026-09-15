@@ -509,6 +509,7 @@ struct cam_isp_context_prev_req_info {
  * @dual_trigger:              Indicates if its dual trigger scenario
  * @error_recovery_en:         Error recovery enable flag
  * @is_tpg_enabled:            Flag to indicate if TPG device is present in the link
+ * @sensor_apply_check_en:     Check sensor request before ISP apply in no-CRM mode
  */
 struct cam_isp_context {
 	struct cam_context              *base;
@@ -609,6 +610,7 @@ struct cam_isp_context {
 	bool                                    dual_trigger;
 	bool                                    error_recovery_en;
 	bool                                    is_tpg_enabled;
+	bool                                    sensor_apply_check_en;
 };
 
 /**

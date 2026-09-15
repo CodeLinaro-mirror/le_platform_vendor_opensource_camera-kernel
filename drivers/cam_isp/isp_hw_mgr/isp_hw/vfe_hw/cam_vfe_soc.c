@@ -231,6 +231,7 @@ release_soc:
 	cam_soc_util_release_platform_resource(soc_info);
 free_soc_private:
 	kfree(soc_private);
+	soc_info->soc_private = NULL;
 
 	return rc;
 }

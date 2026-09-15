@@ -451,16 +451,17 @@ struct cam_req_mgr_device_info {
 
 /**
  * struct cam_req_mgr_core_dev_link_setup
- * @link_enable     : link or unlink
- * @link_hdl        : link identifier
- * @dev_hdl         : device handle for reference
- * @max_delay       : max pipeline delay on this link
- * @crm_cb          : callback funcs to communicate with req mgr
- * @trigger_id      : Unique ID provided to the triggering device
- * @stream_type     : sensor mode streaming type
- * @sensor_pd       : sensor pipeline delay
- * @is_sensorlite   : sensor lite active or not
- * @dual_trigger    : dual trigger active or not
+ * @link_enable           : link or unlink
+ * @link_hdl              : link identifier
+ * @dev_hdl               : device handle for reference
+ * @max_delay             : max pipeline delay on this link
+ * @crm_cb                : callback funcs to communicate with req mgr
+ * @trigger_id            : Unique ID provided to the triggering device
+ * @stream_type           : sensor mode streaming type
+ * @sensor_pd             : sensor pipeline delay
+ * @is_sensorlite         : sensor lite active or not
+ * @dual_trigger          : dual trigger active or not
+ * @sensor_apply_check_en : check sensor request before ISP apply
  */
 struct cam_req_mgr_core_dev_link_setup {
 	int32_t                    link_enable;
@@ -473,6 +474,7 @@ struct cam_req_mgr_core_dev_link_setup {
 	int8_t                     sensor_pd;
 	bool                       is_sensorlite;
 	bool                       dual_trigger;
+	bool                       sensor_apply_check_en;
 };
 
 /**

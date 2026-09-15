@@ -115,6 +115,7 @@ struct cam_mem_existing_buf_table {
  * @bufq: array of buffers
  * @dentry: Debugfs entry
  * @alloc_profile_enable: Whether to enable alloc profiling
+ * @override_cpu_access_dir : Override cpu access direction to BIDIRECTIONAL
  * @dbg_buf_idx: debug buffer index to get usecases info
  * @force_cache_allocs: Force all internal buffer allocations with cache
  * @need_shared_buffer_padding: Whether padding is needed for shared buffer
@@ -133,6 +134,7 @@ struct cam_mem_table {
 	struct cam_mem_buf_queue bufq[CAM_MEM_BUFQ_MAX];
 	struct dentry *dentry;
 	bool alloc_profile_enable;
+	bool override_cpu_access_dir;
 	size_t dbg_buf_idx;
 	bool force_cache_allocs;
 	bool need_shared_buffer_padding;
@@ -208,6 +210,15 @@ int cam_mem_mgr_map(struct cam_mem_mgr_map_cmd *cmd);
  * @return Status of operation. Negative in case of error. Zero otherwise.
  */
 int cam_mem_mgr_cache_ops(struct cam_mem_cache_ops_cmd *cmd);
+
+/**
+ * @brief: Perform cpu access ops on the buffer
+ *
+ * @cmd:   CPU access ops information
+ *
+ * @return Status of operation. Negative in case of error. Zero otherwise.
+ */
+int cam_mem_mgr_cpu_access_op(struct cam_mem_cpu_access_op *cmd);
 
 /**
  * @brief: Initializes the memory manager

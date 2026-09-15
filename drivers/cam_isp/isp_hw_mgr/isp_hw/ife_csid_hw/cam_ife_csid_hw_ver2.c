@@ -882,17 +882,25 @@ static int cam_ife_csid_ver2_rx_err_top_half(
 	}
 
 	if (status & csi2_reg->part_fatal_err_mask) {
-		if (status & IFE_CSID_VER2_RX_CPHY_EOT_RECEPTION)
+		if (status & IFE_CSID_VER2_RX_CPHY_EOT_RECEPTION) {
 			csid_hw->counters.error_irq_count++;
+			csid_hw->rx_error_stats.eot_reception_cnt++;
+		}
 
-		if (status & IFE_CSID_VER2_RX_CPHY_SOT_RECEPTION)
+		if (status & IFE_CSID_VER2_RX_CPHY_SOT_RECEPTION) {
 			csid_hw->counters.error_irq_count++;
+			csid_hw->rx_error_stats.sot_reception_cnt++;
+		}
 
-		if (status & IFE_CSID_VER2_RX_ERROR_CRC)
+		if (status & IFE_CSID_VER2_RX_ERROR_CRC) {
 			csid_hw->counters.error_irq_count++;
+			csid_hw->rx_error_stats.crc_error_cnt++;
+		}
 
-		if (status & IFE_CSID_VER2_RX_UNBOUNDED_FRAME)
+		if (status & IFE_CSID_VER2_RX_UNBOUNDED_FRAME) {
 			csid_hw->counters.error_irq_count++;
+			csid_hw->rx_error_stats.unbounded_frame_cnt++;
+		}
 
 		CAM_DBG(CAM_ISP, "CSID[%u] Recoverable Error Count:%u",
 			csid_hw->hw_intf->hw_idx,
@@ -912,6 +920,20 @@ static int cam_ife_csid_ver2_rx_err_top_half(
 			cam_ife_csid_ver2_check_and_clear_bus_violation(csid_hw, status,
 				CAM_ISP_HW_ERROR_CSID_RX, false, NULL);
 		}
+	}
+
+	if (status & csi2_reg->non_fatal_err_mask) {
+		if (status & IFE_CSID_VER2_RX_UNMAPPED_VC_DT)
+			csid_hw->rx_error_stats.unmapped_vc_dt_cnt++;
+
+		if (status & IFE_CSID_VER2_RX_ERROR_ECC)
+			csid_hw->rx_error_stats.error_ecc_cnt++;
+
+		if (status & IFE_CSID_VER2_RX_WARNING_ECC)
+			csid_hw->rx_error_stats.warning_ecc_cnt++;
+
+		if (status & IFE_CSID_VER2_RX_ERROR_CPHY_PH_CRC)
+			csid_hw->rx_error_stats.error_cphy_ph_crc_cnt++;
 	}
 end:
 	rc  = cam_ife_csid_ver2_get_evt_payload(csid_hw, &evt_payload,
@@ -3171,6 +3193,8 @@ int cam_ife_csid_ver2_release(void *hw_priv,
 			sizeof(struct cam_ife_csid_ver2_top_cfg));
 		memset(&csid_hw->debug_info, 0,
 			sizeof(struct cam_ife_csid_debug_info));
+		memset(&csid_hw->rx_error_stats, 0,
+			sizeof(csid_hw->rx_error_stats));
 
 		for (i = 0; i < CAM_IFE_PIX_PATH_RES_MAX; i++) {
 			csid_hw->token_data[i].token = NULL;
@@ -5392,10 +5416,15 @@ static int cam_ife_csid_ver2_reg_update(
 
 	return rc;
 err:
-	CAM_ERR(CAM_ISP, "CSID[%d] wrong Resource[id:%d name:%s]",
-		csid_hw->hw_intf->hw_idx,
-		rup_args->res[bit]->res_id,
-		rup_args->res[bit]->res_name);
+	if (bit < CAM_IFE_PIX_PATH_RES_MAX && rup_args->res[bit]) {
+		CAM_ERR(CAM_ISP, "CSID[%d] wrong Resource[id:%d name:%s]",
+			csid_hw->hw_intf->hw_idx,
+			rup_args->res[bit]->res_id,
+			rup_args->res[bit]->res_name);
+	} else {
+		CAM_ERR(CAM_ISP, "CSID[%d] wrong Resource[invalid bit:%d]",
+			csid_hw->hw_intf->hw_idx, bit);
+	}
 	return rc;
 }
 
@@ -6499,6 +6528,34 @@ static int cam_ife_csid_ver2_get_csid_cid_info(struct cam_ife_csid_ver2_hw *csid
 }
 
 
+static int cam_ife_csid_ver2_get_rx_stats(
+	struct cam_ife_csid_ver2_hw *csid_hw, void *cmd_args)
+{
+	struct cam_ife_csid_rx_stats_args *args =
+		(struct cam_ife_csid_rx_stats_args *)cmd_args;
+
+	args->phy_sel           = csid_hw->rx_cfg.phy_sel;
+	args->lane_cfg          = csid_hw->rx_cfg.lane_cfg;
+	args->crc_error_cnt       = csid_hw->rx_error_stats.crc_error_cnt;
+	args->sot_reception_cnt   = csid_hw->rx_error_stats.sot_reception_cnt;
+	args->eot_reception_cnt   = csid_hw->rx_error_stats.eot_reception_cnt;
+	args->unbounded_frame_cnt = csid_hw->rx_error_stats.unbounded_frame_cnt;
+	args->unmapped_vc_dt_cnt  = csid_hw->rx_error_stats.unmapped_vc_dt_cnt;
+	args->error_ecc_cnt       = csid_hw->rx_error_stats.error_ecc_cnt;
+	args->warning_ecc_cnt     = csid_hw->rx_error_stats.warning_ecc_cnt;
+	args->error_cphy_ph_crc_cnt = csid_hw->rx_error_stats.error_cphy_ph_crc_cnt;
+	return 0;
+}
+
+static int cam_ife_csid_ver2_reset_rx_stats(
+	struct cam_ife_csid_ver2_hw *csid_hw)
+{
+	memset(&csid_hw->rx_error_stats, 0, sizeof(csid_hw->rx_error_stats));
+	CAM_DBG(CAM_ISP, "CSID:%d RX error counters reset",
+		csid_hw->hw_intf->hw_idx);
+	return 0;
+}
+
 static int cam_ife_csid_ver2_process_cmd(void *hw_priv,
 	uint32_t cmd_type, void *cmd_args, uint32_t arg_size)
 {
@@ -6626,6 +6683,12 @@ static int cam_ife_csid_ver2_process_cmd(void *hw_priv,
 			rc = 0;
 		}
 	}
+		break;
+	case CAM_ISP_HW_CMD_CSID_GET_RX_STATS:
+		rc = cam_ife_csid_ver2_get_rx_stats(csid_hw, cmd_args);
+		break;
+	case CAM_ISP_HW_CMD_CSID_RESET_RX_STATS:
+		rc = cam_ife_csid_ver2_reset_rx_stats(csid_hw);
 		break;
 	default:
 		CAM_ERR(CAM_ISP, "CSID:%d unsupported cmd:%d",

@@ -8,6 +8,7 @@
 #include <linux/string.h>
 #include <linux/uaccess.h>
 #include <linux/debugfs.h>
+#include <linux/fs.h>
 
 #include <media/cam_isp.h>
 
@@ -111,6 +112,8 @@ static int cam_ife_mgr_csid_start_hw_stream_grp(int grp_cfg_index,
 	bool is_internal_start, bool is_frame_drop, bool is_recovery);
 
 static int cam_ife_mgr_enable_irq(struct cam_ife_hw_mgr_ctx *ctx, bool is_internal_start);
+
+static const struct file_operations cam_ife_csid_rx_stats_fops;
 
 static uint32_t cam_ife_utils_unset_msb(uint32_t hw_idx_mask)
 {
@@ -12599,6 +12602,15 @@ static int cam_isp_scratch_buf_update_util(
 		return rc;
 	}
 
+	if (buffer_info->offset >= size) {
+		CAM_ERR(CAM_ISP,
+			"Invalid scratch buffer offset:%u size:%u mmu_hdl:%d hdl:%d res_type:0x%x",
+			buffer_info->offset, size, mmu_hdl, buffer_info->mem_handle,
+			buffer_info->resource_type);
+		rc = -EINVAL;
+		return rc;
+	}
+
 	port_info->res_id = buffer_info->resource_type;
 	port_info->io_addr = io_addr + buffer_info->offset;
 	port_info->width = buffer_info->width;
@@ -21537,6 +21549,8 @@ static int cam_ife_hw_mgr_debug_register(void)
 		g_ife_hw_mgr.debug_cfg.dentry, NULL, &ife_csid_rx_capture_vc_dt_rst);
 	debugfs_create_bool("csid_path_error_recovery", 0644, g_ife_hw_mgr.debug_cfg.dentry,
 		&g_ife_hw_mgr.debug_cfg.csid_path_error_recovery);
+	debugfs_create_file("csid_rx_stats", 0644,
+		g_ife_hw_mgr.debug_cfg.dentry, NULL, &cam_ife_csid_rx_stats_fops);
 
 end:
 	g_ife_hw_mgr.debug_cfg.enable_csid_recovery = 1;
@@ -21814,7 +21828,6 @@ void cam_ife_hw_mgr_send_ipcc_region_info(struct cam_ife_hw_mgr *ife_hw_mgr,
 	}
 }
 
-
 #if IS_REACHABLE(CONFIG_CAM_ENABLE_SOCCP)
 int cam_ife_hw_mgr_init_hw_fence_sessions(void)
 {
@@ -21938,6 +21951,127 @@ int cam_ife_hw_mgr_deinit_hw_fence_sessions(void)
 	return 0;
 }
 #endif
+
+/**
+ * cam_ife_csid_rx_stats_read() - debugfs read: dump RX error counters for all CSIDs.
+ */
+static ssize_t cam_ife_csid_rx_stats_read(struct file *file,
+					  char __user *ubuf,
+					  size_t count, loff_t *ppos)
+{
+	struct cam_ife_hw_mgr          *hw_mgr = &g_ife_hw_mgr;
+	struct cam_hw_intf             *csid_intf;
+	struct cam_ife_csid_rx_stats_args stats;
+	char                           *buf;
+	ssize_t                         len = 0;
+	int                             i, rc;
+
+	buf = kzalloc(PAGE_SIZE, GFP_KERNEL);
+	if (!buf)
+		return -ENOMEM;
+
+	for (i = 0; i < CAM_IFE_CSID_HW_NUM_MAX; i++) {
+		if (!hw_mgr->csid_devices[i])
+			continue;
+
+		csid_intf = hw_mgr->csid_devices[i];
+		if (!csid_intf || !csid_intf->hw_ops.process_cmd)
+			continue;
+
+		memset(&stats, 0, sizeof(stats));
+		rc = csid_intf->hw_ops.process_cmd(csid_intf->hw_priv,
+			CAM_ISP_HW_CMD_CSID_GET_RX_STATS,
+			&stats, sizeof(stats));
+		if (rc) {
+			CAM_ERR(CAM_ISP, "CSID[%d] GET_RX_STATS failed rc=%d", i, rc);
+			continue;
+		}
+
+		len += scnprintf(buf + len, PAGE_SIZE - len,
+			"CSID[%d]  phy_sel: %u  lane_cfg: 0x%04x\n"
+			"  crc_error:      %u\n"
+			"  sot_reception:  %u\n"
+			"  eot_reception:  %u\n"
+			"  unbounded_frame:%u\n"
+			"  unmapped_vc_dt: %u\n"
+			"  error_ecc_cnt:  %u\n"
+			"  warning_ecc_cnt:%u\n"
+			"  error_cphy_ph_crc_cnt: %u\n",
+			i,
+			stats.phy_sel,
+			stats.lane_cfg,
+			stats.crc_error_cnt,
+			stats.sot_reception_cnt,
+			stats.eot_reception_cnt,
+			stats.unbounded_frame_cnt,
+			stats.unmapped_vc_dt_cnt,
+			stats.error_ecc_cnt,
+			stats.warning_ecc_cnt,
+			stats.error_cphy_ph_crc_cnt);
+
+		if (len >= PAGE_SIZE - 1)
+			break;
+	}
+
+	len = simple_read_from_buffer(ubuf, count, ppos, buf, len);
+	kfree(buf);
+	return len;
+}
+
+/**
+ * cam_ife_csid_rx_stats_write() - debugfs write: reset all RX error counters.
+ *
+ * "echo 1 > /sys/kernel/debug/camera_ife/csid_rx_stats" resets all counters.
+ *  Returns count to indicate all bytes were consumed.
+ */
+static ssize_t cam_ife_csid_rx_stats_write(struct file *file,
+					   const char __user *ubuf,
+					   size_t count, loff_t *ppos)
+{
+	struct cam_ife_hw_mgr  *hw_mgr = &g_ife_hw_mgr;
+	struct cam_hw_intf     *csid_intf;
+	char                    buf[4];
+	unsigned long           val;
+	int                     i;
+
+	if (count >= sizeof(buf))
+		return -EINVAL;
+
+	if (copy_from_user(buf, ubuf, count))
+		return -EFAULT;
+
+	buf[count] = '\0';
+
+	if (kstrtoul(buf, 0, &val))
+		return -EINVAL;
+
+	if (!val) {
+		CAM_ERR(CAM_ISP, "Invalid value is passed to reset RX stats");
+		return -EINVAL;
+	}
+
+	for (i = 0; i < CAM_IFE_CSID_HW_NUM_MAX; i++) {
+		if (!hw_mgr->csid_devices[i])
+			continue;
+
+		csid_intf = hw_mgr->csid_devices[i];
+		if (!csid_intf || !csid_intf->hw_ops.process_cmd)
+			continue;
+
+		csid_intf->hw_ops.process_cmd(csid_intf->hw_priv,
+			CAM_ISP_HW_CMD_CSID_RESET_RX_STATS,
+			csid_intf->hw_priv, 0);
+	}
+
+	return count;
+}
+
+static const struct file_operations cam_ife_csid_rx_stats_fops = {
+	.owner = THIS_MODULE,
+	.open  = simple_open,
+	.read  = cam_ife_csid_rx_stats_read,
+	.write = cam_ife_csid_rx_stats_write,
+};
 
 int cam_ife_hw_mgr_init(struct cam_hw_mgr_intf *hw_mgr_intf, int *iommu_hdl)
 {

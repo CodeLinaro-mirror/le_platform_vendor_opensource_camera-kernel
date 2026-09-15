@@ -11,7 +11,7 @@
 #include "cam_cpas_hw.h"
 
 /* Camera Hw parts array indices */
-#define CAM_CPAS_PART_MAX_FUSE_BITS 14
+#define CAM_CPAS_PART_MAX_FUSE_BITS 17
 #define CAM_CPAS_PART_MAX_FUSE_BIT_INFO 2
 
 /**

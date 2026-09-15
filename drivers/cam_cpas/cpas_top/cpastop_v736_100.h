@@ -1015,5 +1015,33 @@ static struct cam_cpas_camnoc_qchannel cam736_cpas100_qchannel_info = {
 	.qchannel_ctrl   = 0x5C,
 	.qchannel_status = 0x60,
 };
+
+static struct cam_cpas_subpart_info cam736_cpas100_camera_subpart_info = {
+	.num_bits = 17,
+	/*
+	 * Below fuse indexing is based on software fuse definition which is in SMEM and provided
+	 * by XBL team.
+	 */
+	.hw_bitmap_mask = {
+		{CAM_CPAS_ISP_FUSE,        BIT(0)},  // HW index 0
+		{CAM_CPAS_ISP_FUSE,        BIT(1)},  // HW index 1
+		{CAM_CPAS_FUSE_FEATURE_MAX,  BIT(0)},
+		{CAM_CPAS_FUSE_FEATURE_MAX,  BIT(0)},
+		{CAM_CPAS_FUSE_FEATURE_MAX,  BIT(0)},
+		{CAM_CPAS_FUSE_FEATURE_MAX,  BIT(0)},
+		{CAM_CPAS_FUSE_FEATURE_MAX,  BIT(0)},
+		{CAM_CPAS_ISP_LITE_FUSE,   BIT(2)},  // HW index 2  IFE LITE
+		{CAM_CPAS_ISP_LITE_FUSE,   BIT(3)},  // HW index 3  IFE LITE
+		{CAM_CPAS_ISP_LITE_FUSE,   BIT(4)},  // HW index 4  IFE LITE
+		{CAM_CPAS_ISP_LITE_FUSE,   BIT(5)},  // HW index 5  IFE LITE
+		{CAM_CPAS_ISP_LITE_FUSE,   BIT(6)},  // HW index 6  IFE LITE
+		{CAM_CPAS_ISP_LITE_FUSE,   BIT(7)},  // HW index 7  IFE LITE
+		{CAM_CPAS_ISP_LITE_FUSE,   BIT(8)},  // HW index 8  IFE LITE
+		{CAM_CPAS_ISP_LITE_FUSE,   BIT(9)},  // HW index 9  IFE LITE
+		{CAM_CPAS_ISP_LITE_FUSE,   BIT(10)}, // HW index 10  IFE LITE
+		{CAM_CPAS_ISP_LITE_FUSE,   BIT(11)}, // HW index 11  IFE LITE
+	}
+};
+
 #endif /* _CPASTOP_V736_100_H_ */
 

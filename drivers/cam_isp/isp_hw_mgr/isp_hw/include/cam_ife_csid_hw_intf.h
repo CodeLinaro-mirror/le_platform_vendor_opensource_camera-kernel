@@ -570,4 +570,35 @@ struct cam_ife_csid_get_all_path_vc_mask {
 	uint32_t enabled_path_vc;
 };
 
+/*
+ * struct cam_ife_csid_rx_stats_args - RX error counter snapshot
+ *
+ * Used with CAM_ISP_HW_CMD_CSID_GET_RX_STATS and
+ * CAM_ISP_HW_CMD_CSID_RESET_RX_STATS process_cmd commands so that the
+ * IFE HW manager never needs to reach into the ver2-private hw struct.
+ *
+ * @phy_sel:            PHY selector configured for this CSID instance
+ * @lane_cfg:           Lane configuration word
+ * @crc_error_cnt:      CRC error occurrences
+ * @sot_reception_cnt:  Start-of-transmission reception count
+ * @eot_reception_cnt:  End-of-transmission reception count
+ * @unbounded_frame_cnt: Unbounded frame occurrences
+ * @unmapped_vc_dt_cnt: Unmapped VC/DT occurrences
+ * @error_ecc_cnt:      ECC error occurrences
+ * @warning_ecc_cnt:    ECC warning occurrences
+ * @error_cphy_ph_crc_cnt: CPHY packet corrupted and CRC errors occurrences
+ */
+struct cam_ife_csid_rx_stats_args {
+	uint32_t phy_sel;
+	uint32_t lane_cfg;
+	uint32_t crc_error_cnt;
+	uint32_t sot_reception_cnt;
+	uint32_t eot_reception_cnt;
+	uint32_t unbounded_frame_cnt;
+	uint32_t unmapped_vc_dt_cnt;
+	uint32_t error_ecc_cnt;
+	uint32_t warning_ecc_cnt;
+	uint32_t error_cphy_ph_crc_cnt;
+};
+
 #endif /* _CAM_CSID_HW_INTF_H_ */
