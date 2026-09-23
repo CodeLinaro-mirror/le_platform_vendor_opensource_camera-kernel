@@ -156,4 +156,17 @@
 #define CAM_FLASH_TYPE_I2C    1
 #define CAM_FLASH_TYPE_GPIO   2
 
+/* CCI Timer */
+#define CCI_TIMER0 0
+#define CCI_TIMER1 1
+#define CCI_TIMER2 2
+#define CCI_TIMER3 3
+#define CCI_TIMER4 4
+#define CCI_TIMER5 5
+#define CCI_TIMER6 6
+#define CCI_TIMER7 7
+#define CCI_TIMER8 8
+#define CCI_TIMER9 9
+#define CCI_TIMER_MAX 10
+
 #endif
