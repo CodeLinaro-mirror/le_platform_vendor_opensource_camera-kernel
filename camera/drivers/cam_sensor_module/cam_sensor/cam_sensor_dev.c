@@ -265,20 +265,12 @@ static int cam_sensor_i2c_component_bind(struct device *dev,
 		goto unreg_subdev;
 	}
 
-	s_ctrl->per_frame_sync_info =
-		kzalloc(sizeof(struct sync_info_data) *
+	s_ctrl->per_frame_fsync =
+		kzalloc(sizeof(struct cam_sensor_fsync_slot) *
 		MAX_PER_FRAME_ARRAY, GFP_KERNEL);
-	if (s_ctrl->per_frame_sync_info == NULL) {
+	if (s_ctrl->per_frame_fsync == NULL) {
 		rc = -ENOMEM;
 		goto free_perframe;
-	}
-
-	s_ctrl->per_frame_cmd_buf =
-		kzalloc(sizeof(struct cam_cci_gpio_cmd_buf) *
-		MAX_PER_FRAME_ARRAY, GFP_KERNEL);
-	if (s_ctrl->per_frame_cmd_buf == NULL) {
-		rc = -ENOMEM;
-		goto free_sync_info;
 	}
 
 	s_ctrl->i2c_data.frame_skip =
@@ -286,7 +278,7 @@ static int cam_sensor_i2c_component_bind(struct device *dev,
 		MAX_PER_FRAME_ARRAY, GFP_KERNEL);
 	if (s_ctrl->i2c_data.frame_skip == NULL) {
 		rc = -ENOMEM;
-		goto free_cmd_buf;
+		goto free_fsync;
 	}
 
 	s_ctrl->i2c_data.bubble_update =
@@ -329,10 +321,8 @@ static int cam_sensor_i2c_component_bind(struct device *dev,
 
 free_frame_skip:
 	kfree(s_ctrl->i2c_data.frame_skip);
-free_cmd_buf:
-	kfree(s_ctrl->per_frame_cmd_buf);
-free_sync_info:
-	kfree(s_ctrl->per_frame_sync_info);
+free_fsync:
+	kfree(s_ctrl->per_frame_fsync);
 free_perframe:
 	kfree(s_ctrl->i2c_data.per_frame);
 unreg_subdev:
@@ -373,8 +363,7 @@ static void cam_sensor_i2c_component_unbind(struct device *dev,
 	cam_sensor_release_power_domain(s_ctrl);
 	cam_unregister_subdev(&(s_ctrl->v4l2_dev_str));
 
-	kfree(s_ctrl->per_frame_cmd_buf);
-	kfree(s_ctrl->per_frame_sync_info);
+	kfree(s_ctrl->per_frame_fsync);
 	kfree(s_ctrl->i2c_data.per_frame);
 	kfree(s_ctrl->i2c_data.frame_skip);
 	kfree(s_ctrl->i2c_data.bubble_update);
@@ -520,20 +509,12 @@ static int cam_sensor_component_bind(struct device *dev,
 		goto unreg_subdev;
 	}
 
-	s_ctrl->per_frame_sync_info =
-		kzalloc(sizeof(struct sync_info_data) *
+	s_ctrl->per_frame_fsync =
+		kzalloc(sizeof(struct cam_sensor_fsync_slot) *
 		MAX_PER_FRAME_ARRAY, GFP_KERNEL);
-	if (s_ctrl->per_frame_sync_info == NULL) {
+	if (s_ctrl->per_frame_fsync == NULL) {
 		rc = -ENOMEM;
 		goto free_perframe;
-	}
-
-	s_ctrl->per_frame_cmd_buf =
-		kzalloc(sizeof(struct cam_cci_gpio_cmd_buf) *
-		MAX_PER_FRAME_ARRAY, GFP_KERNEL);
-	if (s_ctrl->per_frame_cmd_buf == NULL) {
-		rc = -ENOMEM;
-		goto free_sync_info;
 	}
 
 	s_ctrl->i2c_data.frame_skip =
@@ -541,7 +522,7 @@ static int cam_sensor_component_bind(struct device *dev,
 		MAX_PER_FRAME_ARRAY, GFP_KERNEL);
 	if (s_ctrl->i2c_data.frame_skip == NULL) {
 		rc = -ENOMEM;
-		goto free_cmd_buf;
+		goto free_fsync;
 	}
 
 	s_ctrl->i2c_data.bubble_update =
@@ -590,10 +571,8 @@ static int cam_sensor_component_bind(struct device *dev,
 
 free_frame_skip:
 	kfree(s_ctrl->i2c_data.frame_skip);
-free_cmd_buf:
-	kfree(s_ctrl->per_frame_cmd_buf);
-free_sync_info:
-	kfree(s_ctrl->per_frame_sync_info);
+free_fsync:
+	kfree(s_ctrl->per_frame_fsync);
 free_perframe:
 	kfree(s_ctrl->i2c_data.per_frame);
 unreg_subdev:
@@ -641,8 +620,7 @@ static void cam_sensor_component_unbind(struct device *dev,
 		devm_clk_put(soc_info->dev, soc_info->clk[i]);
 	}
 
-	kfree(s_ctrl->per_frame_cmd_buf);
-	kfree(s_ctrl->per_frame_sync_info);
+	kfree(s_ctrl->per_frame_fsync);
 	kfree(s_ctrl->i2c_data.per_frame);
 	kfree(s_ctrl->i2c_data.frame_skip);
 	kfree(s_ctrl->i2c_data.bubble_update);

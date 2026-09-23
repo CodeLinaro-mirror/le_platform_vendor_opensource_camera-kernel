@@ -8,6 +8,7 @@
 
 #include <linux/types.h>
 #include <media/cam_sensor.h>
+#include "cam_cci_dev.h"
 
 struct cam_sensor_ctrl_t;
 
@@ -17,15 +18,17 @@ struct cam_sensor_ctrl_t;
 #define CAM_SENSOR_FSYNC_MAX_CONFIG_SIZE 4096
 
 /**
- * struct sync_info_data - Per-frame sync info storage
- * @sync_info:         CCI sync configuration for this frame
- * @request_id:        Request ID this sync info belongs to
- * @is_settings_valid: Flag indicating if settings are valid
+ * struct cam_sensor_fsync_slot - Per-request GPIO fsync storage
+ * @cmd_buf:    Pre-converted GPIO command buffers, one per queue needed
+ * @num_queues: Number of GPIO queues needed for this request
+ * @request_id: Request ID this slot belongs to
+ * @is_valid:   Slot contains a valid, unconsumed fsync configuration
  */
-struct sync_info_data {
-	struct cci_sync_info sync_info;
-	int64_t request_id;
-	int32_t is_settings_valid;
+struct cam_sensor_fsync_slot {
+	struct cam_cci_gpio_cmd_buf cmd_buf[GPIO_Q_MAX];
+	uint8_t                     num_queues;
+	int64_t                     request_id;
+	bool                        is_valid;
 };
 
 /**
@@ -35,7 +38,8 @@ struct sync_info_data {
  * @s_ctrl:    Sensor control structure to populate
  *
  * Decodes and validates a cci_sync_info blob received from userspace,
- * stores the result in per_frame_sync_info and per_frame_cmd_buf.
+ * converts the timing schema to GPIO command buffers, and stores the
+ * result in per_frame_fsync[].
  *
  * Returns: 0 on success, negative error code on failure
  */

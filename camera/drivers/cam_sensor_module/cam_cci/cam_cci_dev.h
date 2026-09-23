@@ -211,14 +211,6 @@ struct cam_cci_gpio_fsync_cfg {
 	enum cam_cci_timer_cmd_type fsync_cmd_type;
 };
 
-struct cci_timer_fsync_all {
-	bool is_enabled;
-	int fsync_consumer_refcount;
-	int cci_index;
-	int fsync_queue;
-	int cci_timer_index;
-};
-
 /**
  * struct cam_cci_gpio_cmd_buf - CCI GPIO command buffer
  * @cmd_count:     Number of commands in the buffer
@@ -366,8 +358,6 @@ struct cam_sensor_cci_client {
 	bool is_probing;
 	bool is_master_owned;
 	int acquired_gpio_queue;
-	uint16_t cci_timer_index;
-	struct cci_sync_info sync_cfg;
 	struct cam_cci_gpio_cmd_buf cmd_buf;
 };
 
@@ -463,5 +453,40 @@ int cam_cci_fill_gpio_cmd_buffer(struct cam_cci_gpio_cmd_buf *gpio_cmds,
  */
 int cam_cci_timing_schema_to_cmd_buf(struct cci_gpio_timing_schema *schema,
 	struct cam_cci_gpio_cmd_buf *cmd_buf);
+
+/**
+ * cam_cci_build_infinite_mode_cmd_buf - Convert timing schema to GPIO
+ *                                       commands for infinite frequency mode
+ * @schema:  Pointer to GPIO timing schema
+ * @cmd_buf: Pointer to command buffer to fill
+ *
+ * Builds on cam_cci_timing_schema_to_cmd_buf() by wrapping the converted
+ * commands with CCI_GPIO_REPEAT_CMD (prepended) and CCI_GPIO_REPORT_CMD +
+ * CCI_GPIO_CONTINUE_CMD (appended), so the GPIO queue loops indefinitely
+ * instead of running once. Used when repeat_freq_info.freq_mode is
+ * CCI_TIMER_INFINITE_FRAME.
+ *
+ * Returns: 0 on success, negative error code on failure
+ */
+int cam_cci_build_infinite_mode_cmd_buf(struct cci_gpio_timing_schema *schema,
+	struct cam_cci_gpio_cmd_buf *cmd_buf);
+
+/**
+ * cam_cci_write_gpio_cmd_buf - Write a GPIO command buffer's words into the
+ *                              CCI GPIO queue load register
+ * @base:     CCI hardware register base
+ * @reg_addr: GPIO queue load register address (from
+ *            CCI_GPIO_QUEUE_LOAD_ADDR())
+ * @cmd_buf:  Pointer to command buffer to write
+ *
+ * Common primitive that writes each word of an already-built GPIO command
+ * buffer into hardware. It has no knowledge of frequency mode, REPEAT, or
+ * REPORT semantics -- it is shared by infinite mode, manual trigger mode,
+ * and any other mode that stages commands into a struct cam_cci_gpio_cmd_buf.
+ *
+ * Returns: 0 on success, negative error code on failure
+ */
+int cam_cci_write_gpio_cmd_buf(void __iomem *base, uint32_t reg_addr,
+	const struct cam_cci_gpio_cmd_buf *cmd_buf);
 
 #endif /* _CAM_CCI_DEV_H_ */
